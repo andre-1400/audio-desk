@@ -56,8 +56,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         themeManager.restoreGeneratedThemeIfNeeded()
         statusDetector.start()
 
-        // Show the gallery on first launch so the user sees the app after install.
-        showGallery()
+        // Restore whatever widget was placed last time, so a relaunch (reboot,
+        // launch-at-login) puts the desktop back the way the user left it
+        // instead of showing an empty desktop + the gallery window. Only fall
+        // back to the gallery when there's nothing to restore (true first launch).
+        if let last = RecentWidgets.last {
+            launch(entry: last)
+        } else {
+            showGallery()
+        }
 
         // Live-update the active widget when size or notes settings change.
         WidgetSizeManager.shared.$size
