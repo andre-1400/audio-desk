@@ -21,13 +21,9 @@
 		AA000109 /* VinylSleeveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000119 /* VinylSleeveView.swift */; };
 		AA000110 /* WidgetLandingAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000120 /* WidgetLandingAnimator.swift */; };
 		AA000121 /* SongFactsGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000131 /* SongFactsGenerator.swift */; };
-		AA000122 /* ShelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000132 /* ShelfView.swift */; };
-		AA000123 /* ShelfWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000133 /* ShelfWindow.swift */; };
+		AA000200 /* QueueTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000201 /* QueueTrack.swift */; };
 		AA000124 /* AppleMusicLocalQueueProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000134 /* AppleMusicLocalQueueProvider.swift */; };
 		AA000125 /* GroqConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000135 /* GroqConfiguration.swift */; };
-		AA000126 /* GroqThemeGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000136 /* GroqThemeGenerator.swift */; };
-		AA000127 /* Secrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000137 /* Secrets.swift */; };
-		AA000128 /* SpotifyAuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000138 /* SpotifyAuthManager.swift */; };
 		AA000129 /* LaunchOnStartupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000139 /* LaunchOnStartupManager.swift */; };
 		AA000130 /* StartupToggleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000140 /* StartupToggleStyle.swift */; };
 		AA000141 /* StatusMenuHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000142 /* StatusMenuHeaderView.swift */; };
@@ -54,13 +50,9 @@
 		AA000119 /* VinylSleeveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VinylSleeveView.swift; sourceTree = "<group>"; };
 		AA000120 /* WidgetLandingAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetLandingAnimator.swift; sourceTree = "<group>"; };
 		AA000131 /* SongFactsGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongFactsGenerator.swift; sourceTree = "<group>"; };
-		AA000132 /* ShelfView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfView.swift; sourceTree = "<group>"; };
-		AA000133 /* ShelfWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShelfWindow.swift; sourceTree = "<group>"; };
+		AA000201 /* QueueTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueTrack.swift; sourceTree = "<group>"; };
 		AA000134 /* AppleMusicLocalQueueProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicLocalQueueProvider.swift; sourceTree = "<group>"; };
 		AA000135 /* GroqConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqConfiguration.swift; sourceTree = "<group>"; };
-		AA000136 /* GroqThemeGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqThemeGenerator.swift; sourceTree = "<group>"; };
-		AA000137 /* Secrets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Secrets.swift; sourceTree = "<group>"; };
-		AA000138 /* SpotifyAuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyAuthManager.swift; sourceTree = "<group>"; };
 		AA000139 /* LaunchOnStartupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchOnStartupManager.swift; sourceTree = "<group>"; };
 		AA000140 /* StartupToggleStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupToggleStyle.swift; sourceTree = "<group>"; };
 		AA000142 /* StatusMenuHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuHeaderView.swift; sourceTree = "<group>"; };
@@ -97,13 +89,9 @@
 				AA000119 /* VinylSleeveView.swift */,
 				AA000120 /* WidgetLandingAnimator.swift */,
 				AA000131 /* SongFactsGenerator.swift */,
-				AA000132 /* ShelfView.swift */,
-				AA000133 /* ShelfWindow.swift */,
+				AA000201 /* QueueTrack.swift */,
 				AA000134 /* AppleMusicLocalQueueProvider.swift */,
 				AA000135 /* GroqConfiguration.swift */,
-				AA000136 /* GroqThemeGenerator.swift */,
-				AA000137 /* Secrets.swift */,
-				AA000138 /* SpotifyAuthManager.swift */,
 				AA000139 /* LaunchOnStartupManager.swift */,
 				AA000140 /* StartupToggleStyle.swift */,
 				AA000142 /* StatusMenuHeaderView.swift */,
@@ -215,13 +203,9 @@
 				AA000109 /* VinylSleeveView.swift in Sources */,
 				AA000110 /* WidgetLandingAnimator.swift in Sources */,
 				AA000121 /* SongFactsGenerator.swift in Sources */,
-				AA000122 /* ShelfView.swift in Sources */,
-				AA000123 /* ShelfWindow.swift in Sources */,
+				AA000200 /* QueueTrack.swift in Sources */,
 				AA000124 /* AppleMusicLocalQueueProvider.swift in Sources */,
 				AA000125 /* GroqConfiguration.swift in Sources */,
-				AA000126 /* GroqThemeGenerator.swift in Sources */,
-				AA000127 /* Secrets.swift in Sources */,
-				AA000128 /* SpotifyAuthManager.swift in Sources */,
 				AA000129 /* LaunchOnStartupManager.swift in Sources */,
 				AA000130 /* StartupToggleStyle.swift in Sources */,
 				AA000141 /* StatusMenuHeaderView.swift in Sources */,
