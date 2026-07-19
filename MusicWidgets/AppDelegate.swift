@@ -185,6 +185,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(.separator())
         }
 
+        // Permission denied — the widget will stay blank until this is fixed,
+        // and silently "app not running" looks identical otherwise, so surface
+        // it explicitly rather than leaving the user to guess.
+        if statusDetector.automationPermissionDenied {
+            let warning = NSMenuItem(
+                title: "Permission Needed — Click to Fix",
+                action: #selector(openAutomationSettings),
+                keyEquivalent: ""
+            )
+            warning.target = self
+            warning.image = NSImage(systemSymbolName: "exclamationmark.triangle.fill", accessibilityDescription: nil)
+            menu.addItem(warning)
+            menu.addItem(.separator())
+        }
+
         // Widget visibility
         if hasActiveWidget {
             let visible = isWidgetOrderedIn
@@ -436,6 +451,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quitApp() { NSApp.terminate(nil) }
+
+    /// Deep-links to System Settings → Privacy & Security → Automation, where
+    /// the user can re-enable the Spotify/Music automation permission they
+    /// previously denied.
+    @objc private func openAutomationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+            NSWorkspace.shared.open(url)
+        }
+    }
 
     /// A custom eighth-note glyph for the menu bar (template image, auto-tints).
     static func makeNoteIcon() -> NSImage {

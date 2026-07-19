@@ -5,6 +5,14 @@ import Foundation
 final class MusicDetector: ObservableObject {
     @Published var nowPlaying: NowPlayingInfo = .empty
 
+    /// True when the OS has denied this app permission to send Apple Events to
+    /// Spotify/Music (user clicked "Don't Allow" on the automation prompt, or
+    /// revoked it later in System Settings). Distinguishes "denied" from
+    /// "app isn't running" — both silently returned nil before this existed,
+    /// so a misclick made the widget look permanently broken with no way to
+    /// tell why.
+    @Published var automationPermissionDenied = false
+
     private enum PlayerPlaybackState {
         case playing
         case paused
@@ -12,11 +20,26 @@ final class MusicDetector: ObservableObject {
         case unknown
     }
 
+    private enum ScriptOutcome {
+        case success(String)
+        case permissionDenied
+        case otherError
+    }
+
     private struct SourceProbe {
         let source: MusicSource
         let isRunning: Bool
         let playbackState: PlayerPlaybackState
         let nowPlaying: NowPlayingInfo
+        let permissionDenied: Bool
+
+        init(source: MusicSource, isRunning: Bool, playbackState: PlayerPlaybackState, nowPlaying: NowPlayingInfo, permissionDenied: Bool = false) {
+            self.source = source
+            self.isRunning = isRunning
+            self.playbackState = playbackState
+            self.nowPlaying = nowPlaying
+            self.permissionDenied = permissionDenied
+        }
 
         var isPlaying: Bool { playbackState == .playing }
         var isPaused: Bool { playbackState == .paused }
@@ -60,16 +83,19 @@ final class MusicDetector: ObservableObject {
     private func pollNowPlaying() {
         detectionQueue.async { [weak self] in
             guard let self else { return }
-            let newState = self.detectNowPlaying()
+            let (newState, permissionDenied) = self.detectNowPlaying()
             DispatchQueue.main.async {
                 if newState != self.nowPlaying {
                     self.nowPlaying = newState
+                }
+                if permissionDenied != self.automationPermissionDenied {
+                    self.automationPermissionDenied = permissionDenied
                 }
             }
         }
     }
 
-    private func detectNowPlaying() -> NowPlayingInfo {
+    private func detectNowPlaying() -> (NowPlayingInfo, permissionDenied: Bool) {
         let spotify = probeSource(.spotify)
         let apple = probeSource(.appleMusic)
 
@@ -78,14 +104,15 @@ final class MusicDetector: ObservableObject {
 
         let selectedSource = selectPreferredSource(spotify: spotify, apple: apple)
         lastSelectedSource = selectedSource
+        let permissionDenied = spotify.permissionDenied || apple.permissionDenied
 
         switch selectedSource {
         case .spotify:
-            return spotify.nowPlaying
+            return (spotify.nowPlaying, permissionDenied)
         case .appleMusic:
-            return apple.nowPlaying
+            return (apple.nowPlaying, permissionDenied)
         case .none:
-            return .empty
+            return (.empty, permissionDenied)
         }
     }
 
@@ -113,7 +140,24 @@ final class MusicDetector: ObservableObject {
             )
         }
 
-        guard let response = Self.executeAppleScript(scriptSource) else {
+        switch Self.executeAppleScript(scriptSource) {
+        case .success(let response):
+            let parsed = Self.parseNowPlayingResponse(response, source: source)
+            return SourceProbe(
+                source: source,
+                isRunning: true,
+                playbackState: parsed.playbackState,
+                nowPlaying: parsed.info
+            )
+        case .permissionDenied:
+            return SourceProbe(
+                source: source,
+                isRunning: true,
+                playbackState: .unknown,
+                nowPlaying: emptyNowPlaying(for: source),
+                permissionDenied: true
+            )
+        case .otherError:
             return SourceProbe(
                 source: source,
                 isRunning: true,
@@ -121,14 +165,6 @@ final class MusicDetector: ObservableObject {
                 nowPlaying: emptyNowPlaying(for: source)
             )
         }
-
-        let parsed = Self.parseNowPlayingResponse(response, source: source)
-        return SourceProbe(
-            source: source,
-            isRunning: true,
-            playbackState: parsed.playbackState,
-            nowPlaying: parsed.info
-        )
     }
 
     private func updateStateChangeTracking(for probe: SourceProbe) {
@@ -199,19 +235,28 @@ final class MusicDetector: ObservableObject {
         )
     }
 
+    /// -1743 = errAEEventNotPermitted: the user denied (or later revoked) the
+    /// automation permission prompt for this app. Any other error is treated
+    /// as transient (e.g. the target app is launching/quitting mid-poll).
+    private static let automationDeniedErrorNumber = -1743
+
     @discardableResult
-    private static func executeAppleScript(_ source: String) -> String? {
+    private static func executeAppleScript(_ source: String) -> ScriptOutcome {
         guard let script = NSAppleScript(source: source) else {
-            return nil
+            return .otherError
         }
 
         var error: NSDictionary?
         let result = script.executeAndReturnError(&error)
-        if error != nil {
-            return nil
+        if let error {
+            let errorNumber = (error[NSAppleScript.errorNumber] as? NSNumber)?.intValue
+            return errorNumber == automationDeniedErrorNumber ? .permissionDenied : .otherError
         }
 
-        return result.stringValue
+        guard let text = result.stringValue else {
+            return .otherError
+        }
+        return .success(text)
     }
 
     private static func parseNowPlayingResponse(_ response: String, source: MusicSource) -> ParsedNowPlaying {
