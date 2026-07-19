@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls \"/Users/andrenizhelsky/Library/Mobile Documents/com~apple~CloudDocs/Vinyl Project/SOURCE/MVP/VinylWidget/\" 2>/dev/null)",
+      "Bash(mkdir -p ~/Developer/MusicWidgets)",
+      "Bash(cp -R \"/Users/andrenizhelsky/Library/Mobile Documents/com~apple~CloudDocs/MusicWidgets/\" ~/Developer/MusicWidgets/)",
+      "Bash(ls ~/Developer/MusicWidgets/)",
+      "Bash(xcodebuild -project MusicWidgets.xcodeproj -scheme MusicWidgets -configuration Debug build)",
+      "Bash(find ~ -name \"ContentView.swift\" -path \"*/MusicWidgets/*\" 2>/dev/null)"
+    ]
+  }
+}

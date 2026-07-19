@@ -1,0 +1,814 @@
+================================================================================
+  MUSICWIDGETS — PROJECT BRAIN
+  Last updated: 2026-05-31
+================================================================================
+
+--------------------------------------------------------------------------------
+  WHAT IS THIS APP
+--------------------------------------------------------------------------------
+MusicWidgets is a native macOS app that lets users put beautiful, aesthetic
+music-themed widgets on their desktop. The widgets show what's currently playing
+(song title, artist, album art) by reading local now-playing info from Spotify
+or Apple Music — no login, no API keys, no internet required for core features.
+
+The app was born from a viral TikTok moment with the original VinylWidget,
+which got a lot of hype and proved there's demand for this kind of product.
+
+The VinylWidget was built by Andre + partner over multiple sessions. It is a
+mature, working, production-quality codebase. MusicWidgets is the evolution
+of that project into a proper multi-widget app store product.
+
+--------------------------------------------------------------------------------
+  BUSINESS MODEL
+--------------------------------------------------------------------------------
+- Sold on the Mac App Store
+- One-time purchase (NOT a subscription — lifetime access)
+- Price TBD but targeting the €4–€10 range
+- Free to download, all widgets locked behind a one-time in-app purchase (IAP)
+- No free widget tier — everything is behind the unlock
+- Future: maybe iOS/iPad version if Mac version does well
+
+IMPORTANT strategic note from VinylWidget memory:
+- Do NOT promise full Spotify queue integration without platform approval.
+  Spotify local scripting gives current-track metadata but NOT a real queue.
+- Apple Music local scripting is richer but still not official "Up Next".
+- Position the core product honestly as "local mode" — it's still very compelling.
+- Spotify OAuth connected mode exists in VinylWidget but is limited/beta.
+- First paying user = signal to invest in Apple Developer account (€99/yr).
+
+--------------------------------------------------------------------------------
+  LAUNCH PLAN
+--------------------------------------------------------------------------------
+- v1 ships with 3 widget categories: Vinyl, CD Players, Cassettes
+- Each category will have multiple widget styles (variations)
+- Start with ~2-3 styles per category for launch
+- Add more widget styles in free updates to keep users engaged
+
+--------------------------------------------------------------------------------
+  APP STRUCTURE
+--------------------------------------------------------------------------------
+Full macOS dock app (shows in dock, has its own window — not menu bar only).
+
+SCREENS:
+  1. Home / Gallery
+     - Header: "MusicWidgets" title + settings gear icon
+     - Category cards (Vinyl / CD Players / Cassettes) with icons
+     - Row list below showing all categories with descriptions
+     - Light, airy Apple-like UI — liquid glass / skeuomorphism aesthetic
+     - Accent colors: Vinyl=Blue #5A7AFF, CD=Green #34C47C, Cassette=Orange #FF7A40
+
+  2. Category Library (drill-down)
+     - Reached by tapping a category card
+     - Grid of widget styles for that category
+     - Each card shows a preview + name + unlock button
+     - Slide-in animation from right, back button slides back
+
+  3. Active Widget (floating on desktop)
+     - When user picks a widget, it floats on the desktop via NSPanel
+     - Desktop-level only — NOT above fullscreen apps (CGWindowLevelForKey desktopIconWindow + 1)
+     - Only one widget active at a time
+     - Appears on all Spaces (collectionBehavior: canJoinAllSpaces, stationary)
+     - Draggable by window background (isMovableByWindowBackground = true)
+
+--------------------------------------------------------------------------------
+  DESIGN DIRECTION
+--------------------------------------------------------------------------------
+- Apple-native aesthetic — feels like it could have been made by Apple
+- Light UI base for the gallery app (soft grey-blue gradient)
+- Liquid glass cards — white translucent frosted glass feel
+- Skeuomorphic widget previews (the actual widgets look like real physical objects)
+- Rounded corners everywhere, generous spacing, subtle shadows
+- Hover animations (scale up 1.02–1.05), spring transitions
+- Widget previews: dark backgrounds with gradient, the actual widget renders inside
+
+--------------------------------------------------------------------------------
+  TECH STACK
+--------------------------------------------------------------------------------
+- Language: Swift
+- UI framework: SwiftUI (AppKit for window management + NSPanel)
+- Now-playing: AppleScript polling every 0.25s (very responsive)
+  - Spotify: reads track/artist/album/artworkURL/playback state/position/duration
+  - Apple Music: writes album art to temp file, reads all metadata
+  - Smart source selection: plays vs paused, recency of state change
+- Album art: URL from Spotify, temp file from Apple Music
+- Color extraction: extracts dominant palette from album art (ColourExtractor)
+- AI themes: Groq API (llama-3.3-70b-versatile), free, no credit card
+  - Generates JSON theme spec from user text prompt
+  - Style modes: flat / gradient / wild
+- Target: macOS 14.0+
+- Xcode 26.3
+
+--------------------------------------------------------------------------------
+  VINYLWIDGET — THE ORIGINAL (read this before touching anything)
+--------------------------------------------------------------------------------
+Location: ~/Library/Mobile Documents/com~apple~CloudDocs/Vinyl Project/SOURCE/MVP/VinylWidget/
+
+Latest release tag: v.0.1.31 (functional onboarding)
+
+KEY FILES AND WHAT THEY DO:
+
+  NowPlayingInfo.swift (50 lines)
+    - Struct: trackName, artistName, albumName, albumArtURL, isPlaying,
+      source (MusicSource enum), positionMillis, durationMillis, progressSampledAt
+    - MusicSource enum: .spotify / .appleMusic / .none
+    - Static .empty singleton for default state
+    → COPY THIS VERBATIM into MusicWidgets — it is perfect as-is
+
+  MusicDetector.swift (482 lines)
+    - ObservableObject, @Published var nowPlaying: NowPlayingInfo
+    - Polls every 0.25s on a background queue
+    - Probes both Spotify and Apple Music independently
+    - Smart source selection logic (who is playing? who changed state most recently?)
+    - Full AppleScript for both players (pipe-delimited response parsing)
+    - Spotify: gets artworkURL directly
+    - Apple Music: writes artwork binary to temp .jpg file, returns file path
+    - Also has togglePlayback() and seek(toMillis:) commands
+    → COPY THIS VERBATIM into MusicWidgets — battle-tested
+
+  WidgetWindow.swift (112 lines)
+    - NSPanel subclass for the floating widget
+    - Borderless, transparent, no shadow, non-activating
+    - Level: CGWindowLevelForKey(.desktopIconWindow) + 1
+    - collectionBehavior: canJoinAllSpaces, stationary, ignoresCycle
+    - isMovableByWindowBackground = true
+    - Also contains: WidgetSize enum (small=0.82x, medium=1.0x, large=1.22x)
+    - WidgetSizeManager: ObservableObject, persists size to UserDefaults
+    - ScaledWidgetView: wraps ContentView with scaleEffect for size changes
+    - baseWidgetSize = CGSize(width: 360, height: 420)
+    → COPY THIS into MusicWidgets, adapt for multi-widget support
+
+  ContentView.swift (2086 lines) — THE VINYL UI
+    - Full vinyl widget: wood panel body, spinning platter, tonearm, album art
+    - Album art as vinyl label (circular, on the platter)
+    - Tonearm animates to cue position based on track progress
+    - Corner screws (skeuomorphic detail), inset = 13
+    - Track name, artist marquee text, playback controls
+    - Dynamic theming based on ColourExtractor output
+    - SongSwitchAnimator integration for track transitions
+
+  SongSwitchAnimator.swift
+    - Phase-based state machine for track transitions
+    - Old record lifts, new record lands
+    - Careful sequencing to avoid visual glitches
+    - Deterministic ordering — no loose implicit transitions
+    - KEY CONSTRAINT: during transition, old NOW stays visible until reveal complete
+
+  AlbumArtFetcher.swift
+    - Fetches and caches album art from URLs or file paths
+    - Handles both Spotify URLs and Apple Music temp file paths
+
+  ColourExtractor.swift
+    - Extracts dominant color palette from album art NSImage
+    - Used for dynamic widget theming
+
+  WidgetTheme.swift
+    - WidgetThemeManager: ObservableObject managing current theme
+    - Theme definitions (wood colors, metal colors, accents, gradients, opacity)
+    - colors() helper method — has a subtle bug history (was fixed: flat mode
+      color padding now repeats last color instead of using default fallback)
+
+  GroqThemeGenerator.swift / GroqConfiguration.swift
+    - Calls Groq API (https://api.groq.com/openai/v1/chat/completions)
+    - Model: llama-3.3-70b-versatile
+    - Returns JSON theme spec from user text prompt
+    - Uses response_format: { type: "json_object" }
+    - Style modes: flat / gradient / wild (injected as prompt suffix)
+    - Error handling: 401/403/429/timeout/parse failures all handled
+
+  Secrets.swift (gitignored)
+    - groqAPIKey: String — Groq API key
+    - Never commit this file to any public repo
+
+  OnboardingView.swift / OnboardingWindow.swift
+    - 4-step flow: welcome → spotify → theme → ready
+    - In DEBUG: always shows (for testing)
+    - In Release: first launch only (UserDefaults key: onboarding.completed.v1)
+    - Groq AI theme generator card is on the theme step
+    - Theme preview cards: small 162×194 (~50% scale of real widget)
+    - If onboarding window closes before completion → app terminates
+
+  SettingsView.swift
+    - Size picker (small/medium/large)
+    - Theme picker
+    - Launch on startup toggle
+
+  SpotifyAuthManager.swift
+    - OAuth2 PKCE flow
+    - Client ID: e51673d509ea49bba7b3b12377744323
+    - Redirect URI: vinylwidget://callback
+    - Scopes: user-read-currently-playing, user-read-playback-state
+    - Token stored in Keychain (service: com.vinylwidget.spotify.tokens)
+    - Has race condition history — connected state propagation can be slow
+    - URL scheme (vinylwidget://) must be in Info.plist CFBundleURLTypes
+    - INFOPLIST_FILE must be set manually (not generated) for URL scheme to work
+    NOTE: For MusicWidgets we are NOT using Spotify OAuth initially.
+    Local AppleScript polling is enough for the core experience.
+
+  ShelfView.swift / ShelfWindow.swift
+    - Queue shelf panel (slides out below/above the main widget)
+    - Shows upcoming tracks in a 3D-style shelf
+    - Requires Spotify API for accurate queue — local mode uses Apple Music playlist heuristic
+
+  AppDelegate.swift
+    - Wires everything together
+    - Manages window lifecycle (WidgetWindow, ShelfWindow, AnimationOverlayWindow, OnboardingWindow)
+    - Handles Spotify OAuth callback URL
+    - Apple Event fallback for URL callbacks (kAEGetURL)
+    - shouldShowOnboarding() logic
+
+  VinylSleeveView.swift
+    - The vinyl sleeve/cover flying animation during track transitions
+
+  WidgetLandingAnimator.swift
+    - Landing animation when widget first appears
+
+  SongFactsGenerator.swift
+    - Generates fun facts about the current song (AI-powered, nice extra feature)
+
+  LaunchOnStartupManager.swift
+    - Registers/unregisters app for login items
+
+  StatusMenuHeaderView.swift
+    - Menu bar status item header
+
+  AppleMusicLocalQueueProvider.swift
+    - Best-effort queue from Apple Music local playlist order
+
+--------------------------------------------------------------------------------
+  KEY LESSONS FROM VINYLWIDGET BUILD
+--------------------------------------------------------------------------------
+1. Animation sequencing is HARD — use deterministic phase-based state machines,
+   not implicit transitions. Loose animations cause ghosts and visual artifacts.
+
+2. AppleScript polling works great at 0.25s intervals. Don't go faster.
+   Run it on a background DispatchQueue, publish results on main.
+
+3. Album art from Apple Music: must write binary to temp file, then read path.
+   Spotify gives you a URL directly — much simpler.
+
+4. NSPanel window setup: GENERATE_INFOPLIST_FILE = NO, set INFOPLIST_FILE manually.
+   Critical for URL schemes and any custom Info.plist keys.
+
+5. Flat gradient bug: when padding color arrays to required count, always repeat
+   the last color (result.last), never fall back to a default palette.
+
+6. Spotify OAuth callback: register BOTH app(_:open:) AND kAEGetURL Apple Event
+   handler — the URL can arrive via either path depending on macOS version.
+
+7. Queue from Spotify without Web API = not trustworthy. Be honest about limitations.
+   Apple Music local = best-effort heuristic only.
+
+8. AI theme generation: text→JSON approach is perfect. Don't try AI→image directly.
+   Use Groq (free, no credit card, 14,400 req/day).
+
+9. Working tree discipline: keep branches clean, tag releases. Don't commit secrets.
+
+10. Onboarding: if closed before completion, terminate the app.
+    UserDefaults key for completion: onboarding.completed.v1
+
+--------------------------------------------------------------------------------
+  WORKING LOCATIONS
+--------------------------------------------------------------------------------
+ACTIVE XCODE PROJECT: ~/Desktop/MusicWidgets/MusicWidgets.xcodeproj
+  → This is what you open in Xcode. Always edit files here.
+
+ICLOUD BACKUP: ~/Library/Mobile Documents/com~apple~CloudDocs/MusicWidgets/
+  → Sync here when stable. DO NOT open in Xcode (iCloud path bug).
+
+VINYLWIDGET SOURCE (reference, do not modify):
+  ~/Library/Mobile Documents/com~apple~CloudDocs/Vinyl Project/SOURCE/MVP/VinylWidget/
+
+NOTE: Xcode has a known bug with projects stored in iCloud Drive — source files
+can't be found due to the com~apple~CloudDocs path. Always work from Desktop.
+
+--------------------------------------------------------------------------------
+  CURRENT STATE OF MUSICWIDGETS
+--------------------------------------------------------------------------------
+Files:
+  MusicWidgetsApp.swift   — app entry point, window config (SwiftUI Scene)
+  ContentView.swift       — gallery UI: home (category cards + rows) + library drill-down
+  Assets.xcassets/        — app icon (empty), accent color
+  Info.plist              — bundle config
+
+What works:
+  ✓ App launches in dock
+  ✓ Home screen with light glass UI
+  ✓ 3 category cards (Vinyl / CD Players / Cassettes) with correct accent colors
+  ✓ Category rows below with descriptions
+  ✓ Click any category → slides into library view
+  ✓ Back button with slide-out animation
+  ✓ Hover animations on all cards (scale + shadow)
+  ✓ VINYL WIDGET FULLY INTEGRATED — "Vinyl Style 1" card has Open button
+  ✓ Vinyl widget launches as floating desktop NSPanel, reads live now-playing
+  ✓ Song-switch animation works (overlay window ported)
+
+VINYL INTEGRATION — HOW IT WAS DONE (2026-05-31):
+  - Copied these files from VinylWidget verbatim into MusicWidgets/:
+    NowPlayingInfo, MusicDetector, AlbumArtFetcher, ColourExtractor, WidgetWindow,
+    WidgetTheme, SongSwitchAnimator, VinylSleeveView, WidgetLandingAnimator,
+    SongFactsGenerator, ShelfView, ShelfWindow, AppleMusicLocalQueueProvider,
+    GroqConfiguration, GroqThemeGenerator, Secrets, SpotifyAuthManager,
+    LaunchOnStartupManager, StartupToggleStyle, StatusMenuHeaderView
+  - Renamed VinylWidget's ContentView.swift → VinylWidgetView.swift,
+    and renamed `struct ContentView` → `struct VinylWidgetView` inside it
+    (our gallery already owns the name ContentView)
+  - Removed duplicate Color(hex:) extension from gallery ContentView
+    (VinylWidgetView defines its own)
+  - Wrote a new AppDelegate.swift (gallery-launch model, not VinylWidget's full one)
+    that creates BOTH the WidgetWindow AND the AnimationOverlayWindow + subscribes
+    to animator.$phase. ContentView's "Open" button calls AppDelegate.shared?.launchVinylWidget()
+
+  CRITICAL GOTCHAS LEARNED:
+  1. Music sync needs entitlements + Info.plist:
+     - MusicWidgets.entitlements: com.apple.security.automation.apple-events = true
+     - Info.plist: NSAppleEventsUsageDescription string
+     - CODE_SIGN_ENTITLEMENTS build setting must point to the .entitlements file
+     Without these, AppleScript polling silently fails (no music sync).
+  2. Song-switch ANIMATION needs the AnimationOverlayWindow (defined inside
+     VinylWidgetView.swift). The flying disk/sleeves render in that separate
+     unclipped NSPanel that floats just above the widget. AppDelegate MUST create
+     it AND subscribe to animator.$phase to show/position/hide it. A widget-only
+     AppDelegate makes the animation look broken (disk just vanishes).
+  3. AnimationOverlayWindow level = desktopIconWindow + 2 (widget is + 1).
+
+VINYL STYLES SYSTEM (2026-06-01):
+  - 14 vinyl styles, all driven by WidgetThemeID + WidgetThemePalette (data only,
+    renderer untouched). Defined in WidgetTheme.swift.
+  - Original 4: default(Classic), pearl(Pearl), obsidian(Obsidian), modern(Minimal/floating)
+  - 10 new via makeVinylPalette() factory: walnut, rosegold, mint, midnight,
+    crimson, emerald, sandstone, slate, bubblegum, copper
+  - Added `showBodyTexture: Bool` to WidgetThemePalette — gates the pinstripe
+    Canvas overlay in VinylWidgetView. Pearl=false (user wanted no texture),
+    Obsidian/Classic/dark themes=true, light themes(pearl/rosegold/mint/sandstone/
+    bubblegum)=false, modern=false (no body).
+  - Gallery: VinylStyle.all (in ContentView.swift) lists all 14. WidgetLibraryView
+    shows VinylStyleCard grid for .vinyl category (placeholders for cd/cassette).
+  - VinylStylePreview (ContentView.swift) = static mini-render of the widget
+    (backboard + disc + grooves + label + spindle + tonearm) per palette.
+  - Each card's Open button → AppDelegate.shared?.launchVinylWidget(themeID:)
+    which calls themeManager.setTheme(themeID). Live-swaps if widget already open.
+  - To add more styles: add enum case + makeVinylPalette() call + VinylStyle.all entry.
+
+  TWEAKS (2026-06-02): CD spin-up now an ACCELERATING ramp (was easing). In CDWidgetView
+  SpinIntegrator: if spinSpeed<target, accel = 150 + spinSpeed*1.8 (gentle start, full ~2s
+  like a real CD); spin-down = speed*2.4+160.
+
+  MENU-BAR APP (2026-06-02): App is now a menu-bar accessory — NO Dock icon.
+  - Info.plist LSUIElement=true + AppDelegate NSApp.setActivationPolicy(.accessory).
+  - MusicWidgetsApp scene changed to `Settings { EmptyView() }` (no auto WindowGroup).
+  - AppDelegate: NSStatusItem with custom eighth-note glyph (makeNoteIcon, template NSImage
+    drawn w/ NSBezierPath — notehead+stem+flag). Left-click statusItem = toggle gallery
+    window; right-click = menu (Open / Quit). showGallery() builds an NSWindow hosting
+    ContentView (900x640, min 820x600, titlebar hidden/transparent) + NSApp.activate. Gallery
+    shown once on launch. galleryWindow + statusItem stored on AppDelegate. Vinyl disc degreesPerSecond 33.3rpm → 22rpm (slower/calmer). Removed vinyl
+  FEET (looked like legs/standing) — deleted hasFeet trait + vinylFeet/feet helpers. Added
+  VinylBodyTexture (Canvas: brushed/wood/fabric) + pattern trait so special styles stand out
+  by MATERIAL instead: slate=brushed metal, walnut=wood, jukebox=wood(cherry), sandstone=fabric.
+  Rendered in both live view + replica (inside body shell, before cornerScrews).
+
+  STYLE CLEANUP (2026-06-02):
+  - CD maxSpinSpeed 1000 → 2200 (much faster, realistic).
+  - CD trimmed to 8 balanced (2 per archetype): Discman Silver/Noir, Translucent Bondi/
+    Tangerine, Hi-Fi Aluminum/Onyx (dropped Cobalt near-dupe), Boombox Charcoal/Cherry(new
+    .cherry material). cobalt material now unused (harmless).
+  - VINYL trimmed 18 → 10. VinylStyle.all = 5 colorways (default/Classic, obsidian, pearl,
+    midnight, crimson) + 5 designs (modern/Minimal floating, jukebox/Retro controls+VFD,
+    slate/Studio, walnut/Audiophile, sandstone/Suitcase).
+  - New VinylModelTraits flags: hasFeet, hasPitchSlider, hasPowerLED, hasCounterweight,
+    hasPlatterRing, caseBorder (+ existing hasTransportControls, spindle). Set per themeID:
+    slate=feet+pitch+LED+retro45; walnut=feet+counterweight+platterRing+retro45;
+    sandstone=feet+powerLED+caseBorder; jukebox=controls+retro45.
+  - Rendered the design elements in BOTH VinylWidgetView (live) and VinylWidgetReplica
+    (preview): vinylFeet (bottom), vinylBodyDetails (caseBorder+latches, powerLED bottom-left,
+    pitchFader bottom-right ~286,372), platter rim ring in platterArea, counterweight in
+    tonearmView (~80,6). First pass built blind — may need repositioning.
+
+  ONBOARDING (2026-06-02): First-run setup flow. OnboardingView.swift = 4 steps now (intro,
+  type vinyl/cd, FORM, colour) → "Create my widget" launches it. Skip button on every step.
+  ContentView is now the GATE (OnboardingGate.shouldShow: DEBUG always, release first-launch
+  via UserDefaults "onboarding.done.v1"); real gallery moved to GalleryRoot. NeuTileStyle internal.
+  - NO size/notes step: create() auto-sets size = .medium; size & musical notes are adjusted
+    later in SettingsView only. (DesktopSizePreview was removed per user request.)
+
+  BRAND THEME SWITCH (2026-06-02): app UI wears Apple Music OR Spotify look (NOT the desktop
+  widgets — only gallery/onboarding chrome). `Brand` enum + `BrandManager` (ObservableObject
+  singleton, @Published brand, persisted UserDefaults "brand.v1", default .appleMusic).
+  - `Neu` + `AMTheme` are now COMPUTED from BrandManager.shared.brand (static vars, not lets) so
+    the whole tree reskins live. AppleMusic = white/light + red (#fa233b). Spotify = dark
+    (bg#121212/raised#181818/well#242424/elevated#3a3a3a/sidebar#000, text white, subtext #b3b3b3)
+    + green (#1db954). AMTheme.onAccent (white for AM / black for Spotify) used on accent surfaces.
+  - ContentView & OnboardingView observe BrandManager; ContentView .preferredColorScheme follows
+    brand (.light/.dark) — re-render re-reads computed theme. accent in OnboardingView made computed.
+  - Toggle UI: two brand pills top-LEFT of the welcome/intro step only (Apple Music = white pill/red
+    ink, Spotify = #191414 pill/green ink), selected gets ring+full opacity. brandButton in OnboardingView.
+  - AppDelegate.applyBrandToGallery(brand) sets gallery NSWindow appearance (.aqua/.darkAqua) + bg
+    (white/#121212); driven by a Combine sink on BrandManager.shared.$brand + called in showGallery.
+  - NeuSegmented selected pill now uses Neu.elevated (lighter than track in both themes).
+
+  FORMS + COLOURS (2026-06-02): type → form → colour everywhere.
+  - CD: 3 forms via CDModel.forms (filters CDModel.all by archetype): Discman (10: silver/noir/
+    cobalt/ruby/ivory/blush solid + bondi/tangerine/grape/lime translucent), Hi-Fi Deck (5:
+    aluminum/onyx/champagne/graphite/navy), Boombox (5: charcoal/cherry/cream/teal/skyblue).
+    11 new CDMaterials added in CDWidgetView.swift. CDModel.name is now the COLOUR name.
+  - Vinyl: 3 forms via VinylStyle.forms (VinylForm struct in ContentView): Turntable (6: default/
+    obsidian/pearl/midnight/crimson/emerald), Minimal (3: modern + new minimalIvory/minimalRose,
+    showBody:false), Jukebox (3: jukebox/diner/tweed — diner+tweed given transport-control traits).
+    makeVinylPalette got a showBody param. VinylStyle.all = forms.flatMap.
+  - GalleryDetail shows form section headers (formSection helper) with a LazyVGrid per form.
+
+  GALLERY REDESIGN (chosen via Q&A + IMPLEMENTED, 2026-06-02):
+  - Layout: SIDEBAR (218pt) + detail pane. Sidebar = brand + LIBRARY nav (Vinyl/CD with
+    counts, accent bar on selected) + Settings row at bottom. GalleryRoot is now HStack
+    {GallerySidebar; GalleryDetail}. Removed HomeView/CategoryTile/LibraryView/WidgetTile/GearButton.
+  - Previews: ANIMATE ON HOVER. Hover state hoisted to GalleryDetail (hoveredID) so only ONE
+    card spins at a time. VinylWidgetReplica got `spinning` (TimelineView rotates disc+label).
+    CDWidgetView got `previewSpinning` (targetSpeed 760, isStatic = isPreview && !previewSpinning).
+    Vinyl/CDModelPreview got `animated:` — skips drawingGroup when animated.
+  - NOW PLAYING bar pinned at bottom of detail pane (own MusicDetector in GalleryRoot, started
+    onAppear/stopped onDisappear; AlbumArtFetcher for art; playing/paused pill w/ pulse dot).
+  - Feel: SPACIOUS (adaptive grid min 250, 190pt preview, accent hover border + "Place" chip).
+
+  *** MAJOR PIVOT (2026-06-02): CASSETTES FULLY DELETED ***
+  App is now ONLY Vinyl + CD. CassetteWidgetView.swift deleted, removed from pbxproj,
+  gallery, AppDelegate (launch/close cassette + cassetteWindow gone), WidgetCategory
+  (.cassette removed → only .vinyl, .cd). The cassette work below is HISTORICAL/REMOVED.
+  Also: full app UI redesign → dark theme, neumorphic + skeuomorphic, clean/minimal,
+  no useless buttons (removed gear, "All Widgets" rows; whole cards are tap targets).
+
+  SETTINGS + SIZE + MUSICAL NOTES (2026-06-02):
+  - GearButton (slider.horizontal.3) on HomeView AND LibraryView headers → ContentView
+    @State showSettings → .sheet(SettingsView). SettingsView = dark neumorphic panel.
+  - SIZE: WidgetSizeManager now has .shared singleton (WidgetSize small0.82/med1.0/large1.22).
+    SettingsView NeuSegmented controls it. Vinyl scales via ScaledWidgetView(sizeManager:.shared).
+    CD scales via new CDSizedRoot (scaleEffect by sizeM.scale). LIVE: AppDelegate observes
+    WidgetSizeManager.shared.$size (global cancellable) → relayoutActiveWidget() resizes the
+    open window keeping center.
+  - MUSICAL NOTES: WidgetSettings.shared (in VinylSettings.swift) {notesEnabled, notesSide
+    left/right}. MusicalNotesView = TimelineView emitter spawning a note every ~0.95s while
+    active, each rises 64-98 + drifts outward + fades over ~3s. Added as .overlay(alignment:
+    top-leading/trailing) in BOTH VinylWidgetView and CDWidgetView, active = isPlaying.
+    NOTES ARE CUSTOM-DRAWN (not emoji): NoteSingle (♪ notehead+stem+flag) and NoteDouble
+    (♫ two heads + beam), black SwiftUI shapes. Each note random single/double, random tilt
+    baseAngle ±30° + gentle sway (never upside down / sideways). TUNED: size 26-40 (bigger),
+    spawn every 0.7s, startX/startY jitter, emitter top padding -8 so notes emerge AT the top
+    border (not below). notesPad raised to 92 so they fade before clip. SPREAD OUT: driftX
+    ±16..64, startX -18..22, startY -20..16, emitter frame 130x120 (less concentrated).
+  - LAUNCH FIX: widgets are desktop-level (behind app windows); a centered or stale-offscreen
+    launch made them invisible behind the gallery. AppDelegate.launchOrigin(xKey,yKey,size)
+    now validates saved pos is on a visible screen (else ignores) and defaults to upper-left
+    (screen.minX+70, maxY-h-90) instead of dead-center. Used by both vinyl + CD launches.
+  - WINDOW HEADROOM: AppDelegate adds notesPad (64 when notesEnabled, else 0) around each
+    widget window so notes can float OUT beyond the widget; content auto-centers (hosting
+    view centers the fixed-size root). Vinyl AnimationOverlayWindow still centers on window
+    frame = content center, so swap animation stays aligned. Toggling notes/size live-resizes
+    via relayoutActiveWidget(). cdModel tracked for CD relayout.
+
+  NEW UI (2026-06-02, DONE + builds): ContentView.swift fully rewritten.
+  - Neu enum (bg #23262d, raised, well #1a1d22, dark/light shadows, text/subtext).
+  - .neuRaised(corner,pressed) modifier = dual drop shadows (extruded). .neuInset(corner)
+    = blurred gradient stroke clipped = carved inner-shadow well. NeuTileStyle ButtonStyle
+    presses the neu in + scales 0.975.
+  - HomeView: title + 2 CategoryTile (vinyl/cd) — neu raised card w/ neuInset icon disc.
+  - LibraryView (renamed from WidgetLibraryView): back chevron + title + 3-col grid of
+    WidgetTile<Preview> (generic). Whole tile taps to launch (no separate Open button).
+    Vinyl → VinylStylePreview, CD → CDModelPreview, shown in a neuInset well.
+  - VinylStylePreview rewritten to GeometryReader fit-scale + drawingGroup (was fixed 0.40).
+  - WidgetCategory simplified to {vinyl, cd} only (accent vinyl #7c8cff, cd #4fd6a8).
+  - Kept: VinylStyle model, VinylWidgetReplica, CDModelPreview. Removed: old AppHeader,
+    GlassButton, CategoryGrid/Card, CategoryRow, AllWidgetsPreview, VinylStyleCard,
+    CDModelCard, CassetteModelCard/Preview, WidgetPlaceholderCard.
+
+  CASSETTE WIDGETS v1 (2026-06-02) [REMOVED — see pivot above]:
+  - New file CassetteWidgetView.swift, mirrors CD architecture. CassetteWidgetView(model:
+    isPreview:) engine owns detector/artFetcher/transition + reel spin integrator.
+  - CassetteMaterial (shell/label/labelBand/hub/tape/window/text/housing/accent...).
+    CassetteArchetype {cassette(bare), walkman, deck(landscape)} + baseSize + cassetteWidth.
+    CassetteModel.all = 5: Chameleon(adaptive), Classic(black), Mixtape(pink), Walkman
+    (yellow sport), Tape Deck(silver landscape).
+  - CassetteBody = realistic cassette: shell+bevel+4 screws, paper label w/ colored band +
+    handwritten title (font "Marker Felt"), recessed tape window, 2 CassetteReel (6-tooth
+    hubs + wound tape, spin), tape stretched between reels, bottom head openings. Take-up
+    reel grows / supply shrinks with `progress` (positionMillis/durationMillis).
+  - ADAPTIVE (Chameleon): model.material.adaptive=true → engine extracts ColourExtractor
+    .dominant from album art, stores @State adaptiveColor (animated 0.6s), `mat` computed
+    var overrides shell/band/housing with it. Other models fixed colors.
+  - Transition: CassetteTransitionAnimator (decelerate→eject→gap→insert→seat→spinUp);
+    cassetteUnit slides up/out (-drop) on eject, new slides in. Bare layout clipped.
+  - Walkman: housing + cassette behind window + pianoKeys (transport). Deck: landscape,
+    cassette door + cassetteLcd + pianoKeys + brushed lines.
+  - Gallery: CassetteModel.all grid, CassetteModelCard, CassetteModelPreview (renders real
+    view isPreview + drawingGroup, fit-scaled). AppDelegate.launchCassetteWidget(model:),
+    one-at-a-time (closes vinyl+cd). Added CassetteWidgetView.swift to pbxproj.
+  - STATUS: v1 builds; first pass, expect proportion/detail refinement.
+
+  BOOMBOX 3D DETAILING (2026-06-02):
+  - boomboxBody: 3D glossy shell (top-light gradient + gloss sweep + edge bevel
+    highlight/shadow + BoomboxTexture brushed lines + recessed front baffle w/ inner
+    shadow + rubber feet at bottom). Replaces flat housingShape for boombox.
+  - BoomboxWoofer enhanced: chrome trim ring (angular), 8 bolts, glossy rubber surround,
+    cone with concentric grooves, domed dust cap w/ specular + accent ring. Still pulses
+    when playing.
+  - Control deck: topControls = boomboxKnob (3D, accent pointer) · boomboxButtons · knob.
+    BoomboxAntenna (telescoping rod + tip ball) at top-right beside the handle.
+  - Layout: top zone 46 (handle+antenna), innerH body with woofers flanking (centered)
+    + center column (topControls, deck, boomboxLcd). Functionality unchanged.
+
+  CD POLISH 4 (2026-06-02 — boombox layout):
+  - Boombox restructured to ZStack: woofers (diameter 150) flank in an HStack framed to
+    innerH so they're VERTICALLY CENTERED (mid-point), not bottom. Center column VStack
+    (buttons, deck, boomboxLcd, Spacer) top-padded so disc is upper-middle, display right
+    under it. Center col + woofers horizontally separated (~36px gaps) so no overlap.
+  - boomboxLcd = retro pixelated GREEN LED display (#74ff6b glowing monospaced text) on
+    near-black, with BoomboxLcdMatrix (faint green Canvas dot-grid = LED matrix substrate).
+    Replaced the brown/amber material LCD on the boombox.
+
+  CD POLISH 3 (2026-06-02):
+  - Oscilloscope REMOVED entirely (CDOscilloscope + interpolate + oscilloscopePanel
+    deleted; hifi back to brand+lcd+controls). Couldn't beat-sync so dropped.
+  - Boombox redesigned to real proportions (same body size 580x432): small CD deck
+    (deckDiameter 96) in upper-middle, keeps all animations. CDDeck hinge/bezel/lid
+    strokes now SCALE with diameter (diameter*0.027/0.032/0.12 etc.) so the small deck
+    looks proportional. Tiny square transport keys (boomboxButtons/boomboxKey, 24x17)
+    at very top center (play=accent). Two big BoomboxWoofer (diameter 148) flank a
+    small centered CDLcd (width 130). Woofer = metal basket + 6 screws + rubber surround
+    + cone + domed dust cap w/ accent ring; cone+cap pulse via TimelineView (layered
+    sines) when active=playing&&!isPreview, still when paused. speakerGrille removed.
+  - (hifi baseSize stayed 560x300 from the oscilloscope change; fine.)
+
+  CD POLISH 2 (2026-06-02):
+  - Spin faster: maxSpinSpeed 560 → 1000 deg/s (all CD devices).
+  - Hi-Fi: 3 colorways now (aluminum, onyx=matte black, cobalt=deep blue). Added
+    CDOscilloscope (animated mirrored bar waveform, accent→pink gradient, flows when
+    playing / flat when paused) in oscilloscopePanel in the hifi right column.
+    IMPORTANT/HONEST: it is NOT real audio FFT — we only have AppleScript metadata, no
+    audio samples; true audio capture needs screen-rec permission + hits DRM + fails
+    App Store. It's a playback-reactive animation only. active = playing && !isPreview.
+  - Boombox REWORKED so nothing clips: VStack[ BoomboxHandle arch (40h) | housing(ZStack
+    with brandBar top, speakers|deck|speakers middle, lcd+controls bottom) ]. baseSize
+    bumped to 580x432. deckDiameter 180. hifi baseSize → 560x300.
+  - Logo restyled (legally distinct): brandBar now "DIGITAL DISC / STEREO · HI-FI AUDIO"
+    bold rounded + disc glyph (NOT the trademark "COMPACT DISC DIGITAL AUDIO" phrase).
+  - NOTE: trademark = the specific COMPACT DISC DIGITAL AUDIO *logo/stylization*; the
+    words are descriptive but we changed wording+style to be safe.
+
+  CD POLISH (2026-06-02): (1) Removed housing drop shadow from housingShape — it was
+  the "cloud/halo" around every widget. They now sit flat. cdMargin still exists (harmless).
+  (2) Analog transport buttons: CDPhysicalButton gained `analog` variant — matte
+  rounded-rect key, top chamfer bevel highlight, engraved/debossed icon, recessed slot.
+  CDControls(analog:) passes it; CDWidgetView uses analog for PORTRAIT only (discman/
+  translucent via isPortrait). Hi-Fi/Boombox still use the glossy `digitalButton` (TBD
+  when we detail those devices). NEXT: add details to Hi-Fi Deck + Boombox.
+
+  PERF FIX (2026-06-02): CD gallery was laggy (low FPS, also stuttered the desktop
+  widget) because it rendered 6 live CDWidgetView previews — each a heavy stack of
+  blurs/blend-modes/masks/gradients re-rasterized on every hover/scroll frame.
+  Fixes: (1) .drawingGroup() on CDModelPreview AND VinylStylePreview → flattens each
+  static preview into one cached Metal texture (rendered once). (2) CDDeck gained
+  isStatic flag; CDWidgetView passes isStatic:isPreview so previews skip the
+  SpinIntegrator/TimelineView entirely (nothing ticking while browsing).
+  If the LIVE deployed disc ever feels heavy alone, consider flattening its layers too
+  (but drawingGroup on an animating view re-rasterizes per frame — test first).
+
+  UPDATES (2026-06-02 — CD ARCHETYPES (4 device bodies)):
+  - Big refactor: CD mechanism extracted into shared CDDeck (dock+disc+lid+hub+spin+
+    swap, owns its own spin @State, takes material+diameter+phase+targetSpeed+art+onTap).
+    Shared CDLcd, CDControls, CDPhysicalButton. CDDiscView now takes accent (not full style).
+  - CDMaterial struct = all colors for a look. CDArchetype enum {discman, translucent,
+    hifi, boombox} provides baseSize (discman/translucent 360x500 portrait; hifi 540x300,
+    boombox 560x340 LANDSCAPE) + deckDiameter. CDModel = archetype+material+name for gallery.
+  - CDWidgetView(model:isPreview:) is now the ONE engine — owns detector/transition/art,
+    switches layout by archetype: portraitLayout / hifiLayout / boomboxLayout. isPreview=true
+    skips detector.start() & onChange handlers → static disc for gallery previews.
+  - 6 models: Discman(silver), Discman Noir, Bondi(translucent blue), Tangerine(translucent
+    orange), Hi-Fi Deck(brushed aluminum, landscape), Boombox(charcoal twin-speaker, landscape).
+  - Hi-Fi: HStack deck | (brand+lcd+controls), brushed horizontal lines. Boombox: twin
+    circular speakerGrille + carry-handle arc + center deck + lcd/controls row.
+  - AppDelegate.launchCDWidget(model:) sizes window to model.archetype.baseSize (recreates
+    window if size differs). Gallery: CDModel.all grid, CDModelCard, CDModelPreview renders
+    real CDWidgetView(isPreview:true) fit-scaled via GeometryReader (handles landscape too).
+  - Old CDStyle enum + cdBaseSize + CDWidgetReplica REMOVED.
+  - STATUS: all 6 build + work. First pass on the 4 bodies; landscape ones (hifi/boombox)
+    likely need proportion/detail polish per device next.
+
+  UPDATES (2026-06-02 — CD PLAYER v4, full-art disc + realism):
+  - DISC: album art now covers the WHOLE face (real CD label side faces up), not a
+    small center circle. CDDiscView = art fills circle + glossy lacquer angular sweep
+    (.screen, rotates) + dome shading + silver clampArea ring around hole + faint edge
+    rainbow. Centre HOLE is punched transparent via .mask(Circle + destinationOut hole).
+    Metallic fallback when no art.
+  - Hub now renders BEHIND the disc (drawn before discLayer in discDock). Disc occludes
+    it while lifting (no pass-through), hole reveals spindle when seated. Fixes "disc
+    goes through the chrome pivot".
+  - Square corner shadow FIXED: card is inset by cdMargin=16 inside the window; housing
+    shadow (softened 0.4/14/8) renders rounded in the margin instead of clipping square.
+    cdBaseSize now 360x500; cardSize = inset. Disc 220, dock 252.
+  - Top text cutoff fixed: topBar padTop 20 / padH 30 (clear of rounded corners).
+  - LCD spacing: Spacer(minLength:22) between LCD and controls so they don't touch; LCD
+    width 176.
+  - Gallery CDWidgetReplica updated to match (hub behind disc, new sizes/spacing, no
+    heavy shadow). CD preview scale 0.36 (card height 178 vs 500 tall widget).
+
+  UPDATES (2026-06-02 — CD PLAYER v3, lift-off + lid + skeuo):
+  - cdBaseSize now 360x460 (taller) so the open lid isn't cut off at the top. Dock
+    pushed down with a 30px headroom spacer; topbar items kept in corners so the
+    centered lid opens between them.
+  - Spindle realism: new phases decelerate→liftOff→eject→gap→insert→seat→spinUp.
+    Disc LIFTS OFF (scale 1.0→1.10 + offset -12 + growing shadow) before sliding out
+    (eject offset -lift). Incoming descends from -lift to 0 (still scale 1.10 hovering),
+    then SEAT lowers it (scale→1.0 spring) onto the stationary clampHub. Single disc
+    instance in discLayer (pose by phase) so SwiftUI interpolates smoothly; art swaps
+    at eject→gap boundary while clipped/invisible at -lift.
+  - Lid more visible: lidTint opacity 0.18(light)/0.28(dark), bright diagonal sweep +
+    secondary gleam, thicker chrome rim (7pt). Opens -108deg.
+  - Skeuomorphic buttons: CDPhysicalButton (shared, in CDWidgetView.swift) — domed cap
+    in recessed socket, top specular gloss, beveled rim, drop shadow; depresses on press
+    via CDButtonStyle. Color.adjustBrightness(_:) extension added for accent shading.
+  - LCD readout (lcdReadout): left-aligned boxy monospaced glowing text on dark teal LCD
+    panel (light teal on Frost). Replaces the centered rounded metadata. lcdText/lcdBackground
+    added to CDStyle; titleColor REMOVED.
+  - Gallery CDWidgetReplica updated to match (taller, visible lid, LCD left, physical
+    buttons). CD preview scale 0.36 (fits 178 card height at 460 tall).
+
+  UPDATES (2026-06-02 — CD PLAYER v2, lid + fixes):
+  - Hub fix: chrome clamp hub is now STATIONARY on the dock (clampHub in CDWidgetView),
+    NOT on the disc, so it stays put when the disc ejects. Disc (CDDiscView) now has
+    only a small physical centerHole (~0.11 dia), no chrome — like a real CD. Hub smaller.
+  - Responsiveness: added optimistic playback (@State optimisticPlaying) — disc reacts
+    to tap instantly; cleared on np.isPlaying change. Spin ramp 2x faster (dt*6).
+  - FLIP-OPEN LID (Discman): flipLid = translucent smoked-glass disc w/ chrome rim +
+    glossy sweep, hinged at top via rotation3DEffect(x-axis, anchor .top). Closed during
+    play (disc spins under glass), opens (-122°) during eject/gap/insert, closes at seat.
+    Eject now LIFTS disc up & out (discOffsetY -lift) under the open lid; insert descends.
+  - 2000s detailing: topBar ("COMPACT DISC / DIGITAL AUDIO" logo + power LED), hinge
+    cylinders, functional controlStrip (prev/playpause/next via detector) at bottom.
+  - Removed the horizontal slot line (point 4).
+  - CDWidgetReplica (gallery preview) updated to match: topbar, closed lid, hub, hinge,
+    metadata bars, control strip.
+  - TODO per user: "many different styles inspired by 2000s tech" — base is much richer
+    now but genuinely DIFFERENT device archetypes (boombox / hi-fi / translucent iMac)
+    are a separate bigger pass. Still only 4 color styles for now.
+
+  UPDATES (2026-06-02 — CD PLAYER widget v1):
+  - New file CDWidgetView.swift — self-contained premium Y2K CD player. Owns its
+    own MusicDetector + AlbumArtFetcher + CDTransitionAnimator (NOT shared with vinyl).
+  - CDStyle enum (chrome/graphite/frost/midnight): housing/ring/accent/disc colors.
+  - CDDiscView = reflective disc: angular metallic sheen (rotates), iridescent
+    diffraction ring (.screen), brushed data tracks, printed center label w/ album
+    art, chrome hub + transparent hole (NO spindle). Spins fast (~560 deg/s) so art
+    blurs. Spin via SpinIntegrator (TimelineView accumulating angle, eases spinSpeed
+    toward target for inertia — spin-up/down).
+  - Track change = CDTransitionAnimator phases: decelerate→eject(disc sinks into
+    slot)→gap→insert(new disc rises)→seat(spring bounce)→spinUp→idle. Movement-based,
+    clipped to dock circle (slot illusion). onReveal commits new art at insert.
+  - BreathingLED: soft cyan pulse while playing. Tap disc = play/pause. No transport
+    buttons / no seek (premium minimal per brief).
+  - AppDelegate: launchCDWidget(style:) + closeCDWidget(); ONE WIDGET AT A TIME
+    (launching CD closes vinyl & vice versa). cdWindow reuses WidgetWindow NSPanel,
+    size cdBaseSize 360x420. Position saved under cdWidgetX/Y.
+  - Gallery: CD category shows CDStyleCard grid w/ CDStylePreview (static CDWidgetReplica,
+    no detector). widgetCount for .cd = CDStyle count.
+  - STATUS: v1 builds + works. Big creative brief (Y2K luxury). Likely refinement
+    areas next: disc realism/reflections, eject choreography polish, materials, LED.
+
+  UPDATES (2026-06-01, round 7 — sleeve shadow reduced):
+  - Found the real cause of the lingering "outline": a SECOND shadow layer applied
+    per-phase in AnimationOverlayView via OverlayPose.shadowOpacity (up to 0.68/0.54),
+    separate from FlyingSleeveView's internal shadow. Reduced all sleeve pose
+    shadowOpacity/Radius across incoming + outgoing phases (now ~0.10–0.26).
+  - STATUS: a very faint outline still remains at the end but user says it's fine /
+    not too visible — LEFT AS-IS for now. If revisiting: the remaining halo is the
+    combination of FlyingSleeveView internal .shadow(0.38) + pose shadows; could drop
+    both further, or remove the square dark sleeve jacket behind the art entirely.
+  - Good stopping point 2026-06-01. Vinyl widget: 18 styles, retro models w/ buttons
+    + green VFD display, clean-ish skip animation. NEXT possible: CD/Cassette widgets,
+    IAP unlock, onboarding/settings port, app icon. Buttons + retro feel "not perfect,
+    do later" per user.
+
+  UPDATES (2026-06-01, round 6 — sleeve "dark border" root cause):
+  - The persistent "dark border" on the flying album cover was the HEAVY DROP
+    SHADOW (.shadow opacity 0.78, radius 24, y 14) on FlyingSleeveView — present
+    since the original widget. It cast a dark halo hugging the cover that read as
+    a black frame. Softened to opacity 0.38, radius 14, y 10 (natural shadow).
+  - Also oversized album art to size+2 so the dark sleeve jacket can't peek as an
+    edge. If a frame ever reappears, suspect this shadow first.
+
+  UPDATES (2026-06-01, round 5 — glare removed + sleeve animation fix):
+  - GLARE FEATURE FULLY REMOVED (user retired it). Deleted DiscGlareLevel,
+    VinylSettingsManager, DiscGlareOverlay, GlareSettingsCard. Disc is back to the
+    original baked look. VinylSettings.swift now only holds SpindleStyle,
+    VinylModelTraits, WidgetThemeID.traits, RetroVFDDisplay, RetroTransportButtonFace.
+  - SKIP ANIMATION sleeve fix: removed the framing border on the flying album cover
+    in FlyingSleeveView (was size-3 art + black strokeBorder → looked like an ugly
+    brown/dark outline). Now art fills full `size`, no stroke. Clean album cover.
+  - Replaced that border cue with a GRADUAL SHRINK for depth ("being lowered /
+    moving away"). In SongSwitchAnimator pose scales: outgoingSleeveOut 1.0→0.86;
+    incomingSleeveRevealsDisk 1.0→0.93, diskSettling 1.0→0.82. Drop shadow kept for
+    separation. To tune: edit those scale values (one number per phase).
+
+  UPDATES (2026-06-01, round 4 — glare reshape + retro polish):
+  - Glare redesigned (was a hard white streak, user disliked). Now DiscGlareOverlay
+    (in VinylSettings.swift, shared by widget + replica): broad soft feathered
+    highlight lobe (upper-left radial ellipse, blur 26) + secondary curved band
+    (blur 22), .screen blend. Looks like real glossy reflection. Low still = 0.
+  - Retro models: song/artist text RE-ADDED (user wanted it kept) as RetroVFDDisplay
+    (VinylSettings.swift): blocky monospaced GLOWING GREEN text (#5dff86) on near-black
+    inset panel — vintage VFD/stereo look. Widget shows real track ("NO SIGNAL" if
+    empty); replica shows "NOW PLAYING / MusicWidgets".
+  - Retro buttons now SQUARE + chunky: RetroTransportButtonFace (VinylSettings.swift,
+    shared): square cap (cornerRadius size*0.16) in a recessed dark frame, beveled,
+    bold icon. Widget wraps it in Button(+RetroButtonStyle); replica draws it static.
+  - Shared retro UI components all live in VinylSettings.swift so widget + gallery
+    previews use identical rendering.
+
+  UPDATES (2026-06-01, round 3 — glare + retro models):
+  - DISC GLARE setting: VinylSettings.swift defines DiscGlareLevel (low/medium/high)
+    + VinylSettingsManager (shared singleton, persisted key "vinyl.glare.level").
+    low intensity=0 (= original look, unchanged), medium=0.55, high=1.0.
+    Rendered as a FIXED (non-rotating) specular highlight on the disc in
+    VinylWidgetView.discGlare (blurred white ellipse + streak, .plusLighter blend,
+    clipped to 258 disc, opacity=intensity). Settings card (GlareSettingsCard) sits
+    at top of the Vinyl library (NOT homepage). Singleton → live-updates open widget.
+  - RETRO MODELS: 5 new themes (jukebox, diner, boombox, tweed, mustard) with
+    VinylModelTraits{hasTransportControls:true, spindle:.retro45} (VinylSettings.swift).
+    23 vinyl styles? No — 18 total now.
+  - Transport buttons: VinylWidgetView.transportControls = 3 retro metal buttons
+    (prev/playpause/next) shown INSTEAD of trackInfo when traits.hasTransportControls.
+    Wired to detector.previousTrack()/togglePlayback()/nextTrack(). Added
+    nextTrack()/previousTrack() to MusicDetector (AppleScript next/back track,
+    Spotify "previous track" / Music "back track"). RetroButtonStyle gives press feel.
+    Disc tap + tonearm seek STILL WORK (buttons are additive).
+  - Retro spindle: traits.spindle==.retro45 → chrome 45-rpm adapter (spindleView).
+  - Traits live OUTSIDE WidgetThemePalette (WidgetThemeID.traits) so the color
+    system stays untouched. Widget reads themeManager.themeID.traits.
+  - Gallery: VinylStylePreview now takes themeID (not palette); VinylWidgetReplica
+    takes traits + glareIntensity and renders glare/retro spindle/static buttons so
+    previews match deployed widget. Library observes VinylSettingsManager so previews
+    react to the glare slider live.
+  - DECISION: retro models hide track title/artist text (room for buttons, matches
+    turntable references). Easy to re-add a small title later if wanted.
+
+  UPDATES (2026-06-01, round 2):
+  - Texture/pinstripe lines REMOVED entirely from the widget renderer (user
+    disliked them on all styles). Deleted the Canvas overlay in VinylWidgetView.
+    showBodyTexture field still exists in the palette but is now unused/ignored.
+  - Copper style REMOVED (too similar to default Classic brown). 13 styles total.
+  - Previews rewritten as VinylWidgetReplica (in ContentView.swift): a pixel-exact
+    STATIC copy of the real widget geometry (body 320×380, platter 272, disc 258
+    w/ grooves, album label 96, gold tonearm 90×180 at offset(115,-84) rot -6°,
+    corner screws inset 13). No detector, no animation → fast, looks identical to
+    deployed widget. VinylStylePreview wraps it scaled (0.40). Do NOT render the
+    real VinylWidgetView for previews — it starts a MusicDetector (AppleScript
+    poller) in onAppear; 13 of them would hammer the system.
+  - Library layout: fixed vertical-centering bug by adding
+    .frame(maxWidth:.infinity, maxHeight:.infinity, alignment:.top) to both
+    HomeView and WidgetLibraryView root VStacks. Header redesigned: left-aligned
+    big title + "N styles" subtitle + "‹ Categories" back link. Compact cards.
+
+What doesn't exist yet:
+  ✗ CD + Cassette widget UI (still placeholders)
+  ✗ In-app purchase flow
+  ✗ Onboarding (OnboardingView/Window NOT yet ported)
+  ✗ Settings panel (SettingsView NOT yet ported)
+  ✗ App icon design
+  ✗ Menu bar status item (StatusMenuHeaderView ported but not wired in AppDelegate)
+
+--------------------------------------------------------------------------------
+  NEXT STEPS (priority order)
+--------------------------------------------------------------------------------
+[ ] 1. Port NowPlayingInfo.swift from VinylWidget (copy verbatim)
+[ ] 2. Port MusicDetector.swift from VinylWidget (copy verbatim, update bundle ID refs)
+[ ] 3. Port AlbumArtFetcher.swift + ColourExtractor.swift
+[ ] 4. Create WidgetWindow.swift (NSPanel) adapted for multi-widget
+[ ] 5. Port Vinyl UI → VinylWidgetView.swift (from ContentView.swift in VinylWidget)
+[ ] 6. Wire Vinyl widget into gallery — clicking launches it as desktop widget
+[ ] 7. Build CD widget UI (new design)
+[ ] 8. Build Cassette widget UI (new design)
+[ ] 9. In-app purchase unlock flow
+[ ] 10. Onboarding screen (first launch)
+[ ] 11. Settings panel
+[ ] 12. Design app icon (record + music notes, Apple-style)
+[ ] 13. App Store listing prep (screenshots, description, pricing)
+
+--------------------------------------------------------------------------------
+  IDEAS FOR THE FUTURE
+--------------------------------------------------------------------------------
+- More widget styles per category (add in free updates, drives engagement)
+- AI-generated themes based on album art mood (Groq already integrated in VinylWidget)
+- Widget size picker: small / medium / large (already implemented in VinylWidget)
+- Queue shelf (VinylWidget has this — needs real Spotify API for full accuracy)
+- Song facts / trivia popup (SongFactsGenerator already exists in VinylWidget)
+- Lyrics widget (brand new idea)
+- Equaliser visualiser widget
+- "Now Playing" notification-style popup when song changes
+- Social sharing — share what you're listening to as a widget screenshot
+- Shelf feature (record shelf fills up as you listen — already in VinylWidget)
+- iOS/iPad version if Mac does well
+- Windows version (much later, maybe)
+
+--------------------------------------------------------------------------------
+  PEOPLE
+--------------------------------------------------------------------------------
+- Andre — founder, builder, creative director
+- Partner — co-founder
+
+================================================================================

@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Thank you — MusicWidgetss</title>
+<link rel="icon" type="image/png" href="logo.png" />
+<meta name="description" content="Thanks for grabbing MusicWidgetss. Here's your download." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=SF+Pro+Display:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --red:#fa233b;
+  --red-2:#ff4d6a;
+  --red-deep:#c4001d;
+  --ink:#0b0b0f;
+  --muted:#6b6b73;
+  --glass:rgba(255,255,255,.55);
+  --glass-strong:rgba(255,255,255,.78);
+  --border:rgba(0,0,0,.08);
+  --shadow-lg: 0 30px 80px -20px rgba(20,20,40,.25), 0 8px 24px -8px rgba(20,20,40,.12);
+  --shadow-sm: 0 4px 14px -4px rgba(20,20,40,.18);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:'Inter','SF Pro Display',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  color:var(--ink);
+  background:#fff;
+  -webkit-font-smoothing:antialiased;
+  min-height:100vh;
+  display:flex;align-items:center;justify-content:center;
+  letter-spacing:-0.011em;
+  padding:24px;
+  overflow-x:hidden;
+}
+a{color:inherit;text-decoration:none}
+.bg-atmosphere{
+  position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(60% 50% at 80% -10%, rgba(250,35,59,.18), transparent 60%),
+    radial-gradient(50% 40% at 0% 10%, rgba(255,180,190,.35), transparent 60%),
+    radial-gradient(40% 30% at 50% 100%, rgba(140,255,180,.18), transparent 60%),
+    linear-gradient(180deg,#fff 0%, #fbfbfd 50%, #fff 100%);
+}
+.card{
+  position:relative;max-width:560px;width:100%;
+  padding:48px 40px;border-radius:32px;text-align:center;
+  background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(255,255,255,.65));
+  border:1px solid rgba(255,255,255,.8);
+  box-shadow:var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,.9);
+  -webkit-backdrop-filter:blur(26px);backdrop-filter:blur(26px);
+}
+.brand-mark{
+  width:64px;height:64px;border-radius:20px;margin:0 auto 22px;
+  background:radial-gradient(120% 120% at 30% 20%, #ff6a82, var(--red) 55%, var(--red-deep));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 10px 24px -8px rgba(250,35,59,.55);
+  display:grid;place-items:center;
+}
+.brand-mark svg{width:28px;height:28px}
+.check{
+  width:56px;height:56px;border-radius:50%;margin:0 auto 18px;
+  background:radial-gradient(circle,#e9fff1,#c9ffdc);
+  display:grid;place-items:center;color:#0f9d4f;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+}
+h1{
+  font-family:'SF Pro Display',Inter,sans-serif;
+  font-size:clamp(28px,4vw,38px);font-weight:800;letter-spacing:-0.03em;
+  margin:0 0 12px;
+}
+h1 .grad{
+  background:linear-gradient(180deg,#ff5870 0%, var(--red) 55%, #a8001a 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.lede{color:#444;font-size:16px;line-height:1.6;max-width:440px;margin:0 auto 30px}
+.btn{
+  display:inline-flex;align-items:center;gap:10px;
+  padding:16px 28px;border-radius:999px;
+  font-weight:700;font-size:16px;cursor:pointer;border:0;
+  color:#fff;width:100%;justify-content:center;
+  background:linear-gradient(180deg,var(--red-2),var(--red) 60%, var(--red-deep));
+  box-shadow:0 14px 28px -8px rgba(250,35,59,.55), inset 0 1px 0 rgba(255,255,255,.4);
+  transition:transform .2s ease, filter .2s;
+}
+.btn:hover{transform:translateY(-1px);filter:brightness(1.04)}
+.hint{margin-top:14px;font-size:13px;color:var(--muted)}
+.install{
+  margin-top:26px;padding:20px 22px;border-radius:20px;text-align:left;
+  background:rgba(0,0,0,.03);border:1px solid var(--border);
+}
+.install h3{margin:0 0 8px;font-size:15px;font-weight:700;letter-spacing:-.01em}
+.install p{margin:0 0 10px;font-size:13.5px;color:#444;line-height:1.55}
+.install ol{margin:0 0 10px;padding-left:20px;font-size:13.5px;color:#333;line-height:1.7}
+.install ol li{margin-bottom:2px}
+.install .small{margin:0;font-size:12.5px;color:var(--muted)}
+.climate{
+  margin-top:30px;padding:18px 20px;border-radius:20px;text-align:left;
+  background:linear-gradient(180deg, rgba(233,255,241,.8), rgba(201,255,220,.5));
+  border:1px solid rgba(15,157,79,.18);
+  display:flex;gap:14px;align-items:flex-start;
+}
+.climate .leaf{
+  flex:none;width:34px;height:34px;border-radius:12px;display:grid;place-items:center;
+  background:linear-gradient(180deg,#3ecf72,#0f9d4f);color:#fff;font-size:16px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.4);
+}
+.climate p{margin:0;font-size:13.5px;color:#2d5a3f;line-height:1.55}
+.climate strong{color:#0f9d4f}
+footer{margin-top:28px;font-size:13px;color:var(--muted)}
+footer a:hover{color:var(--red)}
+</style>
+</head>
+<body>
+
+<div class="bg-atmosphere"></div>
+
+<div class="card">
+  <div class="check">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <h1>You're all set. <span class="grad">Thank you!</span></h1>
+  <p class="lede">Your purchase just made someone's desktop a little more beautiful — yours. Here's your download, ready whenever you are.</p>
+
+  <div id="verifying" class="hint" style="font-size:15px;margin-bottom:6px">Verifying your purchase…</div>
+
+  <a id="downloadBtn" href="downloads/MusicWidgetss-1.0.dmg" class="btn" download style="display:none">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.88-3.08.41-1.09-.47-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.41C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+    Download MusicWidgetss
+  </a>
+  <div id="noAccess" style="display:none">
+    <p class="lede" style="margin-top:0">We couldn't verify a purchase for this link. If you've already paid, check your email receipt from Stripe for the correct link, or contact us below.</p>
+  </div>
+  <div id="downloadHint" class="hint" style="display:none">Open the .dmg, drag MusicWidgetss to Applications, and you're playing in under a minute.</div>
+
+  <div id="installSection" class="install" style="display:none">
+    <h3>First time opening it?</h3>
+    <p>Since MusicWidgetss isn't yet notarized by Apple, macOS may say it "can't be opened because it is from an unidentified developer." That's normal for indie apps — here's how to open it anyway:</p>
+    <ol>
+      <li>Open <strong>System Settings</strong> → <strong>Privacy &amp; Security</strong></li>
+      <li>Scroll down to the <strong>Security</strong> section — you'll see a message about MusicWidgetss being blocked</li>
+      <li>Click <strong>"Open Anyway"</strong></li>
+      <li>Confirm in the popup, then launch MusicWidgetss from your Applications folder as usual</li>
+    </ol>
+    <p class="small">You'll only need to do this once.</p>
+  </div>
+
+  <div class="climate">
+    <div class="leaf">🌱</div>
+    <p><strong>A little something extra:</strong> 1% of what you just paid goes straight to removing CO₂ from the atmosphere, via Stripe Climate. So beyond a nicer desktop, you also helped pull a tiny bit of carbon out of the sky today. Thank you for that, too.</p>
+  </div>
+
+  <footer>Questions or trouble installing? Email <a href="mailto:andreynizhelskii@gmail.com">andreynizhelskii@gmail.com</a> and we'll sort it out.</footer>
+</div>
+
+<script>
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get('session_id');
+  const verifying = document.getElementById('verifying');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const noAccess = document.getElementById('noAccess');
+  const downloadHint = document.getElementById('downloadHint');
+  const installSection = document.getElementById('installSection');
+
+  function showDenied() {
+    verifying.style.display = 'none';
+    noAccess.style.display = 'block';
+  }
+
+  function showGranted() {
+    verifying.style.display = 'none';
+    downloadBtn.style.display = 'inline-flex';
+    downloadHint.style.display = 'block';
+    installSection.style.display = 'block';
+  }
+
+  if (!sessionId) {
+    showDenied();
+    return;
+  }
+
+  fetch('/.netlify/functions/verify-purchase?session_id=' + encodeURIComponent(sessionId))
+    .then((res) => res.json())
+    .then((data) => { data && data.ok ? showGranted() : showDenied(); })
+    .catch(() => showDenied());
+})();
+</script>
+
+</body>
+</html>

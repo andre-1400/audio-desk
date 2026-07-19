@@ -1,0 +1,2232 @@
+//
+//  ContentView.swift
+//  VinylWidget
+//
+//  Created by Andre Bytkin on 14/03/2026.
+//
+
+import SwiftUI
+import AppKit
+
+// MARK: - Helper Extensions
+
+extension Color {
+    /// Initialize Color from hex string (e.g., "2a1a0a")
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let r = Double((int >> 16) & 0xFF) / 255
+        let g = Double((int >> 8) & 0xFF) / 255
+        let b = Double(int & 0xFF) / 255
+        self.init(red: r, green: g, blue: b)
+    }
+}
+
+enum FallbackCoverArtGenerator {
+    static let fallbackImage: NSImage = {
+        let size = NSSize(width: 512, height: 512)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        let rect = NSRect(origin: .zero, size: size)
+        let colors = [
+            NSColor(calibratedRed: 0.18, green: 0.18, blue: 0.18, alpha: 1.0),
+            NSColor(calibratedRed: 0.09, green: 0.09, blue: 0.09, alpha: 1.0),
+            NSColor(calibratedRed: 0.05, green: 0.05, blue: 0.05, alpha: 1.0)
+        ]
+        NSGradient(colors: colors)?
+            .draw(in: rect, angle: 315)
+
+        NSColor.white.withAlphaComponent(0.08).setStroke()
+        let stripePath = NSBezierPath()
+        stripePath.lineWidth = 1
+        stride(from: 0.0, through: size.height, by: 10.0).forEach { y in
+            stripePath.move(to: NSPoint(x: 0, y: y))
+            stripePath.line(to: NSPoint(x: size.width, y: y))
+        }
+        stripePath.stroke()
+
+        NSColor.white.withAlphaComponent(0.2).setStroke()
+        let ring = NSBezierPath(ovalIn: NSRect(
+            x: size.width * 0.36,
+            y: size.height * 0.36,
+            width: size.width * 0.28,
+            height: size.height * 0.28
+        ))
+        ring.lineWidth = 2
+        ring.stroke()
+
+        NSColor.white.withAlphaComponent(0.18).setFill()
+        let spindle = NSBezierPath(ovalIn: NSRect(
+            x: size.width * 0.48,
+            y: size.height * 0.48,
+            width: size.width * 0.04,
+            height: size.height * 0.04
+        ))
+        spindle.fill()
+
+        return image
+    }()
+}
+
+private struct TonearmPlaybackTransition {
+    let startedAt: Date
+    let duration: TimeInterval
+    let fromAngle: Double
+    let toAngle: Double
+
+    func angle(at date: Date) -> Double? {
+        let elapsed = date.timeIntervalSince(startedAt)
+        guard elapsed < duration else { return nil }
+        let progress = max(0, min(1, elapsed / duration))
+        let inverse = 1 - progress
+        let easedProgress = 1 - (inverse * inverse * inverse)
+        return fromAngle + ((toAngle - fromAngle) * easedProgress)
+    }
+}
+
+// MARK: - ContentView (Main UI Container)
+/// The root view containing:
+/// - Wooden player body (320×380) with wood grain texture, corner screws
+/// - Platter area with spinning vinyl + album art label + spindle
+/// - Track info display (song name, artist, status dot)
+/// - Tonearm follows playback progress when timing data is available
+/// - Drag gesture for repositioning (screen-coordinate based for jitter-free movement)
+/// - Tap gesture to toggle playback
+
+struct VinylWidgetView: View {
+    // MARK: - State Objects
+    @StateObject private var detector = MusicDetector()
+    @StateObject private var artFetcher = AlbumArtFetcher()
+    @StateObject private var songFactsGenerator = SongFactsGenerator()
+
+    // MARK: - Injected from AppDelegate
+    @ObservedObject var animator: SongSwitchAnimator
+    @ObservedObject var themeManager: WidgetThemeManager
+
+    // MARK: - Global settings (musical notes)
+    @ObservedObject private var widgetSettings = WidgetSettings.shared
+
+
+    // MARK: - State
+    @State private var extractedColours: ExtractedColours = .fallback
+    @State private var displayedNowPlaying: NowPlayingInfo = .empty
+    @State private var displayedAlbumArt: NSImage?
+    @State private var bufferedIncomingAlbumArt: NSImage?
+    @State private var lastObservedTrackIdentity: String = ""
+    @State private var hasSeenInitialTrackIdentity: Bool = false
+    @State private var isTonearmSeeking = false
+    @State private var pendingSeekProgress: Double?
+    @State private var isTonearmGestureActive = false
+    @State private var tonearmPressBeganAt: Date?
+    @State private var tonearmGestureToken: UUID?
+    @State private var tonearmLastLocation: CGPoint?
+    @State private var tonearmPlaybackTransition: TonearmPlaybackTransition?
+    @State private var seekHandoffUntil: Date?
+    @State private var trackProgressClampUntil: Date?
+    @State private var isSongFactsPanelPresented = false
+    @State private var showTitleHint = false
+
+    private let tonearmRestAngle = -22.0
+    private let tonearmStartAngle = -8.0
+    private let tonearmEndAngle = 14.0
+    private let tonearmMaxSeekProgress = 0.98
+    private let tonearmSeekHoldDuration: TimeInterval = 0.24
+    private let tonearmPlaybackTransitionDuration: TimeInterval = 0.42
+    private let seekHandoffSuppressionDuration = 0.45
+    private let trackStartProgressClampDuration = 1.2
+    private let tonearmPivotInWidget = CGPoint(x: 318, y: 52)
+    private let tonearmNeedleLocalPoint = CGPoint(x: 28, y: 164)
+    private let tonearmPivotLocalPoint = CGPoint(x: 68, y: 16)
+
+    // MARK: - Computed Properties
+    /// Map music source to string key for caching
+    private var sourceKey: String {
+        switch detector.nowPlaying.source {
+        case .spotify:
+            return "spotify"
+        case .appleMusic:
+            return "appleMusic"
+        case .none:
+            return "none"
+        }
+    }
+
+    /// Unique key for current track (source + track/artist/album)
+    /// Used to detect when song changes (triggers album art refresh)
+    private var trackIdentityKey: String {
+        "\(sourceKey)|\(detector.nowPlaying.trackName)|\(detector.nowPlaying.artistName)|\(detector.nowPlaying.albumName)"
+    }
+
+    /// Animator identity key must match SongSwitchAnimator normalization (no source prefix).
+    private var animatorTrackIdentityKey: String {
+        [
+            normalizedIdentity(detector.nowPlaying.trackName),
+            normalizedIdentity(detector.nowPlaying.artistName),
+            normalizedIdentity(detector.nowPlaying.albumName)
+        ].joined(separator: "|")
+    }
+
+    /// Tonearm angle — overridden during song switch animation
+    private func tonearmAngle(at date: Date) -> Double {
+        if animator.tonearmShouldRest {
+            return tonearmRestAngle
+        }
+
+        guard !displayedNowPlaying.trackName.isEmpty else {
+            return tonearmRestAngle
+        }
+
+        if isTonearmSeeking, let pendingSeekProgress {
+            return tonearmAngle(forProgress: pendingSeekProgress)
+        }
+
+        if let transitionAngle = tonearmPlaybackTransition?.angle(at: date) {
+            return transitionAngle
+        }
+
+        guard displayedNowPlaying.isPlaying else {
+            return tonearmRestAngle
+        }
+
+        guard let progress = playbackProgress(at: date) else {
+            return tonearmStartAngle
+        }
+
+        return tonearmAngle(forProgress: progress)
+    }
+
+    private func playbackProgress(at date: Date) -> Double? {
+        playbackProgress(for: displayedNowPlaying, at: date, applyingStartClamp: true)
+    }
+
+    private func playbackProgress(for info: NowPlayingInfo, at date: Date, applyingStartClamp: Bool) -> Double? {
+        guard
+            let durationMillis = info.durationMillis,
+            let positionMillis = info.positionMillis,
+            durationMillis > 0
+        else { return nil }
+
+        let estimatedPositionMillis: Double
+        if info.isPlaying, let sampledAt = info.progressSampledAt {
+            estimatedPositionMillis = Double(positionMillis) + (date.timeIntervalSince(sampledAt) * 1000)
+        } else {
+            estimatedPositionMillis = Double(positionMillis)
+        }
+        let rawProgress = min(tonearmMaxSeekProgress, max(0.0, estimatedPositionMillis / Double(durationMillis)))
+
+        guard applyingStartClamp, info.isPlaying else { return rawProgress }
+        guard let clampUntil = trackProgressClampUntil else { return rawProgress }
+        if date >= clampUntil {
+            return rawProgress
+        }
+        return min(rawProgress, 0.08)
+    }
+
+    private func tonearmAngle(forProgress progress: Double) -> Double {
+        let clampedProgress = min(tonearmMaxSeekProgress, max(0.0, progress))
+        return tonearmStartAngle + ((tonearmEndAngle - tonearmStartAngle) * clampedProgress)
+    }
+
+    private var theme: WidgetThemePalette { themeManager.palette }
+    private var traits: VinylModelTraits { themeManager.themeID.traits }
+
+    // MARK: - Body
+    var body: some View {
+        ZStack {
+            // === Body shell (theme-conditional) ===
+            if theme.showBody {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: theme.widgetBodyGradient,
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .shadow(color: .black.opacity(0.7), radius: 30, x: 0, y: 20)
+
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(theme.widgetBorder, lineWidth: 1)
+
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [theme.widgetTopSheen, .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1
+                        )
+
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.06), .clear],
+                                startPoint: .top,
+                                endPoint: UnitPoint(x: 0.5, y: 0.28)
+                            )
+                        )
+
+                    VinylBodyTexture(pattern: traits.pattern)
+
+                    cornerScrews
+                }
+                .frame(width: 320, height: 380)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+
+            // Body surface details (case border, pitch fader, power LED)
+            if theme.showBody { vinylBodyDetails }
+
+            // === Content (always shown) ===
+            VStack(spacing: 0) {
+                platterArea
+                    .padding(.top, theme.showBody ? 24 : 8)
+
+                if traits.hasTransportControls {
+                    VStack(spacing: 9) {
+                        RetroVFDDisplay(
+                            title: displayedNowPlaying.trackName.isEmpty ? "NO SIGNAL" : displayedNowPlaying.trackName,
+                            subtitle: displayedNowPlaying.artistName
+                        )
+                        transportControls
+                    }
+                    .padding(.top, 10)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 14)
+                } else {
+                    trackInfo
+                        .padding(.top, 16)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 24)
+                }
+            }
+
+            // === Tonearm ===
+            TimelineView(.animation) { context in
+                tonearmView
+                    .rotationEffect(
+                        .degrees(tonearmAngle(at: context.date)),
+                        anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0)
+                    )
+                    .scaleEffect(isTonearmSeeking ? 1.015 : 1.0, anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0))
+                    .shadow(color: .black.opacity(isTonearmSeeking ? 0.28 : 0), radius: isTonearmSeeking ? 8 : 0, x: 0, y: 5)
+                    .contentShape(Rectangle())
+            }
+            .animation(.spring(response: 1.2, dampingFraction: 0.7), value: animator.tonearmShouldRest)
+            .animation(.easeOut(duration: 0.16), value: isTonearmSeeking)
+            .offset(x: 115, y: -84)
+
+            if canSeekWithTonearm {
+                TonearmInteractionCaptureView(
+                    onBegan: { point in
+                        beginTonearmGestureSessionIfNeeded(at: widgetLocation(forTonearmLocalPoint: point))
+                    },
+                    onMoved: { point in
+                        handleTonearmGestureMoved(to: widgetLocation(forTonearmLocalPoint: point))
+                    },
+                    onEnded: { point in
+                        handleTonearmGestureEnded(at: widgetLocation(forTonearmLocalPoint: point))
+                    },
+                    onCancelled: {
+                        endTonearmGestureSession()
+                    }
+                )
+                .frame(width: 90, height: 180)
+                .offset(x: 115, y: -84)
+            }
+
+            if isSongFactsPanelPresented {
+                songFactsPanelLayer
+                    .zIndex(40)
+            }
+
+            if showTitleHint && !isSongFactsPanelPresented {
+                titleHintBubble
+                    .frame(maxWidth: 300, maxHeight: .infinity, alignment: .bottom)
+                    .offset(y: -98)
+                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+                    .zIndex(36)
+                    .allowsHitTesting(false)
+            }
+
+        }
+        .frame(width: 360, height: 420)
+        .coordinateSpace(name: "widget")
+        .overlay(alignment: widgetSettings.notesSide == .left ? .topLeading : .topTrailing) {
+            if widgetSettings.notesEnabled {
+                MusicalNotesView(side: widgetSettings.notesSide, active: displayedNowPlaying.isPlaying)
+                    .padding(widgetSettings.notesSide == .left ? .leading : .trailing, 18)
+                    .padding(.top, -8)
+            }
+        }
+        .onAppear {
+            detector.start()
+            displayedNowPlaying = detector.nowPlaying
+            displayedAlbumArt = artFetcher.albumArt
+            bufferedIncomingAlbumArt = artFetcher.albumArt
+            lastObservedTrackIdentity = trackIdentityKey
+            hasSeenInitialTrackIdentity = true
+            if !detector.nowPlaying.trackName.isEmpty {
+                refreshAlbumArt(forceRefresh: false, updateDisplayedArt: true)
+            }
+        }
+        .onChange(of: displayedNowPlaying.trackName) { _, newName in
+            if !newName.isEmpty { maybeShowTitleHint() }
+        }
+        .onDisappear {
+            endTonearmGestureSession()
+            detector.stop()
+            animator.cancelAndReset()
+        }
+        .onChange(of: trackIdentityKey) { oldValue, newValue in
+            handleTrackIdentityChange(oldValue: oldValue, newValue: newValue)
+            if songFactsGenerator.activeTrackKey != nil, songFactsGenerator.activeTrackKey != newValue {
+                isSongFactsPanelPresented = false
+                songFactsGenerator.clearIfNeeded(for: newValue)
+            }
+        }
+        .onChange(of: detector.nowPlaying) { _, live in
+            updateDisplayedPlaybackState(from: live)
+        }
+        .onChange(of: detector.nowPlaying.albumArtURL) { _, newURL in
+            if let url = newURL {
+                artFetcher.fetchArt(from: url, trackKey: trackIdentityKey, forceRefresh: false) { image in
+                    guard let image else { return }
+                    extractedColours = ColourExtractor.extract(from: image)
+                    bufferedIncomingAlbumArt = image
+                    if animator.isAnimating {
+                        animator.updateIncomingAlbumArtIfPossible(image, identityKey: animatorTrackIdentityKey)
+                    } else {
+                        displayedAlbumArt = image
+                    }
+                }
+            } else if detector.nowPlaying.trackName.isEmpty {
+                // Only clear art when nothing is playing at all
+                artFetcher.fetchArt(from: "", trackKey: "", forceRefresh: true) { _ in
+                    extractedColours = .fallback
+                    bufferedIncomingAlbumArt = nil
+                    displayedAlbumArt = nil
+                }
+            }
+        }
+        .onChange(of: animator.revealEventID) { _, eventID in
+            guard eventID != nil, let snapshot = animator.revealedIncomingSnapshot else { return }
+            displayedNowPlaying = NowPlayingInfo(
+                trackName: snapshot.trackName,
+                artistName: snapshot.artistName,
+                albumName: snapshot.albumName,
+                albumArtURL: detector.nowPlaying.albumArtURL,
+                isPlaying: detector.nowPlaying.isPlaying,
+                source: detector.nowPlaying.source,
+                positionMillis: detector.nowPlaying.positionMillis,
+                durationMillis: detector.nowPlaying.durationMillis,
+                progressSampledAt: detector.nowPlaying.progressSampledAt
+            )
+            displayedAlbumArt = snapshot.albumArt ?? bufferedIncomingAlbumArt ?? artFetcher.albumArt
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    private var canSeekWithTonearm: Bool {
+        !animator.isAnimating &&
+            !displayedNowPlaying.trackName.isEmpty &&
+            displayedNowPlaying.source != .none &&
+            (displayedNowPlaying.durationMillis ?? 0) > 0
+    }
+
+    private var songFactsButtonLayer: some View {
+        VStack {
+            HStack {
+                Button {
+                    toggleSongFactsPanel()
+                } label: {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(songFactsControlBackground)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .strokeBorder(songFactsControlBorder, lineWidth: 1)
+                            )
+                            .shadow(color: .black.opacity(theme.showBody ? 0.20 : 0.35), radius: 8, x: 0, y: 4)
+
+                        if songFactsGenerator.isLoading {
+                            ProgressView()
+                                .progressViewStyle(.circular)
+                                .controlSize(.small)
+                                .scaleEffect(0.58)
+                                .tint(songFactsControlIcon)
+                        } else {
+                            Image(systemName: "questionmark")
+                                .font(.system(size: 13, weight: .black))
+                                .foregroundColor(songFactsControlIcon)
+                        }
+                    }
+                    .frame(width: 34, height: 34)
+                    .contentShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .help("Research this song")
+                .opacity(displayedNowPlaying.trackName.isEmpty ? 0.62 : 1.0)
+
+                Spacer()
+            }
+            .padding(.top, theme.showBody ? 16 : 14)
+            .padding(.leading, theme.showBody ? 30 : 22)
+
+            Spacer()
+        }
+        .frame(width: 320, height: 380)
+    }
+
+    private var songFactsPanelLayer: some View {
+        SongFactsPanel(
+            report: songFactsGenerator.report,
+            isLoading: songFactsGenerator.isLoading,
+            error: songFactsGenerator.lastError,
+            trackName: displayedNowPlaying.trackName,
+            artistName: displayedNowPlaying.artistName,
+            theme: theme,
+            onRetry: {
+                Task { await songFactsGenerator.facts(for: displayedNowPlaying, trackKey: trackIdentityKey) }
+            },
+            onClose: {
+                withAnimation(.easeOut(duration: 0.16)) {
+                    isSongFactsPanelPresented = false
+                }
+            }
+        )
+        .frame(width: 292, height: 312)
+        .offset(y: theme.showBody ? -4 : 10)
+        .transition(.scale(scale: 0.94, anchor: .topLeading).combined(with: .opacity))
+    }
+
+    private var songFactsControlBackground: Color {
+        theme.showBody ? theme.shelfButtonBackground.opacity(0.92) : Color.black.opacity(0.58)
+    }
+
+    private var songFactsControlBorder: Color {
+        theme.showBody ? theme.shelfButtonRing.opacity(0.34) : Color.white.opacity(0.18)
+    }
+
+    private var songFactsControlIcon: Color {
+        theme.showBody ? theme.shelfButtonIcon : Color.white.opacity(0.86)
+    }
+
+    private func toggleSongFactsPanel() {
+        let shouldClose = isSongFactsPanelPresented &&
+            songFactsGenerator.activeTrackKey == trackIdentityKey &&
+            !songFactsGenerator.isLoading
+
+        if shouldClose {
+            withAnimation(.easeOut(duration: 0.16)) {
+                isSongFactsPanelPresented = false
+            }
+            return
+        }
+
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+            isSongFactsPanelPresented = true
+        }
+
+        Task {
+            await songFactsGenerator.facts(for: displayedNowPlaying, trackKey: trackIdentityKey)
+        }
+    }
+
+    private var tonearmFrameOriginInWidget: CGPoint {
+        CGPoint(
+            x: tonearmPivotInWidget.x - tonearmPivotLocalPoint.x,
+            y: tonearmPivotInWidget.y - tonearmPivotLocalPoint.y
+        )
+    }
+
+    private func widgetLocation(forTonearmLocalPoint point: CGPoint) -> CGPoint {
+        CGPoint(
+            x: tonearmFrameOriginInWidget.x + point.x,
+            y: tonearmFrameOriginInWidget.y + point.y
+        )
+    }
+
+    private func handleTonearmGestureMoved(to location: CGPoint) {
+        tonearmLastLocation = location
+        if isTonearmSeeking {
+            updateTonearmSeek(location: location)
+            return
+        }
+    }
+
+    private func handleTonearmGestureEnded(at location: CGPoint) {
+        defer { endTonearmGestureSession() }
+        guard isTonearmSeeking else { return }
+        updateTonearmSeek(location: location)
+        finishTonearmSeek(shouldCommit: true)
+    }
+
+    private func beginTonearmGestureSessionIfNeeded(at location: CGPoint) {
+        guard !isTonearmGestureActive else { return }
+        let token = UUID()
+        isTonearmGestureActive = true
+        tonearmPressBeganAt = Date()
+        tonearmGestureToken = token
+        tonearmLastLocation = location
+        setWidgetBackgroundDraggingEnabled(false)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + tonearmSeekHoldDuration) {
+            guard
+                isTonearmGestureActive,
+                tonearmGestureToken == token,
+                !isTonearmSeeking,
+                let location = tonearmLastLocation
+            else { return }
+            activateTonearmSeek(at: location)
+        }
+    }
+
+    private func activateTonearmSeek(at location: CGPoint) {
+        guard canSeekWithTonearm else { return }
+        if !isTonearmSeeking {
+            pendingSeekProgress = playbackProgress(at: Date()) ?? 0
+        }
+        isTonearmSeeking = true
+        updateTonearmSeek(location: location)
+    }
+
+    private func updateTonearmSeek(location: CGPoint) {
+        guard canSeekWithTonearm else { return }
+        pendingSeekProgress = seekProgress(for: location)
+    }
+
+    private func finishTonearmSeek(shouldCommit: Bool) {
+        guard
+            shouldCommit,
+            canSeekWithTonearm,
+            let pendingSeekProgress,
+            let durationMillis = displayedNowPlaying.durationMillis
+        else { return }
+
+        let targetMillis = Int((pendingSeekProgress * Double(durationMillis)).rounded())
+        let sampledAt = displayedNowPlaying.isPlaying ? Date() : nil
+        seekHandoffUntil = Date().addingTimeInterval(seekHandoffSuppressionDuration)
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            displayedNowPlaying = NowPlayingInfo(
+                trackName: displayedNowPlaying.trackName,
+                artistName: displayedNowPlaying.artistName,
+                albumName: displayedNowPlaying.albumName,
+                albumArtURL: displayedNowPlaying.albumArtURL,
+                isPlaying: displayedNowPlaying.isPlaying,
+                source: displayedNowPlaying.source,
+                positionMillis: targetMillis,
+                durationMillis: displayedNowPlaying.durationMillis,
+                progressSampledAt: sampledAt
+            )
+        }
+        detector.seek(toMillis: targetMillis)
+    }
+
+    private func endTonearmGestureSession() {
+        isTonearmSeeking = false
+        pendingSeekProgress = nil
+        isTonearmGestureActive = false
+        tonearmPressBeganAt = nil
+        tonearmGestureToken = nil
+        tonearmLastLocation = nil
+        setWidgetBackgroundDraggingEnabled(true)
+    }
+
+    private func setWidgetBackgroundDraggingEnabled(_ enabled: Bool) {
+        guard let window = NSApp.windows.first(where: { $0 is WidgetWindow }) else { return }
+        window.isMovableByWindowBackground = enabled
+    }
+
+    private func seekProgress(for location: CGPoint) -> Double {
+        let pointerAngle = radiansToDegrees(atan2(
+            Double(location.y - tonearmPivotInWidget.y),
+            Double(location.x - tonearmPivotInWidget.x)
+        ))
+        let baseNeedleAngle = radiansToDegrees(atan2(
+            Double(tonearmNeedleLocalPoint.y - tonearmPivotLocalPoint.y),
+            Double(tonearmNeedleLocalPoint.x - tonearmPivotLocalPoint.x)
+        ))
+        let rawTonearmAngle = normalizedDegrees(pointerAngle - baseNeedleAngle)
+        let maxSeekAngle = tonearmAngle(forProgress: tonearmMaxSeekProgress)
+        let clampedAngle = min(maxSeekAngle, max(tonearmStartAngle, rawTonearmAngle))
+        return min(tonearmMaxSeekProgress, max(0.0, (clampedAngle - tonearmStartAngle) / (tonearmEndAngle - tonearmStartAngle)))
+    }
+
+    private func normalizedDegrees(_ degrees: Double) -> Double {
+        var value = degrees
+        while value > 180 { value -= 360 }
+        while value < -180 { value += 360 }
+        return value
+    }
+
+    private func radiansToDegrees(_ radians: Double) -> Double {
+        radians * 180 / .pi
+    }
+
+    private func updateDisplayedPlaybackState(from live: NowPlayingInfo) {
+        guard !animator.isAnimating else { return }
+
+        if live.trackName.isEmpty {
+            seekHandoffUntil = nil
+            trackProgressClampUntil = nil
+            tonearmPlaybackTransition = nil
+            displayedNowPlaying = live
+            return
+        }
+
+        let isStrictSameTrack = isSameTrack(displayedNowPlaying, live)
+        let isLooseSameTrack =
+            displayedNowPlaying.source == live.source &&
+            normalizedIdentity(displayedNowPlaying.trackName) == normalizedIdentity(live.trackName) &&
+            normalizedIdentity(displayedNowPlaying.artistName) == normalizedIdentity(live.artistName)
+
+        if !isStrictSameTrack {
+            guard isLooseSameTrack else { return }
+            applyDisplayedPlaybackUpdate(NowPlayingInfo(
+                trackName: displayedNowPlaying.trackName,
+                artistName: displayedNowPlaying.artistName,
+                albumName: displayedNowPlaying.albumName,
+                albumArtURL: displayedNowPlaying.albumArtURL,
+                isPlaying: live.isPlaying,
+                source: displayedNowPlaying.source,
+                positionMillis: live.positionMillis,
+                durationMillis: live.durationMillis,
+                progressSampledAt: live.progressSampledAt
+            ))
+            return
+        }
+
+        guard !shouldSuppressSeekHandoffUpdate(from: live) else { return }
+        applyDisplayedPlaybackUpdate(live)
+    }
+
+    private func applyDisplayedPlaybackUpdate(_ info: NowPlayingInfo) {
+        if shouldAnimateTonearmPlaybackTransition(to: info) {
+            startTonearmPlaybackTransition(to: info)
+        }
+        displayedNowPlaying = info
+    }
+
+    private func shouldAnimateTonearmPlaybackTransition(to info: NowPlayingInfo) -> Bool {
+        !isTonearmSeeking &&
+            isSameTrack(displayedNowPlaying, info) &&
+            displayedNowPlaying.isPlaying != info.isPlaying
+    }
+
+    private func startTonearmPlaybackTransition(to info: NowPlayingInfo) {
+        let now = Date()
+        let fromAngle = tonearmPlaybackTransition?.angle(at: now) ??
+            tonearmTargetAngle(for: displayedNowPlaying, at: now)
+        let toAngle = tonearmTargetAngle(for: info, at: now)
+        guard abs(fromAngle - toAngle) > 0.1 else {
+            tonearmPlaybackTransition = nil
+            return
+        }
+        tonearmPlaybackTransition = TonearmPlaybackTransition(
+            startedAt: now,
+            duration: tonearmPlaybackTransitionDuration,
+            fromAngle: fromAngle,
+            toAngle: toAngle
+        )
+    }
+
+    private func tonearmTargetAngle(for info: NowPlayingInfo, at date: Date) -> Double {
+        guard info.isPlaying else { return tonearmRestAngle }
+        guard let progress = playbackProgress(for: info, at: date, applyingStartClamp: false) else {
+            return tonearmStartAngle
+        }
+        return tonearmAngle(forProgress: progress)
+    }
+
+    private func shouldSuppressSeekHandoffUpdate(from live: NowPlayingInfo) -> Bool {
+        guard let seekHandoffUntil else { return false }
+
+        let now = Date()
+        guard now < seekHandoffUntil else {
+            self.seekHandoffUntil = nil
+            return false
+        }
+
+        if live.isPlaying != displayedNowPlaying.isPlaying {
+            self.seekHandoffUntil = nil
+            return false
+        }
+
+        return true
+    }
+
+    private func handleTrackIdentityChange(oldValue: String, newValue: String) {
+        // Ignore bootstrap identity churn while the detector warms up.
+        if !hasSeenInitialTrackIdentity {
+            hasSeenInitialTrackIdentity = true
+            lastObservedTrackIdentity = newValue
+            return
+        }
+
+        if oldValue == newValue || lastObservedTrackIdentity == newValue {
+            return
+        }
+        lastObservedTrackIdentity = newValue
+        seekHandoffUntil = nil
+        tonearmPlaybackTransition = nil
+        trackProgressClampUntil = Date().addingTimeInterval(trackStartProgressClampDuration)
+
+        let live = detector.nowPlaying
+        let isPlayableTrack = !live.trackName.isEmpty
+
+        if !isPlayableTrack {
+            animator.cancelAndReset()
+            displayedNowPlaying = live
+            displayedAlbumArt = nil
+            bufferedIncomingAlbumArt = nil
+            artFetcher.fetchArt(from: "", trackKey: "", forceRefresh: true) { _ in
+                extractedColours = .fallback
+            }
+            return
+        }
+
+        let isInitialTrack = oldValue.isEmpty || displayedNowPlaying.trackName.isEmpty
+        if isInitialTrack {
+            displayedNowPlaying = live
+            refreshAlbumArt(forceRefresh: true, updateDisplayedArt: true)
+            return
+        }
+
+        guard live.isPlaying else {
+            displayedNowPlaying = live
+            return
+        }
+
+        let resolvedIncomingArt = bufferedIncomingAlbumArt ?? artFetcher.albumArt
+
+        let outgoingSnapshot = SongSwitchAnimator.TrackSnapshot(
+            trackName: displayedNowPlaying.trackName,
+            artistName: displayedNowPlaying.artistName,
+            albumName: displayedNowPlaying.albumName,
+            albumArt: displayedAlbumArt
+        )
+
+        let incomingSnapshot = SongSwitchAnimator.TrackSnapshot(
+            trackName: live.trackName,
+            artistName: live.artistName,
+            albumName: live.albumName,
+            albumArt: resolvedIncomingArt
+        )
+
+        let request = SongSwitchAnimator.TransitionRequest(
+            outgoing: outgoingSnapshot,
+            incoming: incomingSnapshot,
+            widgetFrameInScreen: widgetFrameInScreen(),
+            platterCenterInScreen: platterCenterInScreen()
+        )
+
+        animator.startTransition(request)
+        refreshAlbumArt(forceRefresh: true, updateDisplayedArt: false)
+    }
+
+    /// Fetch album art for current track and optionally update displayed center art.
+    private func refreshAlbumArt(forceRefresh: Bool, updateDisplayedArt: Bool) {
+        let artURL = detector.nowPlaying.albumArtURL ?? ""
+        artFetcher.fetchArt(from: artURL, trackKey: trackIdentityKey, forceRefresh: forceRefresh) { image in
+            guard let image else { return }
+            extractedColours = ColourExtractor.extract(from: image)
+            bufferedIncomingAlbumArt = image
+            if updateDisplayedArt {
+                displayedAlbumArt = image
+            } else if animator.isAnimating {
+                animator.updateIncomingAlbumArtIfPossible(image, identityKey: animatorTrackIdentityKey)
+            }
+        }
+    }
+
+    private func animatorIdentityKey(trackName: String, artistName: String, albumName: String) -> String {
+        [
+            normalizedIdentity(trackName),
+            normalizedIdentity(artistName),
+            normalizedIdentity(albumName)
+        ].joined(separator: "|")
+    }
+
+    private func isSameTrack(_ lhs: NowPlayingInfo, _ rhs: NowPlayingInfo) -> Bool {
+        lhs.source == rhs.source &&
+            animatorIdentityKey(
+                trackName: lhs.trackName,
+                artistName: lhs.artistName,
+                albumName: lhs.albumName
+            ) == animatorIdentityKey(
+                trackName: rhs.trackName,
+                artistName: rhs.artistName,
+                albumName: rhs.albumName
+            )
+    }
+
+    private func normalizedIdentity(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    private func widgetFrameInScreen() -> CGRect {
+        if let frame = NSApp.windows.first(where: { $0 is WidgetWindow })?.frame {
+            return frame
+        }
+        return CGRect(x: 0, y: 0, width: 372, height: 404)
+    }
+
+    private func platterCenterInScreen() -> CGPoint {
+        let frame = widgetFrameInScreen()
+        // Calibrated anchor for the platter center so lifted disk/sleeves stay locked to the vinyl.
+        return CGPoint(x: frame.midX, y: frame.midY + 8)
+    }
+
+    // MARK: - Platter Area (no tonearm — that's outside the clip)
+
+    // MARK: - Design detail elements (trait-gated)
+
+    private var vinylBodyDetails: some View {
+        ZStack {
+            if traits.caseBorder {
+                RoundedRectangle(cornerRadius: 13)
+                    .strokeBorder(LinearGradient(colors: theme.screwGradient, startPoint: .top, endPoint: .bottom), lineWidth: 3)
+                    .frame(width: 300, height: 360)
+                ForEach([CGFloat(170), 250], id: \.self) { y in
+                    latch.position(x: 24, y: y)
+                    latch.position(x: 336, y: y)
+                }
+            }
+            if traits.hasPowerLED {
+                Circle()
+                    .fill(displayedNowPlaying.isPlaying ? Color(hex: "53e08a") : Color(hex: "2a4a32"))
+                    .frame(width: 7, height: 7)
+                    .shadow(color: displayedNowPlaying.isPlaying ? Color(hex: "53e08a").opacity(0.85) : .clear, radius: 4)
+                    .position(x: 46, y: 388)
+            }
+            if traits.hasPitchSlider {
+                pitchFader.position(x: 286, y: 372)
+            }
+        }
+        .frame(width: 360, height: 420)
+    }
+
+    private var latch: some View {
+        RoundedRectangle(cornerRadius: 2)
+            .fill(LinearGradient(colors: theme.screwGradient, startPoint: .top, endPoint: .bottom))
+            .frame(width: 8, height: 14)
+            .overlay(RoundedRectangle(cornerRadius: 2).strokeBorder(Color.black.opacity(0.3), lineWidth: 0.5))
+    }
+
+    private var pitchFader: some View {
+        ZStack {
+            Capsule().fill(Color.black.opacity(0.5)).frame(width: 50, height: 6)
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.08), lineWidth: 0.5))
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(LinearGradient(colors: theme.screwGradient, startPoint: .top, endPoint: .bottom))
+                .frame(width: 11, height: 18)
+                .overlay(Rectangle().fill(Color.black.opacity(0.4)).frame(width: 7, height: 0.8))
+                .offset(x: 6)
+                .shadow(color: .black.opacity(0.5), radius: 1.5, y: 1)
+        }
+        .frame(width: 56, height: 22)
+    }
+
+    private var platterArea: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color(hex: "2a2a2a"), Color(hex: "111111"), Color(hex: "080808")],
+                        center: UnitPoint(x: 0.4, y: 0.35),
+                        startRadius: 0,
+                        endRadius: 136
+                    )
+                )
+                .frame(width: 272, height: 272)
+                .shadow(color: .black.opacity(0.8), radius: 12, x: 0, y: 4)
+
+            // Audiophile platter rim
+            if traits.hasPlatterRing {
+                Circle()
+                    .strokeBorder(
+                        AngularGradient(colors: theme.screwGradient + [theme.screwGradient.first ?? .gray], center: .center),
+                        lineWidth: 6
+                    )
+                    .frame(width: 286, height: 286)
+                    .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
+            }
+
+            SpinningVinylView(
+                isPlaying: displayedNowPlaying.isPlaying,
+                albumArt: displayedAlbumArt,
+                vinylTint: extractedColours.dominant,
+                isVisible: true,
+                diskOpacity: animator.widgetDiskOpacity,
+                freezeRotation: animator.platterRotationFrozen,
+                overrideAlbumArt: animator.diskArtMode == .incoming
+                    ? (animator.incomingAlbumArt ?? bufferedIncomingAlbumArt)
+                    : nil,
+                albumArtLabelGradient: theme.albumArtLabelGradient,
+                albumArtRingColor: theme.albumArtRingColor,
+                onAngleSample: { angle in
+                    animator.updateRenderedPlatterAngle(angle)
+                }
+            )
+
+            spindleView
+        }
+        .frame(width: 272, height: 272)
+        .contentShape(Circle())
+        .onTapGesture {
+            detector.togglePlayback()
+        }
+    }
+
+    // MARK: - Spindle (standard chrome dot or retro 45-adapter)
+
+    @ViewBuilder
+    private var spindleView: some View {
+        switch traits.spindle {
+        case .standard:
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color(hex: "cccccc"), Color(hex: "666666")],
+                        center: .center, startRadius: 0, endRadius: 5
+                    )
+                )
+                .frame(width: 10, height: 10)
+        case .retro45:
+            ZStack {
+                // Chrome 45-rpm adapter ring
+                Circle()
+                    .fill(
+                        AngularGradient(
+                            colors: [Color(hex: "f0f0f0"), Color(hex: "8a8a8a"),
+                                     Color(hex: "e8e8e8"), Color(hex: "707070"),
+                                     Color(hex: "f0f0f0")],
+                            center: .center
+                        )
+                    )
+                    .frame(width: 26, height: 26)
+                    .overlay(Circle().strokeBorder(Color.black.opacity(0.3), lineWidth: 0.5))
+                    .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+                // Center pin hole
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color(hex: "303030"), Color(hex: "0a0a0a")],
+                            center: .center, startRadius: 0, endRadius: 5
+                        )
+                    )
+                    .frame(width: 9, height: 9)
+                // Top highlight
+                Circle()
+                    .fill(Color.white.opacity(0.7))
+                    .frame(width: 4, height: 4)
+                    .offset(x: -5, y: -5)
+                    .blur(radius: 1)
+            }
+        }
+    }
+
+    // MARK: - Retro transport controls (prev / play-pause / next)
+
+    private var transportControls: some View {
+        HStack(spacing: 14) {
+            retroButton(icon: "backward.fill", size: 34) { detector.previousTrack() }
+            retroButton(
+                icon: displayedNowPlaying.isPlaying ? "pause.fill" : "play.fill",
+                size: 34
+            ) { detector.togglePlayback() }
+            retroButton(icon: "forward.fill", size: 34) { detector.nextTrack() }
+        }
+    }
+
+    private func retroButton(icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            RetroTransportButtonFace(palette: theme, icon: icon, size: size)
+        }
+        .buttonStyle(RetroButtonStyle())
+    }
+
+    // MARK: - Tonearm
+
+    private var tonearmView: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color(hex: "d8b97e"), Color(hex: "9B7924"), Color(hex: "6a5020")],
+                        center: UnitPoint(x: 0.35, y: 0.3),
+                        startRadius: 0,
+                        endRadius: 12
+                    )
+                )
+                .frame(width: 24, height: 24)
+                .position(x: 68, y: 16)
+
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "d8b97e"), Color(hex: "b08838"), Color(hex: "d8b97e")],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: 5, height: 130)
+                .rotationEffect(.degrees(20))
+                .position(x: 46, y: 85)
+
+            RoundedRectangle(cornerRadius: 3)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "666666"), Color(hex: "222222")],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 18, height: 16)
+                .position(x: 24, y: 152)
+
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "bbbbbb"), Color(hex: "666666")],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 2, height: 8)
+                .position(x: 28, y: 164)
+
+            // Audiophile counterweight behind the pivot
+            if traits.hasCounterweight {
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(
+                        LinearGradient(colors: [Color(hex: "3a3a3a"), Color(hex: "0c0c0c")],
+                                       startPoint: .top, endPoint: .bottom)
+                    )
+                    .frame(width: 17, height: 24)
+                    .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
+                    .rotationEffect(.degrees(20))
+                    .position(x: 80, y: 6)
+                    .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+            }
+        }
+        .frame(width: 90, height: 180)
+    }
+
+    // MARK: - First-launch title hint
+
+    private var titleHintBubble: some View {
+        VStack(spacing: 1) {
+            Text("Tap the title")
+                .font(.custom("Georgia", size: 12))
+                .fontWeight(.bold)
+                .foregroundColor(theme.trackTitle)
+            Text("to discover song notes")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(theme.trackArtist)
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 11)
+                .fill(theme.showBody ? theme.shelfButtonBackground.opacity(0.97) : Color.black.opacity(0.74))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 11)
+                        .strokeBorder(theme.trackPlayingDot.opacity(0.45), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.45), radius: 12, x: 0, y: 5)
+        )
+    }
+
+    private func maybeShowTitleHint() {
+        guard !showTitleHint,
+              !UserDefaults.standard.bool(forKey: "hint.titleResearch.v1"),
+              !displayedNowPlaying.trackName.isEmpty else { return }
+        UserDefaults.standard.set(true, forKey: "hint.titleResearch.v1")
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {
+            showTitleHint = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 7) {
+            withAnimation(.easeOut(duration: 0.45)) {
+                showTitleHint = false
+            }
+        }
+    }
+
+    // MARK: - Track Info
+
+    private var trackInfo: some View {
+        VStack(spacing: 4) {
+            if !displayedNowPlaying.trackName.isEmpty {
+                HStack(spacing: 6) {
+                    PlayingPulseDot(
+                        isPlaying: displayedNowPlaying.isPlaying,
+                        positionMillis: displayedNowPlaying.positionMillis,
+                        progressSampledAt: displayedNowPlaying.progressSampledAt,
+                        playingColor: theme.trackPlayingDot,
+                        pausedColor: theme.trackPausedDot
+                    )
+
+                    Button {
+                        toggleSongFactsPanel()
+                    } label: {
+                        Text(displayedNowPlaying.trackName)
+                            .font(.custom("Georgia", size: 13))
+                            .fontWeight(.bold)
+                            .foregroundColor(theme.trackTitle)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Click the title for song notes")
+                    .onHover { hovering in
+                        if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                    }
+                }
+
+                Text(displayedNowPlaying.artistName.uppercased())
+                    .font(.system(size: 10, weight: .regular))
+                    .foregroundColor(theme.trackArtist)
+                    .tracking(1)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            } else {
+                Text("NOTHING PLAYING")
+                    .font(.system(size: 10, weight: .regular))
+                    .foregroundColor(theme.trackIdle)
+                    .tracking(2)
+            }
+        }
+    }
+
+    private struct PlayingPulseDot: View {
+        let isPlaying: Bool
+        let positionMillis: Int?
+        let progressSampledAt: Date?
+        let playingColor: Color
+        let pausedColor: Color
+
+        private let beatsPerSecond = 1.85
+
+        var body: some View {
+            TimelineView(.animation(paused: !isPlaying)) { context in
+                let intensity = pulseIntensity(at: context.date)
+                let baseOpacity = isPlaying ? 0.82 : 0.78
+                let pulseOpacity = isPlaying ? (0.10 * intensity) : 0
+                let highlightOpacity = isPlaying ? (0.24 * intensity) : 0
+
+                Circle()
+                    .fill(isPlaying ? playingColor : pausedColor)
+                    .frame(width: 6, height: 6)
+                    .opacity(baseOpacity + pulseOpacity)
+                    .overlay {
+                        Circle()
+                            .fill(Color.white)
+                            .opacity(highlightOpacity)
+                    }
+            }
+        }
+
+        private func pulseIntensity(at date: Date) -> Double {
+            guard isPlaying else { return 0 }
+
+            let sampledPosition = Double(positionMillis ?? 0) / 1000
+            let elapsed = progressSampledAt.map { max(0, date.timeIntervalSince($0)) } ?? 0
+            let estimatedPositionSeconds = sampledPosition + elapsed
+
+            let beatPhase = estimatedPositionSeconds * beatsPerSecond
+            let cycle = beatPhase - floor(beatPhase)
+
+            let primary = exp(-30 * cycle)
+            let secondaryDistance = abs(cycle - 0.44)
+            let secondary = exp(-85 * secondaryDistance)
+
+            return min(1.0, primary + (secondary * 0.24))
+        }
+    }
+
+    // MARK: - Corner Screws
+
+    private var cornerScrews: some View {
+        GeometryReader { geo in
+            let inset: CGFloat = 13
+            screwDot.position(x: inset, y: inset)
+            screwDot.position(x: geo.size.width - inset, y: inset)
+            screwDot.position(x: inset, y: geo.size.height - inset)
+            screwDot.position(x: geo.size.width - inset, y: geo.size.height - inset)
+        }
+    }
+
+    private var screwDot: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: theme.screwGradient,
+                    center: UnitPoint(x: 0.35, y: 0.3),
+                    startRadius: 0,
+                    endRadius: 4.5
+                )
+            )
+            .frame(width: 9, height: 9)
+            .shadow(color: .black.opacity(0.6), radius: 1.5, x: 0, y: 1)
+    }
+}
+
+private struct SongFactsPanel: View {
+    let report: SongFactsReport?
+    let isLoading: Bool
+    let error: String?
+    let trackName: String
+    let artistName: String
+    let theme: WidgetThemePalette
+    let onRetry: () -> Void
+    let onClose: () -> Void
+
+    private var panelGradient: [Color] {
+        theme.showBody
+            ? theme.widgetBodyGradient
+            : [Color(hex: "181818").opacity(0.96), Color(hex: "050505").opacity(0.94)]
+    }
+
+    private var borderColor: Color {
+        theme.showBody ? theme.widgetBorder : Color.white.opacity(0.16)
+    }
+
+    private var titleColor: Color { theme.trackTitle }
+    private var bodyColor: Color { theme.trackArtist }
+    private var mutedColor: Color { theme.trackIdle }
+    private var accentColor: Color { theme.trackPlayingDot }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            header
+
+            if isLoading {
+                loadingState
+            } else if let error {
+                messageState(title: "Could not research this song", message: error, showsRetry: true)
+            } else if trackName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                messageState(
+                    title: "Nothing playing",
+                    message: "Start a track, then ask Vinyl Widget for the story behind it.",
+                    showsRetry: false
+                )
+            } else if let report {
+                reportContent(report)
+            } else {
+                messageState(
+                    title: "Song research",
+                    message: "Tap the question mark to look up credits, dates, and facts.",
+                    showsRetry: false
+                )
+            }
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(LinearGradient(colors: panelGradient, startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .fill(Color.black.opacity(theme.showBody ? 0.10 : 0.18))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(borderColor, lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.42), radius: 22, x: 0, y: 12)
+        )
+    }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(accentColor.opacity(0.16))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .strokeBorder(accentColor.opacity(0.28), lineWidth: 1)
+                    )
+                Image(systemName: "questionmark")
+                    .font(.system(size: 12, weight: .black))
+                    .foregroundColor(accentColor)
+            }
+            .frame(width: 30, height: 30)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Song Notes")
+                    .font(.custom("Georgia", size: 16))
+                    .fontWeight(.bold)
+                    .foregroundColor(titleColor)
+                    .lineLimit(1)
+                Text(trackName.isEmpty ? "Online research" : "\(trackName) - \(artistName)")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(bodyColor)
+                    .tracking(0.5)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button(action: onClose) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(mutedColor)
+                    .frame(width: 24, height: 24)
+                    .background(Circle().fill(Color.black.opacity(theme.showBody ? 0.10 : 0.22)))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var loadingState: some View {
+        VStack(spacing: 10) {
+            ProgressView()
+                .progressViewStyle(.circular)
+                .controlSize(.regular)
+                .tint(accentColor)
+            Text("Researching online...")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(titleColor)
+            Text("Verifying the exact track, then pulling the main details.")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(bodyColor)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func messageState(title: String, message: String, showsRetry: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(titleColor)
+            Text(message)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(bodyColor)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if showsRetry {
+                Button("Retry", action: onRetry)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(titleColor)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(
+                        Capsule()
+                            .fill(accentColor.opacity(0.18))
+                            .overlay(Capsule().strokeBorder(accentColor.opacity(0.28), lineWidth: 1))
+                    )
+                    .buttonStyle(.plain)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+    }
+
+    private func reportContent(_ report: SongFactsReport) -> some View {
+        let hasCredits = !report.writers.isEmpty || !report.producers.isEmpty
+        let hasMainInfo = report.releaseDate != nil || report.album != nil
+
+        return ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 11) {
+                if !report.quickSummary.isEmpty {
+                    Text(report.quickSummary)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(titleColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if hasCredits {
+                    section("Credits") {
+                        if !report.writers.isEmpty {
+                            keyValue("Authors", report.writers.joined(separator: ", "))
+                        }
+                        if !report.producers.isEmpty {
+                            keyValue("Producers", report.producers.joined(separator: ", "))
+                        }
+                    }
+                }
+
+                if hasMainInfo {
+                    section("Main Info") {
+                        if let releaseDate = report.releaseDate {
+                            keyValue("Released", releaseDate)
+                        }
+                        if let album = report.album {
+                            keyValue("Album", album)
+                        }
+                    }
+                }
+
+                if !report.funFacts.isEmpty {
+                    section("Facts") {
+                        bulletList(report.funFacts)
+                    }
+                }
+
+                if !hasCredits && !hasMainInfo && report.funFacts.isEmpty {
+                    emptyDetail("No confirmed details found for this exact track.")
+                }
+
+                if !report.sources.isEmpty {
+                    section("Sources") {
+                        sourceList(report.sources)
+                    }
+                }
+            }
+            .padding(.bottom, 2)
+        }
+    }
+
+    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title.uppercased())
+                .font(.system(size: 8, weight: .bold))
+                .foregroundColor(mutedColor)
+                .tracking(1.4)
+            content()
+        }
+    }
+
+    private func keyValue(_ key: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(key)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(bodyColor)
+            Text(value)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(titleColor)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func bulletList(_ values: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ForEach(values, id: \.self) { value in
+                HStack(alignment: .top, spacing: 6) {
+                    Circle()
+                        .fill(accentColor)
+                        .frame(width: 4, height: 4)
+                        .padding(.top, 5)
+                    Text(value)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundColor(bodyColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func sourceList(_ sources: [SongFactsSource]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(sources) { source in
+                if let url = URL(string: source.url) {
+                    Link(source.title, destination: url)
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundColor(accentColor)
+                        .lineLimit(1)
+                }
+            }
+        }
+    }
+
+    private func emptyDetail(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10.5, weight: .medium))
+            .foregroundColor(bodyColor)
+    }
+}
+
+private struct TonearmInteractionCaptureView: NSViewRepresentable {
+    var onBegan: (CGPoint) -> Void
+    var onMoved: (CGPoint) -> Void
+    var onEnded: (CGPoint) -> Void
+    var onCancelled: () -> Void
+
+    func makeNSView(context: Context) -> CaptureView {
+        let view = CaptureView()
+        view.onBegan = onBegan
+        view.onMoved = onMoved
+        view.onEnded = onEnded
+        view.onCancelled = onCancelled
+        return view
+    }
+
+    func updateNSView(_ nsView: CaptureView, context: Context) {
+        nsView.onBegan = onBegan
+        nsView.onMoved = onMoved
+        nsView.onEnded = onEnded
+        nsView.onCancelled = onCancelled
+    }
+
+    final class CaptureView: NSView {
+        var onBegan: ((CGPoint) -> Void)?
+        var onMoved: ((CGPoint) -> Void)?
+        var onEnded: ((CGPoint) -> Void)?
+        var onCancelled: (() -> Void)?
+
+        private var isTrackingPress = false
+
+        override var isFlipped: Bool { true }
+        override var mouseDownCanMoveWindow: Bool { false }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            true
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            bounds.contains(point) ? self : nil
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            isTrackingPress = true
+            window?.isMovableByWindowBackground = false
+            onBegan?(localPoint(from: event))
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard isTrackingPress else { return }
+            onMoved?(localPoint(from: event))
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            guard isTrackingPress else { return }
+            isTrackingPress = false
+            onEnded?(localPoint(from: event))
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            if newWindow == nil, isTrackingPress {
+                isTrackingPress = false
+                onCancelled?()
+            }
+            super.viewWillMove(toWindow: newWindow)
+        }
+
+        private func localPoint(from event: NSEvent) -> CGPoint {
+            convert(event.locationInWindow, from: nil)
+        }
+    }
+}
+
+// MARK: - SpinningVinylView (Isolated Vinyl Disc + Album Art Label)
+/// Isolated subview for smooth vsync'd vinyl rotation.
+/// - TimelineView(.animation) provides display-linked frame updates (native requestAnimationFrame equivalent)
+/// - Persistent angle tracking: records paused angle, resumes from that point when playing
+/// - 33.3 RPM = 199.8°/s rotation speed
+/// - Album art label fades in/out as new art loads
+/// - Subtle colour tint overlay from dominant album art colour (Phase 8)
+
+struct SpinningVinylView: View {
+    // MARK: - Properties
+    let isPlaying: Bool
+    let albumArt: NSImage?
+    let vinylTint: Color
+    var isVisible: Bool = true
+    var diskOpacity: Double = 1.0
+    var freezeRotation: Bool = false
+    var overrideAlbumArt: NSImage? = nil
+    var albumArtLabelGradient: [Color] = [Color(hex: "9B5523"), Color(hex: "6C3E1A"), Color(hex: "3a1a06")]
+    var albumArtRingColor: Color = Color(hex: "ffbe50").opacity(0.30)
+    var onAngleSample: ((Double) -> Void)? = nil
+
+    @State private var pausedAngle: Double = 0
+    @State private var playbackStartDate: Date?
+    @State private var spinDownStartDate: Date?
+    @State private var spinDownStartAngle: Double = 0
+    @State private var spinDownEndAngle: Double = 0
+    @State private var spinDownToken: UUID?
+
+    private let degreesPerSecond: Double = (22.0 / 60.0) * 360.0
+    private let spinDownDuration: TimeInterval = 1.5
+
+    // MARK: - Body
+    var body: some View {
+        // TimelineView(.animation) fires once per display refresh (~120Hz on 120Hz displays)
+        // Keep TimelineView running while decelerating so spin-down stays smooth.
+        // This provides vsync-ed smooth rotation without the latency of manual Timer + dispatch
+        TimelineView(.animation(paused: freezeRotation || (!isPlaying && spinDownStartDate == nil))) { context in
+            let displayAngle = currentAngle(at: context.date)
+            let effectiveOpacity = max(0.0, min(1.0, (isVisible ? 1.0 : 0.0) * diskOpacity))
+            let sampledAngle = normalized(displayAngle)
+
+            ZStack {
+                vinylDisc
+
+                Circle()
+                    .fill(vinylTint)
+                    .frame(width: 258, height: 258)
+                    .opacity(0.12)
+                    .blendMode(.softLight)
+
+                Circle()
+                    .fill(
+                        AngularGradient(
+                            stops: [
+                                .init(color: .clear, location: 0.0),
+                                .init(color: .white.opacity(0.04), location: 0.15),
+                                .init(color: .white.opacity(0.08), location: 0.25),
+                                .init(color: .white.opacity(0.04), location: 0.35),
+                                .init(color: .clear, location: 0.5),
+                                .init(color: .clear, location: 1.0)
+                            ],
+                            center: .center
+                        )
+                    )
+                    .frame(width: 258, height: 258)
+
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: .white.opacity(0.07), location: 0),
+                                .init(color: .clear, location: 0.4),
+                                .init(color: .clear, location: 0.6),
+                                .init(color: .white.opacity(0.03), location: 1.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 258, height: 258)
+
+                albumArtLabel
+            }
+            .opacity(effectiveOpacity)
+            .rotationEffect(.degrees(displayAngle))
+            .drawingGroup()
+            .onChange(of: sampledAngle) { _, newAngle in
+                onAngleSample?(newAngle)
+            }
+        }
+        .onAppear {
+            if isPlaying && !freezeRotation {
+                playbackStartDate = Date()
+            } else {
+                playbackStartDate = nil
+                spinDownStartDate = nil
+                spinDownToken = nil
+            }
+        }
+        .onChange(of: freezeRotation) { _, frozen in
+            let now = Date()
+            if frozen {
+                captureCurrentAngle(at: now)
+            } else if isPlaying {
+                playbackStartDate = now
+            }
+        }
+        .onChange(of: isPlaying) { _, playing in
+            let now = Date()
+            if freezeRotation {
+                captureCurrentAngle(at: now)
+                return
+            }
+            if playing {
+                // Resume exactly from the current decelerating angle if spin-down is in progress.
+                if let spinDownStartDate = spinDownStartDate {
+                    let elapsed = now.timeIntervalSince(spinDownStartDate)
+                    let progress = max(0, min(1, elapsed / spinDownDuration))
+                    // Constant deceleration profile (v decreases linearly to zero).
+                    let decelProgress = (2 * progress) - (progress * progress)
+                    let currentSpinDownAngle = spinDownStartAngle + ((spinDownEndAngle - spinDownStartAngle) * decelProgress)
+                    pausedAngle = normalized(currentSpinDownAngle)
+                } else {
+                    pausedAngle = normalized(pausedAngle)
+                }
+                spinDownStartDate = nil
+                spinDownToken = nil
+                playbackStartDate = now
+            } else {
+                let startAngle: Double
+                if let playbackStartDate = playbackStartDate {
+                    let elapsed = now.timeIntervalSince(playbackStartDate)
+                    startAngle = normalized(pausedAngle + (elapsed * degreesPerSecond))
+                } else {
+                    startAngle = normalized(pausedAngle)
+                }
+
+                let stopDelta = degreesPerSecond * spinDownDuration * 0.5
+                pausedAngle = startAngle
+                spinDownStartAngle = startAngle
+                spinDownEndAngle = startAngle + stopDelta
+                spinDownStartDate = now
+                let token = UUID()
+                spinDownToken = token
+                playbackStartDate = nil
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + spinDownDuration) {
+                    guard spinDownToken == token, !isPlaying else { return }
+                    pausedAngle = normalized(spinDownEndAngle)
+                    spinDownStartDate = nil
+                    spinDownToken = nil
+                }
+            }
+        }
+    }
+
+    // MARK: - Angle Calculation
+
+    /// Compute current vinyl angle based on playback state
+    /// When paused: return saved pausedAngle
+    /// When playing: return pausedAngle + elapsed rotation since playback started
+    private func currentAngle(at date: Date) -> Double {
+        if isPlaying, let playbackStartDate = playbackStartDate {
+            let elapsed = date.timeIntervalSince(playbackStartDate)
+            return normalized(pausedAngle + (elapsed * degreesPerSecond))
+        }
+
+        if let spinDownStartDate = spinDownStartDate {
+            let elapsed = date.timeIntervalSince(spinDownStartDate)
+            let progress = max(0, min(1, elapsed / spinDownDuration))
+            // Constant deceleration profile (v decreases linearly to zero).
+            let decelProgress = (2 * progress) - (progress * progress)
+            let deceleratingAngle = spinDownStartAngle + ((spinDownEndAngle - spinDownStartAngle) * decelProgress)
+            return normalized(deceleratingAngle)
+        }
+
+        return normalized(pausedAngle)
+    }
+
+    /// Keep angle in 0–360° range (wrap around after full rotations)
+    private func normalized(_ angle: Double) -> Double {
+        let value = angle.truncatingRemainder(dividingBy: 360)
+        return value >= 0 ? value : value + 360
+    }
+
+    private func captureCurrentAngle(at date: Date) {
+        pausedAngle = normalized(currentAngle(at: date))
+        playbackStartDate = nil
+        spinDownStartDate = nil
+        spinDownToken = nil
+    }
+
+    // MARK: - Vinyl Disc
+
+    private var vinylDisc: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color(hex: "151515"), Color(hex: "0b0b0b"), Color(hex: "050505")],
+                        center: .center,
+                        startRadius: 12,
+                        endRadius: 129
+                    )
+                )
+                .frame(width: 258, height: 258)
+
+            ForEach(0..<80, id: \.self) { i in
+                let diameter: CGFloat = 102 + CGFloat(i) * 1.95
+                let lightOpacity: Double = (i % 2 == 0) ? 0.06 : 0.03
+                let darkOpacity: Double = (i % 2 == 0) ? 0.04 : 0.02
+
+                Circle()
+                    .strokeBorder(Color.white.opacity(lightOpacity), lineWidth: 0.35)
+                    .frame(width: diameter, height: diameter)
+
+                Circle()
+                    .strokeBorder(Color.black.opacity(darkOpacity), lineWidth: 0.5)
+                    .frame(width: diameter, height: diameter)
+            }
+
+            Circle()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.06), Color.white.opacity(0.02)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.5
+                )
+                .frame(width: 258, height: 258)
+
+            Circle()
+                .strokeBorder(Color.white.opacity(0.03), lineWidth: 1)
+                .frame(width: 102, height: 102)
+        }
+    }
+
+    private var albumArtLabel: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: albumArtLabelGradient,
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 48
+                    )
+                )
+                .frame(width: 96, height: 96)
+
+            if let art = overrideAlbumArt ?? albumArt {
+                Image(nsImage: art)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 96, height: 96)
+                    .clipShape(Circle())
+            }
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color(hex: "cccccc"), Color(hex: "666666")],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 5
+                    )
+                )
+                .frame(width: 10, height: 10)
+        }
+        .frame(width: 96, height: 96)
+        .overlay(
+            Circle()
+                .strokeBorder(albumArtRingColor, lineWidth: 2)
+        )
+        .shadow(color: .black.opacity(0.8), radius: 6)
+    }
+
+}
+
+// MARK: - Retro button press style
+
+private struct RetroButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
+            .brightness(configuration.isPressed ? -0.12 : 0)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+// MARK: - Animation Overlay Window
+
+class AnimationOverlayWindow: NSPanel {
+    static let overlaySize = CGSize(width: 980, height: 860)
+
+    init() {
+        super.init(
+            contentRect: NSRect(origin: .zero, size: AnimationOverlayWindow.overlaySize),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: true
+        )
+
+        isOpaque = false
+        backgroundColor = .clear
+        hasShadow = false
+        level = NSWindow.Level(Int(CGWindowLevelForKey(.desktopIconWindow)) + 2)
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        isMovableByWindowBackground = false
+        hidesOnDeactivate = false
+        ignoresMouseEvents = true
+    }
+
+    func position(over widgetFrame: CGRect) {
+        let origin = CGPoint(
+            x: widgetFrame.midX - (AnimationOverlayWindow.overlaySize.width / 2),
+            y: widgetFrame.midY - (AnimationOverlayWindow.overlaySize.height / 2)
+        )
+        setFrameOrigin(origin)
+    }
+}
+
+// MARK: - Overlay View
+
+struct AnimationOverlayView: View {
+    @ObservedObject var animator: SongSwitchAnimator
+
+    var body: some View {
+        ZStack {
+            if animator.showFloatingDisk {
+                let pose = animator.floatingDiskPose
+                LiftedDiskView(albumArt: animator.outgoingAlbumArt)
+                    .rotationEffect(.degrees(animator.outgoingTransferAngle))
+                    .offset(pose.offset)
+                    .scaleEffect(pose.scale, anchor: .center)
+                    .opacity(pose.opacity)
+                    .rotation3DEffect(
+                        .degrees(pose.yaw),
+                        axis: (x: 0, y: 1, z: 0),
+                        perspective: 0.5
+                    )
+                    .shadow(color: .black.opacity(pose.shadowOpacity), radius: pose.shadowRadius, y: pose.shadowY)
+            }
+
+            if animator.showOutgoingSleeve {
+                let pose = animator.outgoingSleevePose
+                FlyingSleeveView(
+                    albumArt: animator.outgoingAlbumArt,
+                    embeddedDiskArt: animator.outgoingAlbumArt,
+                    diskExposure: animator.outgoingDiskExposure,
+                    transferMode: .capture,
+                    embeddedDiskRotation: animator.outgoingTransferAngle
+                )
+                    .offset(pose.offset)
+                    .scaleEffect(pose.scale, anchor: .center)
+                    .opacity(pose.opacity)
+                    .rotation3DEffect(
+                        .degrees(pose.yaw),
+                        axis: (x: 0, y: 1, z: 0),
+                        perspective: 0.5
+                    )
+                    .shadow(color: .black.opacity(pose.shadowOpacity), radius: pose.shadowRadius, y: pose.shadowY)
+            }
+
+            if animator.showIncomingSleeve {
+                let pose = animator.incomingSleevePose
+                FlyingSleeveView(
+                    albumArt: animator.incomingAlbumArt,
+                    embeddedDiskArt: animator.incomingAlbumArt,
+                    diskExposure: animator.incomingDiskExposure,
+                    transferMode: .reveal,
+                    embeddedDiskRotation: 0
+                )
+                    .offset(pose.offset)
+                    .scaleEffect(pose.scale, anchor: .center)
+                    .opacity(pose.opacity)
+                    .rotation3DEffect(
+                        .degrees(pose.yaw),
+                        axis: (x: 0, y: 1, z: 0),
+                        perspective: 0.5
+                    )
+                    .shadow(color: .black.opacity(pose.shadowOpacity), radius: pose.shadowRadius, y: pose.shadowY)
+            }
+        }
+        .frame(width: AnimationOverlayWindow.overlaySize.width, height: AnimationOverlayWindow.overlaySize.height)
+        .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Floating Lifted Disk
+
+struct LiftedDiskView: View {
+    let albumArt: NSImage?
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color(hex: "151515"), Color(hex: "0b0b0b"), Color(hex: "050505")],
+                        center: .center,
+                        startRadius: 12,
+                        endRadius: 129
+                    )
+                )
+                .frame(width: 258, height: 258)
+
+            ForEach(0..<80, id: \.self) { i in
+                let diameter: CGFloat = 102 + CGFloat(i) * 1.95
+                let lightOpacity: Double = (i % 2 == 0) ? 0.05 : 0.025
+                let darkOpacity: Double = (i % 2 == 0) ? 0.035 : 0.02
+
+                Circle()
+                    .strokeBorder(Color.white.opacity(lightOpacity), lineWidth: 0.35)
+                    .frame(width: diameter, height: diameter)
+
+                Circle()
+                    .strokeBorder(Color.black.opacity(darkOpacity), lineWidth: 0.5)
+                    .frame(width: diameter, height: diameter)
+            }
+
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color(hex: "9B5523"), Color(hex: "6C3E1A"), Color(hex: "3a1a06")],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 48
+                        )
+                    )
+                    .frame(width: 96, height: 96)
+
+                if let art = albumArt {
+                    Image(nsImage: art)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 96, height: 96)
+                        .clipShape(Circle())
+                }
+
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color(hex: "cccccc"), Color(hex: "666666")],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: 5
+                        )
+                    )
+                    .frame(width: 10, height: 10)
+            }
+            .overlay(
+                Circle()
+                    .strokeBorder(Color(hex: "ffbe50").opacity(0.3), lineWidth: 2)
+            )
+        }
+        .frame(width: 258, height: 258)
+        .overlay(
+            Circle()
+                .strokeBorder(
+                    AngularGradient(
+                        stops: [
+                            .init(color: .clear, location: 0.0),
+                            .init(color: .white.opacity(0.08), location: 0.12),
+                            .init(color: .white.opacity(0.22), location: 0.20),
+                            .init(color: .white.opacity(0.09), location: 0.28),
+                            .init(color: .clear, location: 0.46),
+                            .init(color: .clear, location: 1.0)
+                        ],
+                        center: .center
+                    ),
+                    lineWidth: 5
+                )
+                .blur(radius: 0.8)
+                .frame(width: 250, height: 250)
+        )
+    }
+}
+
+// MARK: - Flying Sleeve View (Song Switch Animation Overlay)
+
+struct FlyingSleeveView: View {
+    enum TransferMode {
+        case capture
+        case reveal
+    }
+
+    let albumArt: NSImage?
+    var embeddedDiskArt: NSImage? = nil
+    var diskExposure: CGFloat = 0
+    var transferMode: TransferMode = .reveal
+    var embeddedDiskRotation: Double = 0
+    private let size: CGFloat = 236
+
+    var body: some View {
+        let clampedExposure = max(0, min(1, diskExposure))
+        // Clamp near-zero exposure in capture mode so no residual right-edge sliver lingers
+        // after the disk is fully inside the outgoing sleeve.
+        let renderExposure: CGFloat = (transferMode == .capture && clampedExposure < 0.16) ? 0 : clampedExposure
+        let mouthBoundaryX = size * 0.12
+        let revealedDiskX = -(size * 0.46)
+        let diskX = mouthBoundaryX + (renderExposure * (revealedDiskX - mouthBoundaryX))
+        let diskScale = transferMode == .capture
+            ? (0.845 + (renderExposure * 0.01))
+            : (0.845 + (renderExposure * 0.018))
+        let artImage = albumArt ?? FallbackCoverArtGenerator.fallbackImage
+
+        ZStack {
+            if renderExposure > 0.001 {
+                LiftedDiskView(albumArt: embeddedDiskArt ?? artImage)
+                    .rotationEffect(.degrees(embeddedDiskRotation))
+                    .scaleEffect(diskScale, anchor: .center)
+                    .offset(x: diskX, y: 0)
+                    .opacity(1.0)
+                    .mask(
+                        GeometryReader { proxy in
+                            let visibleWidthMultiplier = transferMode == .capture
+                                ? (0.06 + (0.94 * renderExposure))
+                                : (0.14 + (0.86 * renderExposure))
+                            let visibleWidth = proxy.size.width * visibleWidthMultiplier
+                            Rectangle()
+                                .frame(width: visibleWidth, height: proxy.size.height, alignment: .leading)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                        }
+                    )
+            }
+
+            RoundedRectangle(cornerRadius: 2)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "161616"), Color(hex: "0c0c0c"), Color(hex: "050505")],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .strokeBorder(Color.white.opacity(0.06), lineWidth: 0.5)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.05), .clear, .clear],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                )
+
+            // Platter-facing mouth lip
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.black.opacity(0.85), Color.black.opacity(0.15)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: 12)
+                Spacer(minLength: 0)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 2))
+
+            // Sleeve spine and body separation
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.05), Color.clear],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: 18)
+                Spacer(minLength: 0)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 2))
+
+            // Clean album cover — slightly oversized so the dark sleeve jacket
+            // never peeks around the edges as a frame.
+            Image(nsImage: artImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size + 2, height: size + 2)
+                .clipShape(RoundedRectangle(cornerRadius: 2))
+
+            RoundedRectangle(cornerRadius: 2)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.04), .clear, .clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+        }
+        .frame(width: size, height: size)
+        .compositingGroup()
+        // Soft, natural drop shadow — not the heavy dark halo that read as a border.
+        .shadow(color: .black.opacity(0.38), radius: 14, x: 0, y: 10)
+    }
+}
+
+#Preview {
+    VinylWidgetView(
+        animator: SongSwitchAnimator(),
+        themeManager: WidgetThemeManager()
+    )
+}

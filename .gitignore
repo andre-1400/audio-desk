@@ -1,0 +1,18 @@
+# macOS
+.DS_Store
+
+# Xcode
+MusicWidgets.xcodeproj/xcuserdata/
+MusicWidgets.xcodeproj/project.xcworkspace/xcuserdata/
+MusicWidgets.xcodeproj/project.xcworkspace/xcshareddata/
+build/
+DerivedData/
+*.xcarchive
+
+# Secrets — never commit API keys
+MusicWidgets/Secrets.swift
+
+# Netlify / marketing site build & large binaries (out of scope for this rework)
+complete-music-app/.netlify/
+complete-music-app/node_modules/
+complete-music-app/downloads/*.dmg
