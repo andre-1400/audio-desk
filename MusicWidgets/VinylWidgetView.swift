@@ -100,7 +100,6 @@ struct VinylWidgetView: View {
     // MARK: - State Objects
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
-    @StateObject private var songFactsGenerator = SongFactsGenerator()
 
     // MARK: - Injected from AppDelegate
     @ObservedObject var animator: SongSwitchAnimator
@@ -126,8 +125,6 @@ struct VinylWidgetView: View {
     @State private var tonearmPlaybackTransition: TonearmPlaybackTransition?
     @State private var seekHandoffUntil: Date?
     @State private var trackProgressClampUntil: Date?
-    @State private var isSongFactsPanelPresented = false
-    @State private var showTitleHint = false
 
     private let tonearmRestAngle = -22.0
     private let tonearmStartAngle = -8.0
@@ -340,20 +337,6 @@ struct VinylWidgetView: View {
                 .offset(x: 115, y: -84)
             }
 
-            if isSongFactsPanelPresented {
-                songFactsPanelLayer
-                    .zIndex(40)
-            }
-
-            if showTitleHint && !isSongFactsPanelPresented {
-                titleHintBubble
-                    .frame(maxWidth: 300, maxHeight: .infinity, alignment: .bottom)
-                    .offset(y: -98)
-                    .transition(.scale(scale: 0.92).combined(with: .opacity))
-                    .zIndex(36)
-                    .allowsHitTesting(false)
-            }
-
         }
         .frame(width: 360, height: 420)
         .coordinateSpace(name: "widget")
@@ -375,9 +358,6 @@ struct VinylWidgetView: View {
                 refreshAlbumArt(forceRefresh: false, updateDisplayedArt: true)
             }
         }
-        .onChange(of: displayedNowPlaying.trackName) { _, newName in
-            if !newName.isEmpty { maybeShowTitleHint() }
-        }
         .onDisappear {
             endTonearmGestureSession()
             detector.stop()
@@ -385,10 +365,6 @@ struct VinylWidgetView: View {
         }
         .onChange(of: trackIdentityKey) { oldValue, newValue in
             handleTrackIdentityChange(oldValue: oldValue, newValue: newValue)
-            if songFactsGenerator.activeTrackKey != nil, songFactsGenerator.activeTrackKey != newValue {
-                isSongFactsPanelPresented = false
-                songFactsGenerator.clearIfNeeded(for: newValue)
-            }
         }
         .onChange(of: detector.nowPlaying) { _, live in
             updateDisplayedPlaybackState(from: live)
@@ -438,105 +414,6 @@ struct VinylWidgetView: View {
             !displayedNowPlaying.trackName.isEmpty &&
             displayedNowPlaying.source != .none &&
             (displayedNowPlaying.durationMillis ?? 0) > 0
-    }
-
-    private var songFactsButtonLayer: some View {
-        VStack {
-            HStack {
-                Button {
-                    toggleSongFactsPanel()
-                } label: {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(songFactsControlBackground)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .strokeBorder(songFactsControlBorder, lineWidth: 1)
-                            )
-                            .shadow(color: .black.opacity(theme.showBody ? 0.20 : 0.35), radius: 8, x: 0, y: 4)
-
-                        if songFactsGenerator.isLoading {
-                            ProgressView()
-                                .progressViewStyle(.circular)
-                                .controlSize(.small)
-                                .scaleEffect(0.58)
-                                .tint(songFactsControlIcon)
-                        } else {
-                            Image(systemName: "questionmark")
-                                .font(.system(size: 13, weight: .black))
-                                .foregroundColor(songFactsControlIcon)
-                        }
-                    }
-                    .frame(width: 34, height: 34)
-                    .contentShape(RoundedRectangle(cornerRadius: 10))
-                }
-                .buttonStyle(.plain)
-                .help("Research this song")
-                .opacity(displayedNowPlaying.trackName.isEmpty ? 0.62 : 1.0)
-
-                Spacer()
-            }
-            .padding(.top, theme.showBody ? 16 : 14)
-            .padding(.leading, theme.showBody ? 30 : 22)
-
-            Spacer()
-        }
-        .frame(width: 320, height: 380)
-    }
-
-    private var songFactsPanelLayer: some View {
-        SongFactsPanel(
-            report: songFactsGenerator.report,
-            isLoading: songFactsGenerator.isLoading,
-            error: songFactsGenerator.lastError,
-            trackName: displayedNowPlaying.trackName,
-            artistName: displayedNowPlaying.artistName,
-            theme: theme,
-            onRetry: {
-                Task { await songFactsGenerator.facts(for: displayedNowPlaying, trackKey: trackIdentityKey) }
-            },
-            onClose: {
-                withAnimation(.easeOut(duration: 0.16)) {
-                    isSongFactsPanelPresented = false
-                }
-            }
-        )
-        .frame(width: 292, height: 312)
-        .offset(y: theme.showBody ? -4 : 10)
-        .transition(.scale(scale: 0.94, anchor: .topLeading).combined(with: .opacity))
-    }
-
-    private var songFactsControlBackground: Color {
-        theme.showBody ? theme.shelfButtonBackground.opacity(0.92) : Color.black.opacity(0.58)
-    }
-
-    private var songFactsControlBorder: Color {
-        theme.showBody ? theme.shelfButtonRing.opacity(0.34) : Color.white.opacity(0.18)
-    }
-
-    private var songFactsControlIcon: Color {
-        theme.showBody ? theme.shelfButtonIcon : Color.white.opacity(0.86)
-    }
-
-    private func toggleSongFactsPanel() {
-        let shouldClose = isSongFactsPanelPresented &&
-            songFactsGenerator.activeTrackKey == trackIdentityKey &&
-            !songFactsGenerator.isLoading
-
-        if shouldClose {
-            withAnimation(.easeOut(duration: 0.16)) {
-                isSongFactsPanelPresented = false
-            }
-            return
-        }
-
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-            isSongFactsPanelPresented = true
-        }
-
-        Task {
-            await songFactsGenerator.facts(for: displayedNowPlaying, trackKey: trackIdentityKey)
-        }
     }
 
     private var tonearmFrameOriginInWidget: CGPoint {
@@ -1123,46 +1000,6 @@ struct VinylWidgetView: View {
         .frame(width: 90, height: 180)
     }
 
-    // MARK: - First-launch title hint
-
-    private var titleHintBubble: some View {
-        VStack(spacing: 1) {
-            Text("Tap the title")
-                .font(.custom("Georgia", size: 12))
-                .fontWeight(.bold)
-                .foregroundColor(theme.trackTitle)
-            Text("to discover song notes")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(theme.trackArtist)
-        }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 11)
-                .fill(theme.showBody ? theme.shelfButtonBackground.opacity(0.97) : Color.black.opacity(0.74))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 11)
-                        .strokeBorder(theme.trackPlayingDot.opacity(0.45), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.45), radius: 12, x: 0, y: 5)
-        )
-    }
-
-    private func maybeShowTitleHint() {
-        guard !showTitleHint,
-              !UserDefaults.standard.bool(forKey: "hint.titleResearch.v1"),
-              !displayedNowPlaying.trackName.isEmpty else { return }
-        UserDefaults.standard.set(true, forKey: "hint.titleResearch.v1")
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {
-            showTitleHint = true
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 7) {
-            withAnimation(.easeOut(duration: 0.45)) {
-                showTitleHint = false
-            }
-        }
-    }
-
     // MARK: - Track Info
 
     private var trackInfo: some View {
@@ -1177,21 +1014,12 @@ struct VinylWidgetView: View {
                         pausedColor: theme.trackPausedDot
                     )
 
-                    Button {
-                        toggleSongFactsPanel()
-                    } label: {
-                        Text(displayedNowPlaying.trackName)
-                            .font(.custom("Georgia", size: 13))
-                            .fontWeight(.bold)
-                            .foregroundColor(theme.trackTitle)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Click the title for song notes")
-                    .onHover { hovering in
-                        if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                    }
+                    Text(displayedNowPlaying.trackName)
+                        .font(.custom("Georgia", size: 13))
+                        .fontWeight(.bold)
+                        .foregroundColor(theme.trackTitle)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                 }
 
                 Text(displayedNowPlaying.artistName.uppercased())
@@ -1279,270 +1107,6 @@ struct VinylWidgetView: View {
             )
             .frame(width: 9, height: 9)
             .shadow(color: .black.opacity(0.6), radius: 1.5, x: 0, y: 1)
-    }
-}
-
-private struct SongFactsPanel: View {
-    let report: SongFactsReport?
-    let isLoading: Bool
-    let error: String?
-    let trackName: String
-    let artistName: String
-    let theme: WidgetThemePalette
-    let onRetry: () -> Void
-    let onClose: () -> Void
-
-    private var panelGradient: [Color] {
-        theme.showBody
-            ? theme.widgetBodyGradient
-            : [Color(hex: "181818").opacity(0.96), Color(hex: "050505").opacity(0.94)]
-    }
-
-    private var borderColor: Color {
-        theme.showBody ? theme.widgetBorder : Color.white.opacity(0.16)
-    }
-
-    private var titleColor: Color { theme.trackTitle }
-    private var bodyColor: Color { theme.trackArtist }
-    private var mutedColor: Color { theme.trackIdle }
-    private var accentColor: Color { theme.trackPlayingDot }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            header
-
-            if isLoading {
-                loadingState
-            } else if let error {
-                messageState(title: "Could not research this song", message: error, showsRetry: true)
-            } else if trackName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                messageState(
-                    title: "Nothing playing",
-                    message: "Start a track, then ask Vinyl Widget for the story behind it.",
-                    showsRetry: false
-                )
-            } else if let report {
-                reportContent(report)
-            } else {
-                messageState(
-                    title: "Song research",
-                    message: "Tap the question mark to look up credits, dates, and facts.",
-                    showsRetry: false
-                )
-            }
-        }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(LinearGradient(colors: panelGradient, startPoint: .topLeading, endPoint: .bottomTrailing))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.black.opacity(theme.showBody ? 0.10 : 0.18))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .strokeBorder(borderColor, lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.42), radius: 22, x: 0, y: 12)
-        )
-    }
-
-    private var header: some View {
-        HStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(accentColor.opacity(0.16))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .strokeBorder(accentColor.opacity(0.28), lineWidth: 1)
-                    )
-                Image(systemName: "questionmark")
-                    .font(.system(size: 12, weight: .black))
-                    .foregroundColor(accentColor)
-            }
-            .frame(width: 30, height: 30)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("Song Notes")
-                    .font(.custom("Georgia", size: 16))
-                    .fontWeight(.bold)
-                    .foregroundColor(titleColor)
-                    .lineLimit(1)
-                Text(trackName.isEmpty ? "Online research" : "\(trackName) - \(artistName)")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundColor(bodyColor)
-                    .tracking(0.5)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(mutedColor)
-                    .frame(width: 24, height: 24)
-                    .background(Circle().fill(Color.black.opacity(theme.showBody ? 0.10 : 0.22)))
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    private var loadingState: some View {
-        VStack(spacing: 10) {
-            ProgressView()
-                .progressViewStyle(.circular)
-                .controlSize(.regular)
-                .tint(accentColor)
-            Text("Researching online...")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(titleColor)
-            Text("Verifying the exact track, then pulling the main details.")
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(bodyColor)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func messageState(title: String, message: String, showsRetry: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(titleColor)
-            Text(message)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(bodyColor)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if showsRetry {
-                Button("Retry", action: onRetry)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(titleColor)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(
-                        Capsule()
-                            .fill(accentColor.opacity(0.18))
-                            .overlay(Capsule().strokeBorder(accentColor.opacity(0.28), lineWidth: 1))
-                    )
-                    .buttonStyle(.plain)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-    }
-
-    private func reportContent(_ report: SongFactsReport) -> some View {
-        let hasCredits = !report.writers.isEmpty || !report.producers.isEmpty
-        let hasMainInfo = report.releaseDate != nil || report.album != nil
-
-        return ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 11) {
-                if !report.quickSummary.isEmpty {
-                    Text(report.quickSummary)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(titleColor)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if hasCredits {
-                    section("Credits") {
-                        if !report.writers.isEmpty {
-                            keyValue("Authors", report.writers.joined(separator: ", "))
-                        }
-                        if !report.producers.isEmpty {
-                            keyValue("Producers", report.producers.joined(separator: ", "))
-                        }
-                    }
-                }
-
-                if hasMainInfo {
-                    section("Main Info") {
-                        if let releaseDate = report.releaseDate {
-                            keyValue("Released", releaseDate)
-                        }
-                        if let album = report.album {
-                            keyValue("Album", album)
-                        }
-                    }
-                }
-
-                if !report.funFacts.isEmpty {
-                    section("Facts") {
-                        bulletList(report.funFacts)
-                    }
-                }
-
-                if !hasCredits && !hasMainInfo && report.funFacts.isEmpty {
-                    emptyDetail("No confirmed details found for this exact track.")
-                }
-
-                if !report.sources.isEmpty {
-                    section("Sources") {
-                        sourceList(report.sources)
-                    }
-                }
-            }
-            .padding(.bottom, 2)
-        }
-    }
-
-    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased())
-                .font(.system(size: 8, weight: .bold))
-                .foregroundColor(mutedColor)
-                .tracking(1.4)
-            content()
-        }
-    }
-
-    private func keyValue(_ key: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(key)
-                .font(.system(size: 9, weight: .bold))
-                .foregroundColor(bodyColor)
-            Text(value)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(titleColor)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private func bulletList(_ values: [String]) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            ForEach(values, id: \.self) { value in
-                HStack(alignment: .top, spacing: 6) {
-                    Circle()
-                        .fill(accentColor)
-                        .frame(width: 4, height: 4)
-                        .padding(.top, 5)
-                    Text(value)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(bodyColor)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-
-    private func sourceList(_ sources: [SongFactsSource]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            ForEach(sources) { source in
-                if let url = URL(string: source.url) {
-                    Link(source.title, destination: url)
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .foregroundColor(accentColor)
-                        .lineLimit(1)
-                }
-            }
-        }
-    }
-
-    private func emptyDetail(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 10.5, weight: .medium))
-            .foregroundColor(bodyColor)
     }
 }
 

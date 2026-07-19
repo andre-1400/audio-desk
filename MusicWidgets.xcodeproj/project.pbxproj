@@ -20,10 +20,8 @@
 		AA000108 /* SongSwitchAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000118 /* SongSwitchAnimator.swift */; };
 		AA000109 /* VinylSleeveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000119 /* VinylSleeveView.swift */; };
 		AA000110 /* WidgetLandingAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000120 /* WidgetLandingAnimator.swift */; };
-		AA000121 /* SongFactsGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000131 /* SongFactsGenerator.swift */; };
 		AA000200 /* QueueTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000201 /* QueueTrack.swift */; };
 		AA000124 /* AppleMusicLocalQueueProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000134 /* AppleMusicLocalQueueProvider.swift */; };
-		AA000125 /* GroqConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000135 /* GroqConfiguration.swift */; };
 		AA000129 /* LaunchOnStartupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000139 /* LaunchOnStartupManager.swift */; };
 		AA000130 /* StartupToggleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000140 /* StartupToggleStyle.swift */; };
 		AA000141 /* StatusMenuHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000142 /* StatusMenuHeaderView.swift */; };
@@ -49,10 +47,8 @@
 		AA000118 /* SongSwitchAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongSwitchAnimator.swift; sourceTree = "<group>"; };
 		AA000119 /* VinylSleeveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VinylSleeveView.swift; sourceTree = "<group>"; };
 		AA000120 /* WidgetLandingAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetLandingAnimator.swift; sourceTree = "<group>"; };
-		AA000131 /* SongFactsGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongFactsGenerator.swift; sourceTree = "<group>"; };
 		AA000201 /* QueueTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueTrack.swift; sourceTree = "<group>"; };
 		AA000134 /* AppleMusicLocalQueueProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicLocalQueueProvider.swift; sourceTree = "<group>"; };
-		AA000135 /* GroqConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroqConfiguration.swift; sourceTree = "<group>"; };
 		AA000139 /* LaunchOnStartupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchOnStartupManager.swift; sourceTree = "<group>"; };
 		AA000140 /* StartupToggleStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupToggleStyle.swift; sourceTree = "<group>"; };
 		AA000142 /* StatusMenuHeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuHeaderView.swift; sourceTree = "<group>"; };
@@ -88,10 +84,8 @@
 				AA000118 /* SongSwitchAnimator.swift */,
 				AA000119 /* VinylSleeveView.swift */,
 				AA000120 /* WidgetLandingAnimator.swift */,
-				AA000131 /* SongFactsGenerator.swift */,
 				AA000201 /* QueueTrack.swift */,
 				AA000134 /* AppleMusicLocalQueueProvider.swift */,
-				AA000135 /* GroqConfiguration.swift */,
 				AA000139 /* LaunchOnStartupManager.swift */,
 				AA000140 /* StartupToggleStyle.swift */,
 				AA000142 /* StatusMenuHeaderView.swift */,
@@ -202,10 +196,8 @@
 				AA000108 /* SongSwitchAnimator.swift in Sources */,
 				AA000109 /* VinylSleeveView.swift in Sources */,
 				AA000110 /* WidgetLandingAnimator.swift in Sources */,
-				AA000121 /* SongFactsGenerator.swift in Sources */,
 				AA000200 /* QueueTrack.swift in Sources */,
 				AA000124 /* AppleMusicLocalQueueProvider.swift in Sources */,
-				AA000125 /* GroqConfiguration.swift in Sources */,
 				AA000129 /* LaunchOnStartupManager.swift in Sources */,
 				AA000130 /* StartupToggleStyle.swift in Sources */,
 				AA000141 /* StatusMenuHeaderView.swift in Sources */,
