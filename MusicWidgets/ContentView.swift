@@ -1151,7 +1151,7 @@ private struct VinylWidgetReplica: View {
         ZStack {
             Circle()
                 .fill(
-                    RadialGradient(colors: [Color(hex: "d8b97e"), Color(hex: "9B7924"), Color(hex: "6a5020")],
+                    RadialGradient(colors: [Color(hex: "e6e6e8"), Color(hex: "a8a8ac"), Color(hex: "5c5c60")],
                                    center: UnitPoint(x: 0.35, y: 0.3), startRadius: 0, endRadius: 12)
                 )
                 .frame(width: 24, height: 24)
@@ -1159,7 +1159,7 @@ private struct VinylWidgetReplica: View {
 
             RoundedRectangle(cornerRadius: 2.5)
                 .fill(
-                    LinearGradient(colors: [Color(hex: "d8b97e"), Color(hex: "b08838"), Color(hex: "d8b97e")],
+                    LinearGradient(colors: [Color(hex: "232326"), Color(hex: "58585c"), Color(hex: "232326")],
                                    startPoint: .leading, endPoint: .trailing)
                 )
                 .frame(width: 5, height: 130)

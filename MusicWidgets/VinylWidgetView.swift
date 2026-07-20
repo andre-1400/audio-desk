@@ -940,7 +940,7 @@ struct VinylWidgetView: View {
             Circle()
                 .fill(
                     RadialGradient(
-                        colors: [Color(hex: "d8b97e"), Color(hex: "9B7924"), Color(hex: "6a5020")],
+                        colors: [Color(hex: "e6e6e8"), Color(hex: "a8a8ac"), Color(hex: "5c5c60")],
                         center: UnitPoint(x: 0.35, y: 0.3),
                         startRadius: 0,
                         endRadius: 12
@@ -952,7 +952,7 @@ struct VinylWidgetView: View {
             RoundedRectangle(cornerRadius: 2.5)
                 .fill(
                     LinearGradient(
-                        colors: [Color(hex: "d8b97e"), Color(hex: "b08838"), Color(hex: "d8b97e")],
+                        colors: [Color(hex: "232326"), Color(hex: "58585c"), Color(hex: "232326")],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
