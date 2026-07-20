@@ -1147,28 +1147,19 @@ private struct VinylWidgetReplica: View {
 
     // MARK: Tonearm (exact geometry from the live widget)
 
-    private struct TonearmRodShape: Shape {
-        func path(in rect: CGRect) -> Path {
-            var path = Path()
-            let start = CGPoint(x: 62, y: 27)
-            let end = CGPoint(x: 26, y: 147)
-            let control = CGPoint(x: 60, y: 87)
-            path.move(to: start)
-            path.addQuadCurve(to: end, control: control)
-            return path
-        }
-    }
-
     private var tonearmView: some View {
         ZStack {
             // Arm rod — rendered first so the mounting joint below sits on top of it.
-            TonearmRodShape()
-                .stroke(
-                    LinearGradient(colors: [Color(hex: "48484c"), Color(hex: "1c1c1e"), Color(hex: "38383c")],
-                                   startPoint: .top, endPoint: .bottom),
-                    style: StrokeStyle(lineWidth: 8, lineCap: .round)
+            RoundedRectangle(cornerRadius: 4)
+                .fill(
+                    LinearGradient(colors: [Color(hex: "1c1c1e"), Color(hex: "606064"), Color(hex: "1c1c1e")],
+                                   startPoint: .leading, endPoint: .trailing)
                 )
-                .frame(width: 90, height: 180)
+                .frame(width: 8, height: 132)
+                .rotationEffect(.degrees(20))
+                .position(x: 46, y: 85)
+                .shadow(color: .black.opacity(0.55), radius: 1.5, x: 1, y: 2)
+                .shadow(color: .black.opacity(0.32), radius: 5, x: 2, y: 5)
 
             // Mounting joint — dark bezel plate + brushed-chrome cap.
             Circle()
