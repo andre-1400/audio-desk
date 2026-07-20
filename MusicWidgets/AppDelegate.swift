@@ -21,6 +21,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayWindow: AnimationOverlayWindow?
     private var cdWindow: WidgetWindow?
     private var cdModel: CDModel?
+    private var albumArtWindow: WidgetWindow?
+    private var albumArtModel: AlbumArtModel?
 
     private var galleryWindow: NSWindow?
     private var statusItem: NSStatusItem?
@@ -251,10 +253,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         s.count > limit ? String(s.prefix(limit - 1)) + "…" : s
     }
 
-    /// "vinyl:<themeID>" / "cd:<modelID>" for whatever widget is currently placed.
+    /// "vinyl:<themeID>" / "cd:<modelID>" / "albumart:<modelID>" for whatever widget is currently placed.
     private var activeWidgetEntry: String? {
         if vinylWindow != nil { return "vinyl:\(themeManager.themeID.rawValue)" }
         if let model = cdModel, cdWindow != nil { return "cd:\(model.id)" }
+        if let model = albumArtModel, albumArtWindow != nil { return "albumart:\(model.id)" }
         return nil
     }
 
@@ -269,6 +272,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             guard let model = CDModel.all.first(where: { $0.id == raw }) else { return nil }
             let form = CDModel.forms.first { $0.models.contains(where: { $0.id == model.id }) }
             return "\(form?.name ?? "CD") · \(model.name)"
+        }
+        if entry.hasPrefix("albumart:") {
+            let raw = String(entry.dropFirst(9))
+            guard let model = AlbumArtModel.all.first(where: { $0.id == raw }) else { return nil }
+            return "Album Art · \(model.name)"
         }
         return nil
     }
@@ -289,19 +297,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else if entry.hasPrefix("cd:"),
                   let model = CDModel.all.first(where: { $0.id == String(entry.dropFirst(3)) }) {
             launchCDWidget(model: model)
+        } else if entry.hasPrefix("albumart:"),
+                  let model = AlbumArtModel.all.first(where: { $0.id == String(entry.dropFirst(9)) }) {
+            launchAlbumArtWidget(model: model)
         }
     }
 
     // MARK: - Widget visibility (menu + hide-on-pause)
 
-    private var hasActiveWidget: Bool { vinylWindow != nil || cdWindow != nil }
+    private var hasActiveWidget: Bool { vinylWindow != nil || cdWindow != nil || albumArtWindow != nil }
 
     private var isWidgetOrderedIn: Bool {
-        (vinylWindow?.isVisible ?? false) || (cdWindow?.isVisible ?? false)
+        (vinylWindow?.isVisible ?? false) || (cdWindow?.isVisible ?? false) || (albumArtWindow?.isVisible ?? false)
     }
 
     private var activeWidgetWindows: [NSWindow] {
-        [vinylWindow, cdWindow].compactMap { $0 }
+        [vinylWindow, cdWindow, albumArtWindow].compactMap { $0 }
     }
 
     @objc private func toggleWidgetVisibility() {
@@ -320,6 +331,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func closeActiveWidget() {
         closeVinylWidget()
         closeCDWidget()
+        closeAlbumArtWidget()
     }
 
     @objc func showGallerySettings() {
@@ -505,9 +517,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                       height: model.archetype.baseSize.height * s + 2 * p)
     }
 
+    /// Album Art has no musical-notes overlay (it's the deliberately minimal
+    /// widget family), so unlike vinyl/CD its window needs no notesPad headroom.
+    private func albumArtWindowSize(_ model: AlbumArtModel) -> CGSize {
+        let s = WidgetSizeManager.shared.scale
+        return CGSize(width: model.size.baseSize.width * s,
+                      height: model.size.baseSize.height * s)
+    }
+
     private func relayoutActiveWidget() {
         if vinylWindow != nil { applyVinylLayout() }
         if cdWindow != nil { applyCDLayout() }
+        if albumArtWindow != nil { applyAlbumArtLayout() }
     }
 
     /// Returns a saved position only if it's actually visible on some screen,
@@ -530,6 +551,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func launchVinylWidget(themeID: WidgetThemeID = .default) {
         closeCDWidget()
+        closeAlbumArtWidget()
         themeManager.setTheme(themeID)
         RecentWidgets.note(vinyl: themeID)
         ActiveWidgetState.shared.entry = "vinyl:\(themeID.rawValue)"
@@ -619,6 +641,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func launchCDWidget(model: CDModel) {
         closeVinylWidget()
+        closeAlbumArtWidget()
         cdModel = model
         RecentWidgets.note(cd: model)
         ActiveWidgetState.shared.entry = "cd:\(model.id)"
@@ -676,6 +699,70 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         cdModel = nil
+    }
+
+    // MARK: - Launch Album Art widget
+
+    func launchAlbumArtWidget(model: AlbumArtModel) {
+        closeVinylWidget()
+        closeCDWidget()
+        albumArtModel = model
+        RecentWidgets.note(albumArt: model)
+        ActiveWidgetState.shared.entry = "albumart:\(model.id)"
+        hiddenByUser = false
+        hiddenByPause = false
+        let size = albumArtWindowSize(model)
+
+        if let existing = albumArtWindow {
+            existing.contentView?.subviews.forEach { $0.removeFromSuperview() }
+            let host = NSHostingView(rootView: AlbumArtSizedRoot(model: model).modifier(DesktopWidgetChrome()))
+            host.frame = existing.contentView?.bounds ?? .zero
+            host.autoresizingMask = [.width, .height]
+            existing.contentView?.addSubview(host)
+            applyAlbumArtLayout()
+            existing.orderFrontRegardless()
+            existing.alphaValue = WidgetSettings.shared.widgetOpacity
+            return
+        }
+
+        let window = WidgetWindow()
+        window.setContentSize(size)
+        window.setFrameOrigin(launchOrigin(xKey: "albumArtWidgetX", yKey: "albumArtWidgetY", size: size))
+
+        let host = NSHostingView(rootView: AlbumArtSizedRoot(model: model).modifier(DesktopWidgetChrome()))
+        host.frame = window.contentView?.bounds ?? .zero
+        host.autoresizingMask = [.width, .height]
+        window.contentView?.addSubview(host)
+        self.albumArtWindow = window
+
+        NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: window, queue: .main) { _ in
+            UserDefaults.standard.set(window.frame.origin.x, forKey: "albumArtWidgetX")
+            UserDefaults.standard.set(window.frame.origin.y, forKey: "albumArtWidgetY")
+        }
+
+        applyWindowPreferences()
+        fadeIn(window)
+    }
+
+    private func applyAlbumArtLayout() {
+        guard let window = albumArtWindow, let model = albumArtModel else { return }
+        let size = albumArtWindowSize(model)
+        let c = window.frame
+        let origin = CGPoint(x: c.midX - size.width / 2, y: c.midY - size.height / 2)
+        window.setFrame(CGRect(origin: origin, size: size), display: true, animate: false)
+        UserDefaults.standard.set(window.frame.origin.x, forKey: "albumArtWidgetX")
+        UserDefaults.standard.set(window.frame.origin.y, forKey: "albumArtWidgetY")
+    }
+
+    func closeAlbumArtWidget() {
+        if let window = albumArtWindow {
+            albumArtWindow = nil
+            fadeOut(window, thenClose: true)
+            if ActiveWidgetState.shared.entry?.hasPrefix("albumart:") == true {
+                ActiveWidgetState.shared.entry = nil
+            }
+        }
+        albumArtModel = nil
     }
 }
 

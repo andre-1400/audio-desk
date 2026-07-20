@@ -539,7 +539,7 @@ private struct GalleryDetail: View {
                                 }
                             }
                         }
-                    } else {
+                    } else if category == .cd {
                         ForEach(CDModel.forms) { form in
                             formSection(name: form.name, subtitle: form.subtitle,
                                         count: form.models.count, items: form.models) { model in
@@ -551,6 +551,18 @@ private struct GalleryDetail: View {
                                             action: { AppDelegate.shared?.launchCDWidget(model: model) }) { animated in
                                     CDModelPreview(model: model, animated: animated)
                                 }
+                            }
+                        }
+                    } else {
+                        formSection(name: "Album Art", subtitle: "Three sizes, one clean look",
+                                    count: AlbumArtModel.all.count, items: AlbumArtModel.all) { model in
+                            GalleryCard(title: model.name, subtitle: model.subtitle,
+                                        accent: category.accentColor,
+                                        hovered: hoveredID == model.id,
+                                        active: activeWidget.entry == "albumart:\(model.id)",
+                                        onHover: { setHover(model.id, $0) },
+                                        action: { AppDelegate.shared?.launchAlbumArtWidget(model: model) }) { _ in
+                                AlbumArtModelPreview(model: model)
                             }
                         }
                     }
@@ -1228,10 +1240,28 @@ private struct VinylWidgetReplica: View {
 // MARK: - Category model
 
 enum WidgetCategory: String, Identifiable, CaseIterable {
-    case vinyl, cd
+    case vinyl, cd, albumArt
     var id: String { rawValue }
-    var title: String { self == .vinyl ? "Vinyl" : "CD Players" }
-    var icon: String { self == .vinyl ? "record.circle" : "opticaldisc" }
-    var widgetCount: Int { self == .vinyl ? VinylStyle.all.count : CDModel.all.count }
+    var title: String {
+        switch self {
+        case .vinyl: return "Vinyl"
+        case .cd: return "CD Players"
+        case .albumArt: return "Album Art"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .vinyl: return "record.circle"
+        case .cd: return "opticaldisc"
+        case .albumArt: return "photo.on.rectangle.angled"
+        }
+    }
+    var widgetCount: Int {
+        switch self {
+        case .vinyl: return VinylStyle.all.count
+        case .cd: return CDModel.all.count
+        case .albumArt: return AlbumArtModel.all.count
+        }
+    }
     var accentColor: Color { AMTheme.accent }
 }
