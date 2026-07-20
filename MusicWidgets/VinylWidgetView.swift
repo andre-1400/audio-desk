@@ -937,29 +937,46 @@ struct VinylWidgetView: View {
 
     private var tonearmView: some View {
         ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color(hex: "e6e6e8"), Color(hex: "a8a8ac"), Color(hex: "5c5c60")],
-                        center: UnitPoint(x: 0.35, y: 0.3),
-                        startRadius: 0,
-                        endRadius: 12
-                    )
-                )
-                .frame(width: 24, height: 24)
-                .position(x: 68, y: 16)
-
-            RoundedRectangle(cornerRadius: 2.5)
+            // Arm rod — rendered first so the mounting joint below sits on top of it.
+            RoundedRectangle(cornerRadius: 4)
                 .fill(
                     LinearGradient(
-                        colors: [Color(hex: "232326"), Color(hex: "58585c"), Color(hex: "232326")],
+                        colors: [Color(hex: "1c1c1e"), Color(hex: "606064"), Color(hex: "1c1c1e")],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
                 )
-                .frame(width: 5, height: 130)
+                .frame(width: 8, height: 132)
                 .rotationEffect(.degrees(20))
                 .position(x: 46, y: 85)
+
+            // Mounting joint — a real tonearm's pivot attachment: a dark bezel
+            // plate the rod plugs into, with a brushed-chrome cap on top.
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "38383c"), Color(hex: "222224"), Color(hex: "0e0e10")],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 30, height: 30)
+                .overlay(Circle().strokeBorder(Color.black.opacity(0.5), lineWidth: 1))
+                .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
+                .position(x: 68, y: 16)
+
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color(hex: "f2f2f4"), Color(hex: "c2c2c6"), Color(hex: "78787c")],
+                        center: UnitPoint(x: 0.35, y: 0.3),
+                        startRadius: 0,
+                        endRadius: 8
+                    )
+                )
+                .frame(width: 15, height: 15)
+                .overlay(Circle().strokeBorder(Color.black.opacity(0.28), lineWidth: 0.5))
+                .position(x: 68, y: 16)
 
             RoundedRectangle(cornerRadius: 3)
                 .fill(
