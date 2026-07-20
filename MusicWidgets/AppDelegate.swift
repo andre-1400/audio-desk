@@ -23,6 +23,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var cdModel: CDModel?
     private var albumArtWindow: WidgetWindow?
     private var albumArtModel: AlbumArtModel?
+    private var vinylHorizontalWindow: WidgetWindow?
+    private var vinylHorizontalModel: VinylHorizontalModel?
 
     private var galleryWindow: NSWindow?
     private var statusItem: NSStatusItem?
@@ -258,6 +260,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if vinylWindow != nil { return "vinyl:\(themeManager.themeID.rawValue)" }
         if let model = cdModel, cdWindow != nil { return "cd:\(model.id)" }
         if let model = albumArtModel, albumArtWindow != nil { return "albumart:\(model.id)" }
+        if let model = vinylHorizontalModel, vinylHorizontalWindow != nil { return "vinylh:\(model.id)" }
         return nil
     }
 
@@ -277,6 +280,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let raw = String(entry.dropFirst(9))
             guard let model = AlbumArtModel.all.first(where: { $0.id == raw }) else { return nil }
             return "Album Art · \(model.name)"
+        }
+        if entry.hasPrefix("vinylh:") {
+            let raw = String(entry.dropFirst(7))
+            guard let model = VinylHorizontalModel.all.first(where: { $0.id == raw }) else { return nil }
+            return "Horizontal · \(model.name)"
         }
         return nil
     }
@@ -300,19 +308,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else if entry.hasPrefix("albumart:"),
                   let model = AlbumArtModel.all.first(where: { $0.id == String(entry.dropFirst(9)) }) {
             launchAlbumArtWidget(model: model)
+        } else if entry.hasPrefix("vinylh:"),
+                  let model = VinylHorizontalModel.all.first(where: { $0.id == String(entry.dropFirst(7)) }) {
+            launchVinylHorizontalWidget(model: model)
         }
     }
 
     // MARK: - Widget visibility (menu + hide-on-pause)
 
-    private var hasActiveWidget: Bool { vinylWindow != nil || cdWindow != nil || albumArtWindow != nil }
+    private var hasActiveWidget: Bool {
+        vinylWindow != nil || cdWindow != nil || albumArtWindow != nil || vinylHorizontalWindow != nil
+    }
 
     private var isWidgetOrderedIn: Bool {
         (vinylWindow?.isVisible ?? false) || (cdWindow?.isVisible ?? false) || (albumArtWindow?.isVisible ?? false)
+            || (vinylHorizontalWindow?.isVisible ?? false)
     }
 
     private var activeWidgetWindows: [NSWindow] {
-        [vinylWindow, cdWindow, albumArtWindow].compactMap { $0 }
+        [vinylWindow, cdWindow, albumArtWindow, vinylHorizontalWindow].compactMap { $0 }
     }
 
     @objc private func toggleWidgetVisibility() {
@@ -332,6 +346,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeVinylWidget()
         closeCDWidget()
         closeAlbumArtWidget()
+        closeVinylHorizontalWidget()
     }
 
     @objc func showGallerySettings() {
@@ -525,10 +540,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                       height: model.size.baseSize.height * s)
     }
 
+    /// Vinyl Horizontal also has no musical-notes overlay, same reasoning as Album Art.
+    private func vinylHorizontalWindowSize() -> CGSize {
+        let s = WidgetSizeManager.shared.scale
+        return CGSize(width: horizontalBaseSize.width * s,
+                      height: horizontalBaseSize.height * s)
+    }
+
     private func relayoutActiveWidget() {
         if vinylWindow != nil { applyVinylLayout() }
         if cdWindow != nil { applyCDLayout() }
         if albumArtWindow != nil { applyAlbumArtLayout() }
+        if vinylHorizontalWindow != nil { applyVinylHorizontalLayout() }
     }
 
     /// Returns a saved position only if it's actually visible on some screen,
@@ -552,6 +575,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func launchVinylWidget(themeID: WidgetThemeID = .default) {
         closeCDWidget()
         closeAlbumArtWidget()
+        closeVinylHorizontalWidget()
         themeManager.setTheme(themeID)
         RecentWidgets.note(vinyl: themeID)
         ActiveWidgetState.shared.entry = "vinyl:\(themeID.rawValue)"
@@ -642,6 +666,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func launchCDWidget(model: CDModel) {
         closeVinylWidget()
         closeAlbumArtWidget()
+        closeVinylHorizontalWidget()
         cdModel = model
         RecentWidgets.note(cd: model)
         ActiveWidgetState.shared.entry = "cd:\(model.id)"
@@ -706,6 +731,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func launchAlbumArtWidget(model: AlbumArtModel) {
         closeVinylWidget()
         closeCDWidget()
+        closeVinylHorizontalWidget()
         albumArtModel = model
         RecentWidgets.note(albumArt: model)
         ActiveWidgetState.shared.entry = "albumart:\(model.id)"
@@ -763,6 +789,71 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         albumArtModel = nil
+    }
+
+    // MARK: - Launch Vinyl Horizontal widget
+
+    func launchVinylHorizontalWidget(model: VinylHorizontalModel) {
+        closeVinylWidget()
+        closeCDWidget()
+        closeAlbumArtWidget()
+        vinylHorizontalModel = model
+        RecentWidgets.note(vinylHorizontal: model)
+        ActiveWidgetState.shared.entry = "vinylh:\(model.id)"
+        hiddenByUser = false
+        hiddenByPause = false
+        let size = vinylHorizontalWindowSize()
+
+        if let existing = vinylHorizontalWindow {
+            existing.contentView?.subviews.forEach { $0.removeFromSuperview() }
+            let host = NSHostingView(rootView: VinylHorizontalSizedRoot(model: model).modifier(DesktopWidgetChrome()))
+            host.frame = existing.contentView?.bounds ?? .zero
+            host.autoresizingMask = [.width, .height]
+            existing.contentView?.addSubview(host)
+            applyVinylHorizontalLayout()
+            existing.orderFrontRegardless()
+            existing.alphaValue = WidgetSettings.shared.widgetOpacity
+            return
+        }
+
+        let window = WidgetWindow()
+        window.setContentSize(size)
+        window.setFrameOrigin(launchOrigin(xKey: "vinylHWidgetX", yKey: "vinylHWidgetY", size: size))
+
+        let host = NSHostingView(rootView: VinylHorizontalSizedRoot(model: model).modifier(DesktopWidgetChrome()))
+        host.frame = window.contentView?.bounds ?? .zero
+        host.autoresizingMask = [.width, .height]
+        window.contentView?.addSubview(host)
+        self.vinylHorizontalWindow = window
+
+        NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: window, queue: .main) { _ in
+            UserDefaults.standard.set(window.frame.origin.x, forKey: "vinylHWidgetX")
+            UserDefaults.standard.set(window.frame.origin.y, forKey: "vinylHWidgetY")
+        }
+
+        applyWindowPreferences()
+        fadeIn(window)
+    }
+
+    private func applyVinylHorizontalLayout() {
+        guard let window = vinylHorizontalWindow else { return }
+        let size = vinylHorizontalWindowSize()
+        let c = window.frame
+        let origin = CGPoint(x: c.midX - size.width / 2, y: c.midY - size.height / 2)
+        window.setFrame(CGRect(origin: origin, size: size), display: true, animate: false)
+        UserDefaults.standard.set(window.frame.origin.x, forKey: "vinylHWidgetX")
+        UserDefaults.standard.set(window.frame.origin.y, forKey: "vinylHWidgetY")
+    }
+
+    func closeVinylHorizontalWidget() {
+        if let window = vinylHorizontalWindow {
+            vinylHorizontalWindow = nil
+            fadeOut(window, thenClose: true)
+            if ActiveWidgetState.shared.entry?.hasPrefix("vinylh:") == true {
+                ActiveWidgetState.shared.entry = nil
+            }
+        }
+        vinylHorizontalModel = nil
     }
 }
 

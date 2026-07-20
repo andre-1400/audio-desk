@@ -31,6 +31,7 @@
 		AA000147 /* CDWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000148 /* CDWidgetView.swift */; };
 		AA000151 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000152 /* OnboardingView.swift */; };
 		AA000500 /* AlbumArtWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000501 /* AlbumArtWidgetView.swift */; };
+		AA000600 /* VinylHorizontalWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000601 /* VinylHorizontalWidgetView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,6 +61,7 @@
 		AA000148 /* CDWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDWidgetView.swift; sourceTree = "<group>"; };
 		AA000152 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		AA000501 /* AlbumArtWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumArtWidgetView.swift; sourceTree = "<group>"; };
+		AA000601 /* VinylHorizontalWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VinylHorizontalWidgetView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -98,6 +100,7 @@
 				AA000148 /* CDWidgetView.swift */,
 				AA000152 /* OnboardingView.swift */,
 				AA000501 /* AlbumArtWidgetView.swift */,
+				AA000601 /* VinylHorizontalWidgetView.swift */,
 				AA000013 /* Assets.xcassets */,
 				AA000014 /* Info.plist */,
 				AA000401 /* PrivacyInfo.xcprivacy */,
@@ -213,6 +216,7 @@
 				AA000147 /* CDWidgetView.swift in Sources */,
 				AA000151 /* OnboardingView.swift in Sources */,
 				AA000500 /* AlbumArtWidgetView.swift in Sources */,
+				AA000600 /* VinylHorizontalWidgetView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

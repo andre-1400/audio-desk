@@ -539,6 +539,17 @@ private struct GalleryDetail: View {
                                 }
                             }
                         }
+                        formSection(name: "Horizontal", subtitle: "Disc + track info side by side",
+                                    count: VinylHorizontalModel.all.count, items: VinylHorizontalModel.all) { model in
+                            GalleryCard(title: model.name, subtitle: model.subtitle,
+                                        accent: category.accentColor,
+                                        hovered: hoveredID == model.id,
+                                        active: activeWidget.entry == "vinylh:\(model.id)",
+                                        onHover: { setHover(model.id, $0) },
+                                        action: { AppDelegate.shared?.launchVinylHorizontalWidget(model: model) }) { _ in
+                                VinylHorizontalModelPreview(model: model)
+                            }
+                        }
                     } else if category == .cd {
                         ForEach(CDModel.forms) { form in
                             formSection(name: form.name, subtitle: form.subtitle,
@@ -1273,7 +1284,7 @@ enum WidgetCategory: String, Identifiable, CaseIterable {
     }
     var widgetCount: Int {
         switch self {
-        case .vinyl: return VinylStyle.all.count
+        case .vinyl: return VinylStyle.all.count + VinylHorizontalModel.all.count
         case .cd: return CDModel.all.count
         case .albumArt: return AlbumArtModel.all.count
         }
