@@ -321,6 +321,7 @@ struct CDWidgetView: View {
         CDDeck(material: mat, diameter: model.archetype.deckDiameter,
                phase: transition.phase, targetSpeed: targetSpeed,
                displayedArt: displayedArt, incomingArt: incomingArt,
+               artColor: extractedColours.dominant,
                onTap: { togglePlayback() }, isStatic: isPreview && !previewSpinning)
     }
 
@@ -478,10 +479,11 @@ struct CDWidgetView: View {
         }
     }
 
-    /// Adaptive material: derive live colours whenever the resting disc's
-    /// art changes. No-op unless model.isAdaptive.
+    /// Runs for every CD model now, not just Adaptive ones: feeds both
+    /// CDMaterial.adaptive(from:) (Adaptive models) and the disc's own
+    /// fade-to-colour-at-speed effect (every model).
     private func updateAdaptiveColoursIfNeeded() {
-        guard model.isAdaptive, let art = displayedArt else { return }
+        guard let art = displayedArt else { return }
         extractedColours = ColourExtractor.extract(from: art)
     }
 }
@@ -510,12 +512,22 @@ struct CDDeck: View {
     let targetSpeed: Double
     let displayedArt: NSImage?
     let incomingArt: NSImage?
+    var artColor: Color = .gray
     var onTap: () -> Void = {}
     var isStatic: Bool = false   // gallery previews: no spin engine / TimelineView
 
     @State private var angle: Double = 0
     @State private var spinSpeed: Double = 0
     @State private var lastTick: Date? = nil
+
+    // Once most of the way to top speed, the art fades into a flat colour —
+    // masks the fact a full-res image is spinning (real CDs blur the same way)
+    // and lets the disc stop drawing the NSImage once fully faded.
+    private var colorFadeProgress: Double {
+        guard targetSpeed > 0 else { return 0 }
+        let fraction = spinSpeed / targetSpeed
+        return min(1, max(0, (fraction - 0.6) / 0.4))
+    }
 
     private var dock: CGFloat { diameter + 32 }
 
@@ -571,7 +583,8 @@ struct CDDeck: View {
             }
         }()
         let lifted = [.liftOff, .eject, .gap, .insert].contains(phase)
-        return CDDiscView(albumArt: art, accent: material.accent, diameter: diameter)
+        return CDDiscView(albumArt: art, accent: material.accent, diameter: diameter,
+                           colorFadeProgress: isStatic ? 0 : colorFadeProgress, fadeColor: artColor)
             .rotationEffect(.degrees(angle))
             .scaleEffect(scale)
             .offset(y: offsetY)
@@ -831,13 +844,23 @@ struct CDDiscView: View {
     let albumArt: NSImage?
     let accent: Color
     var diameter: CGFloat = 220
+    // 0 = normal art, 1 = fully faded to fadeColor (top-speed blur look; also
+    // lets us stop drawing the full-res NSImage once fully faded).
+    var colorFadeProgress: Double = 0
+    var fadeColor: Color = .gray
 
     var body: some View {
         let hole = diameter * 0.10
         ZStack {
             Group {
                 if let art = albumArt {
-                    Image(nsImage: art).resizable().scaledToFill()
+                    if colorFadeProgress < 0.999 {
+                        Image(nsImage: art).resizable().scaledToFill()
+                            .opacity(1 - colorFadeProgress)
+                    }
+                    if colorFadeProgress > 0.001 {
+                        Circle().fill(fadeColor).opacity(colorFadeProgress)
+                    }
                 } else {
                     Circle().fill(AngularGradient(stops: [
                         .init(color: Color(hex: "f4f8ff"), location: 0.0),
