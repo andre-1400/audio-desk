@@ -419,7 +419,15 @@ struct VinylWidgetView: View {
                     if animator.isAnimating {
                         animator.updateIncomingAlbumArtIfPossible(image, identityKey: animatorTrackIdentityKey)
                     } else {
+                        // Not mid-transition: this is art arriving for the
+                        // track we're already sitting on — most importantly
+                        // the async first poll right after launch, where
+                        // onAppear saw an empty detector and couldn't seed
+                        // the colour. Push the adaptive colour/blur now, or
+                        // the body stays fallback-brown until the next skip.
                         displayedAlbumArt = image
+                        themeManager.adaptiveColours = extractedColours
+                        updateBlurredBodyArt(from: image)
                     }
                 }
             } else if detector.nowPlaying.trackName.isEmpty {
