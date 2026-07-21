@@ -142,6 +142,18 @@ struct VinylWidgetView: View {
     private let tonearmPivotInWidget = CGPoint(x: 330, y: 47)
     private let tonearmNeedleLocalPoint = CGPoint(x: 28, y: 164)
     private let tonearmPivotLocalPoint = CGPoint(x: 68, y: 16)
+    // Seek zone, in widget coordinates, placed directly over where the
+    // tonearm HEAD swings across the record — NOT over the whole arm. The
+    // previous 90x180 box was aligned to the arm's unrotated bounding frame
+    // (pivot area, upper-right), but as the song plays the head swings left
+    // over the disc, travelling roughly x 255->348 / y 181->199; for much of
+    // that arc the visible head sat left of the box, on draggable window
+    // background, so grabbing it dragged the whole widget. This box covers
+    // the head's full swing (plus margin for the chunky head graphic), so a
+    // grab anywhere on the head both seeks and — via the capture NSView's
+    // mouseDownCanMoveWindow=false — never drags the window.
+    private let tonearmTipZoneCenter = CGPoint(x: 298, y: 190)
+    private let tonearmTipZoneSize = CGSize(width: 154, height: 100)
 
     // MARK: - Computed Properties
     /// Map music source to string key for caching
@@ -359,20 +371,23 @@ struct VinylWidgetView: View {
             if canSeekWithTonearm {
                 DragCaptureView(
                     onBegan: { point in
-                        beginTonearmGestureSessionIfNeeded(at: widgetLocation(forTonearmLocalPoint: point))
+                        beginTonearmGestureSessionIfNeeded(at: tipZoneWidgetLocation(fromLocal: point))
                     },
                     onMoved: { point in
-                        handleTonearmGestureMoved(to: widgetLocation(forTonearmLocalPoint: point))
+                        handleTonearmGestureMoved(to: tipZoneWidgetLocation(fromLocal: point))
                     },
                     onEnded: { point in
-                        handleTonearmGestureEnded(at: widgetLocation(forTonearmLocalPoint: point))
+                        handleTonearmGestureEnded(at: tipZoneWidgetLocation(fromLocal: point))
                     },
                     onCancelled: {
                         endTonearmGestureSession()
                     }
                 )
-                .frame(width: 90, height: 180)
-                .offset(x: 115, y: -137)
+                .frame(width: tonearmTipZoneSize.width, height: tonearmTipZoneSize.height)
+                // .position (a layout modifier), not .offset — places the
+                // capture box's centre at a known widget coordinate over the
+                // tonearm head's swing arc.
+                .position(x: tonearmTipZoneCenter.x, y: tonearmTipZoneCenter.y)
             }
 
         }
@@ -478,17 +493,13 @@ struct VinylWidgetView: View {
             (displayedNowPlaying.durationMillis ?? 0) > 0
     }
 
-    private var tonearmFrameOriginInWidget: CGPoint {
+    /// Maps a point local to the tip-zone capture NSView (top-left origin, it's
+    /// isFlipped) into widget coordinates, which is what the seek math
+    /// (seekProgress, relative to tonearmPivotInWidget) expects.
+    private func tipZoneWidgetLocation(fromLocal point: CGPoint) -> CGPoint {
         CGPoint(
-            x: tonearmPivotInWidget.x - tonearmPivotLocalPoint.x,
-            y: tonearmPivotInWidget.y - tonearmPivotLocalPoint.y
-        )
-    }
-
-    private func widgetLocation(forTonearmLocalPoint point: CGPoint) -> CGPoint {
-        CGPoint(
-            x: tonearmFrameOriginInWidget.x + point.x,
-            y: tonearmFrameOriginInWidget.y + point.y
+            x: tonearmTipZoneCenter.x - tonearmTipZoneSize.width / 2 + point.x,
+            y: tonearmTipZoneCenter.y - tonearmTipZoneSize.height / 2 + point.y
         )
     }
 
