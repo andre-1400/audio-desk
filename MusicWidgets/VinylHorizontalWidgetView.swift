@@ -37,11 +37,6 @@ let horizontalBaseSize = CGSize(width: 400, height: 136)
 /// (disc 272pt, tonearm frame 90x180pt) — never resized independently.
 private let hDiscScale: CGFloat = 0.44
 private let hDiscContainerSize: CGFloat = 130
-/// Same resting angle the main widget uses when nothing is actively
-/// seeking (VinylWidgetView.tonearmRestAngle) — applied here as a fixed
-/// pose so the needle rests near the record's outer edge, like where you'd
-/// actually cue up a record, instead of swept toward the middle.
-private let hTonearmRestAngle: Double = -22.0
 
 // MARK: - Widget
 
@@ -197,10 +192,18 @@ struct VinylHorizontalWidgetView: View {
             hTonearm
                 .scaleEffect(hDiscScale)
                 .frame(width: 90 * hDiscScale, height: 180 * hDiscScale)
-                // Pivot sits mostly outside the disc, up-right, with the
-                // needle landing near the outer edge (where you'd actually
-                // cue a record) rather than swept toward the centre.
-                .offset(x: discRadius * 1.08, y: -discRadius * 0.82)
+                // Computed, not eyeballed: ZStack centres hTonearm's own
+                // frame-centre on the disc centre before this offset runs,
+                // which puts the joint (local 68,16) at (0.169,-0.544)*R
+                // from disc-centre for free. Solving offset = target - that
+                // inherent position puts the joint just outside the disc's
+                // edge (0.9R, -0.75R) with the needle landing ~2/3 of the
+                // way out — resting near the edge, not swept to the middle.
+                // No extra rotation here: the assembly's internal angles are
+                // already self-consistent (copied whole from the real
+                // widget) — rotating it around an off-centre anchor on top
+                // of that is what made it look detached/broken last time.
+                .offset(x: discRadius * 0.731, y: -discRadius * 0.206)
         }
         .frame(width: hDiscContainerSize, height: hDiscContainerSize)
         .contentShape(Rectangle())
@@ -279,7 +282,6 @@ struct VinylHorizontalWidgetView: View {
                 .position(x: 28, y: 164)
         }
         .frame(width: 90, height: 180)
-        .rotationEffect(.degrees(hTonearmRestAngle), anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0))
     }
 
     // MARK: - Track info + controls (right side)
