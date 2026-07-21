@@ -479,17 +479,93 @@ struct NeuSegmented: View {
 /// Continuous replacement for the old small/medium/large segmented control —
 /// a small glyph and a large glyph bookend the slider, same visual language
 /// as the opacity slider elsewhere in Settings.
+///
+/// Custom-drawn and dragged via SliderDragCaptureView rather than a plain
+/// SwiftUI `Slider`: the gallery window (where this appears in the header)
+/// is `isMovableByWindowBackground = true` for its frameless "drag from
+/// anywhere" look, and a plain Slider doesn't reliably prevent that window
+/// drag from hijacking the interaction — the exact bug already diagnosed
+/// and fixed once for the vinyl widget's own progress scrubber.
 struct WidgetSizeSlider: View {
     @Binding var scale: CGFloat
+
+    private var fraction: CGFloat {
+        (scale - WidgetSizeManager.minScale) / (WidgetSizeManager.maxScale - WidgetSizeManager.minScale)
+    }
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "app").font(.system(size: 11))
                 .foregroundStyle(Neu.subtext)
-            Slider(value: $scale, in: WidgetSizeManager.minScale...WidgetSizeManager.maxScale)
-                .tint(AMTheme.accent)
+
+            GeometryReader { geo in
+                let width = geo.size.width
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Neu.well).frame(height: 5)
+                    Capsule().fill(AMTheme.accent).frame(width: max(5, width * fraction), height: 5)
+                    Circle().fill(Color.white)
+                        .frame(width: 15, height: 15)
+                        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+                        .offset(x: min(width - 15, max(0, width * fraction - 7.5)))
+                }
+                .frame(height: 20)
+                .contentShape(Rectangle())
+                .overlay(
+                    SliderDragCaptureView(onDrag: { x in
+                        let f = min(1, max(0, x / width))
+                        scale = WidgetSizeManager.minScale + f * (WidgetSizeManager.maxScale - WidgetSizeManager.minScale)
+                    })
+                )
+            }
+            .frame(height: 20)
+
             Image(systemName: "app.fill").font(.system(size: 20))
                 .foregroundStyle(Neu.subtext)
+        }
+    }
+}
+
+/// Raw AppKit drag surface backing WidgetSizeSlider. Same shape as
+/// VinylWidgetView's DragCaptureView (mouseDownCanMoveWindow = false, custom
+/// hitTest) — kept as its own small type rather than shared, matching this
+/// codebase's existing convention of not sharing exact interaction plumbing
+/// between unrelated features.
+private struct SliderDragCaptureView: NSViewRepresentable {
+    var onDrag: (CGFloat) -> Void
+
+    func makeNSView(context: Context) -> DragView {
+        let view = DragView()
+        view.onDrag = onDrag
+        return view
+    }
+
+    func updateNSView(_ nsView: DragView, context: Context) {
+        nsView.onDrag = onDrag
+    }
+
+    final class DragView: NSView {
+        var onDrag: ((CGFloat) -> Void)?
+
+        override var isFlipped: Bool { true }
+        override var mouseDownCanMoveWindow: Bool { false }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            bounds.contains(point) ? self : nil
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            window?.isMovableByWindowBackground = false
+            onDrag?(convert(event.locationInWindow, from: nil).x)
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            onDrag?(convert(event.locationInWindow, from: nil).x)
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            window?.isMovableByWindowBackground = true
         }
     }
 }

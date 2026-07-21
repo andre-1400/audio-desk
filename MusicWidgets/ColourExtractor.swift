@@ -116,19 +116,46 @@ enum ArtBlurrer {
 
         guard let blurred = blur.outputImage?.cropped(to: scaled.extent) else { return nil }
 
-        // 3. Boost saturation. The blur itself is what actually washes out a
-        // cover with a large pale background — it physically blends those
-        // pale pixels into the accent colour, the same dilution a naive
-        // colour average suffers from. Measured against a real cover of this
-        // shape (cream sleeve, small vivid accent): blur alone landed at
-        // #D2BAAB (sat 0.19, reads as near-white); +80% saturation landed at
-        // #E0B693 (sat 0.34), clearly colourful without inventing colour on
-        // covers that are genuinely neutral (a near-grey cover moved from
-        // sat 0.01 to ~0.02 under the same boost). 2.2 (sat 0.41) read as
-        // too intense.
+        // 3. Boost saturation — adaptively, not by a fixed amount.
+        //
+        // A fixed boost helps a cover with a large pale background (the blur
+        // physically blends those pale pixels into the accent colour, same
+        // dilution a naive colour average suffers from) but actively hurts a
+        // busy, multi-hue cover: averaging genuinely different large regions
+        // (e.g. sky + trees + dirt) lands on a muddy intermediate hue that
+        // isn't "the" colour of anything in the image, and boosting THAT
+        // just makes an arbitrary wrong hue more prominent. A real cover of
+        // this shape (illustrated scene, no single dominant colour) measured
+        // pre-boost at sat 0.271 — already "coloured enough" — and a fixed
+        // 1.8x boost dragged it to a shouty sat 0.62 olive/brown that had
+        // nothing to do with the artwork's actual look.
+        //
+        // So the boost scales down as the unboosted blur's own saturation
+        // rises: full 1.8x at/below the washed-out anchor (sat 0.150, a real
+        // cream-sleeve cover, the case that motivated boosting at all), down
+        // to 1.0x (no boost) by sat 0.271 (the busy-cover anchor above), and
+        // clamped to that floor beyond it. A near-grey cover sits below the
+        // low anchor, so it still gets the full boost — harmless, since
+        // boosting a near-zero saturation barely moves it either way.
+        guard let averageFilter = CIFilter(name: "CIAreaAverage") else { return nil }
+        averageFilter.setValue(blurred, forKey: kCIInputImageKey)
+        averageFilter.setValue(CIVector(cgRect: scaled.extent), forKey: "inputExtent")
+        guard let averageImage = averageFilter.outputImage else { return nil }
+        var avgPixel = [UInt8](repeating: 0, count: 4)
+        context.render(averageImage, toBitmap: &avgPixel, rowBytes: 4,
+                        bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+                        format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+        let avgR = Double(avgPixel[0]) / 255, avgG = Double(avgPixel[1]) / 255, avgB = Double(avgPixel[2]) / 255
+        let maxC = max(avgR, avgG, avgB), minC = min(avgR, avgG, avgB)
+        let preBoostSaturation = maxC == 0 ? 0 : (maxC - minC) / maxC
+
+        let washedOutAnchor = 0.150, busyAnchor = 0.271
+        let slope = (1.0 - 1.8) / (busyAnchor - washedOutAnchor)
+        let saturationBoost = min(1.8, max(1.0, 1.8 + slope * (preBoostSaturation - washedOutAnchor)))
+
         guard let colorControls = CIFilter(name: "CIColorControls") else { return nil }
         colorControls.setValue(blurred, forKey: kCIInputImageKey)
-        colorControls.setValue(1.8, forKey: kCIInputSaturationKey)
+        colorControls.setValue(saturationBoost, forKey: kCIInputSaturationKey)
         guard let boosted = colorControls.outputImage?.cropped(to: scaled.extent) else { return nil }
 
         guard let rendered = context.createCGImage(boosted, from: scaled.extent)
