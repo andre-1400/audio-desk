@@ -865,7 +865,7 @@ struct VinylStylePreview: View {
     var animated: Bool = false
     var body: some View {
         GeometryReader { geo in
-            let base = CGSize(width: 360, height: 420)
+            let base = CGSize(width: 360, height: 500)
             let s = min(geo.size.width / base.width, geo.size.height / base.height)
             content
                 .frame(width: base.width, height: base.height)
@@ -892,27 +892,27 @@ private struct VinylWidgetReplica: View {
 
     var body: some View {
         ZStack {
-            // === Body shell (320×380) ===
+            // === Body shell (320×460) ===
             if palette.showBody {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(
                             LinearGradient(colors: palette.widgetBodyGradient,
                                            startPoint: .topLeading, endPoint: .bottomTrailing)
                         )
                         .shadow(color: .black.opacity(0.7), radius: 30, x: 0, y: 20)
 
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .strokeBorder(palette.widgetBorder, lineWidth: 1)
 
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .strokeBorder(
                             LinearGradient(colors: [palette.widgetTopSheen, .clear],
                                            startPoint: .top, endPoint: .bottom),
                             lineWidth: 1
                         )
 
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(
                             LinearGradient(colors: [Color.white.opacity(0.06), .clear],
                                            startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.28))
@@ -920,8 +920,8 @@ private struct VinylWidgetReplica: View {
 
                     VinylBodyTexture(pattern: traits.pattern)
                 }
-                .frame(width: 320, height: 380)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .frame(width: 320, height: 460)
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
 
             if palette.showBody { bodyDetails }
@@ -929,7 +929,7 @@ private struct VinylWidgetReplica: View {
             // === Content (platter + track info / controls) ===
             VStack(spacing: 0) {
                 platterArea
-                    .padding(.top, palette.showBody ? 24 : 8)
+                    .padding(.top, palette.showBody ? 18 : 8)
 
                 if traits.hasTransportControls {
                     VStack(spacing: 9) {
@@ -942,17 +942,17 @@ private struct VinylWidgetReplica: View {
                 } else {
                     trackInfoPlaceholder
                         .padding(.top, 16)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
+                        .padding(.horizontal, 26)
+                        .padding(.bottom, 18)
                 }
             }
 
             // === Tonearm (cued onto the record) ===
             tonearmView
                 .rotationEffect(.degrees(-6), anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0))
-                .offset(x: 115, y: -84)
+                .offset(x: 115, y: -128)
         }
-        .frame(width: 360, height: 420)
+        .frame(width: 360, height: 500)
     }
 
     // MARK: Static retro transport buttons (visual only)
@@ -1020,7 +1020,7 @@ private struct VinylWidgetReplica: View {
                 pitchFader.position(x: 286, y: 372)
             }
         }
-        .frame(width: 360, height: 420)
+        .frame(width: 360, height: 500)
     }
 
     private var latch: some View {
@@ -1178,46 +1178,38 @@ private struct VinylWidgetReplica: View {
         .frame(width: 90, height: 180)
     }
 
-    // MARK: Track info placeholder (modern liquid-glass card, matching the live widget)
+    // MARK: Track info placeholder (mirrors the live widget's integrated panel)
 
     private var trackInfoPlaceholder: some View {
-        VStack(spacing: 12) {
-            VStack(spacing: 5) {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(palette.trackTitle.opacity(0.85))
-                    .frame(width: 120, height: 9)
-                RoundedRectangle(cornerRadius: 2.5)
-                    .fill(palette.trackArtist.opacity(0.7))
-                    .frame(width: 78, height: 7)
-            }
-            HStack(spacing: 22) {
-                placeholderButton(size: 30)
-                placeholderButton(size: 38, prominent: true)
-                placeholderButton(size: 30)
-            }
-        }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(colors: [.white.opacity(0.5), .white.opacity(0.05)],
-                                           startPoint: .topLeading, endPoint: .bottomTrailing),
-                            lineWidth: 1
-                        )
-                )
-        )
-    }
+        VStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(palette.trackTitle.opacity(0.85))
+                .frame(width: 124, height: 11)
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(palette.trackArtist.opacity(0.7))
+                .frame(width: 82, height: 8)
+                .padding(.top, 6)
 
-    private func placeholderButton(size: CGFloat, prominent: Bool = false) -> some View {
-        Circle()
-            .fill(prominent ? Color.white.opacity(0.94) : Color.white.opacity(0.14))
-            .overlay(Circle().strokeBorder(Color.white.opacity(prominent ? 0 : 0.22), lineWidth: 1))
-            .frame(width: size, height: size)
+            HStack(spacing: 38) {
+                Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
+                Image(systemName: "play.fill").font(.system(size: 27, weight: .medium))
+                Image(systemName: "forward.fill").font(.system(size: 21, weight: .medium))
+            }
+            .foregroundStyle(palette.trackTitle)
+            .frame(height: 37)
+            .padding(.top, 14)
+
+            HStack(spacing: 9) {
+                Text("0:00").frame(width: 34, alignment: .leading)
+                Capsule().fill(palette.trackArtist.opacity(0.28)).frame(height: 4)
+                Text("-0:00").frame(width: 34, alignment: .trailing)
+            }
+            .font(.system(size: 10, weight: .medium).monospacedDigit())
+            .foregroundStyle(palette.trackArtist.opacity(0.85))
+            .frame(height: 22)
+            .padding(.top, 14)
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

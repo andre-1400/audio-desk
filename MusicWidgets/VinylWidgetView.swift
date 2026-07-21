@@ -134,7 +134,7 @@ struct VinylWidgetView: View {
     private let tonearmPlaybackTransitionDuration: TimeInterval = 0.42
     private let seekHandoffSuppressionDuration = 0.45
     private let trackStartProgressClampDuration = 1.2
-    private let tonearmPivotInWidget = CGPoint(x: 318, y: 52)
+    private let tonearmPivotInWidget = CGPoint(x: 318, y: 48)
     private let tonearmNeedleLocalPoint = CGPoint(x: 28, y: 164)
     private let tonearmPivotLocalPoint = CGPoint(x: 68, y: 16)
 
@@ -236,7 +236,7 @@ struct VinylWidgetView: View {
             // === Body shell (theme-conditional) ===
             if theme.showBody {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: theme.widgetBodyGradient,
@@ -246,10 +246,10 @@ struct VinylWidgetView: View {
                         )
                         .shadow(color: .black.opacity(0.7), radius: 30, x: 0, y: 20)
 
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .strokeBorder(theme.widgetBorder, lineWidth: 1)
 
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .strokeBorder(
                             LinearGradient(
                                 colors: [theme.widgetTopSheen, .clear],
@@ -259,7 +259,7 @@ struct VinylWidgetView: View {
                             lineWidth: 1
                         )
 
-                    RoundedRectangle(cornerRadius: 16)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(
                             LinearGradient(
                                 colors: [Color.white.opacity(0.06), .clear],
@@ -270,8 +270,8 @@ struct VinylWidgetView: View {
 
                     VinylBodyTexture(pattern: traits.pattern)
                 }
-                .frame(width: 320, height: 380)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .frame(width: 320, height: 460)
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
 
             // Body surface details (case border, pitch fader, power LED)
@@ -280,7 +280,7 @@ struct VinylWidgetView: View {
             // === Content (always shown) ===
             VStack(spacing: 0) {
                 platterArea
-                    .padding(.top, theme.showBody ? 24 : 8)
+                    .padding(.top, theme.showBody ? 18 : 8)
 
                 if traits.hasTransportControls {
                     VStack(spacing: 9) {
@@ -296,8 +296,8 @@ struct VinylWidgetView: View {
                 } else {
                     modernTrackPanel
                         .padding(.top, 16)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
+                        .padding(.horizontal, 26)
+                        .padding(.bottom, 18)
                 }
             }
 
@@ -314,7 +314,7 @@ struct VinylWidgetView: View {
             }
             .animation(.spring(response: 1.2, dampingFraction: 0.7), value: animator.tonearmShouldRest)
             .animation(.easeOut(duration: 0.16), value: isTonearmSeeking)
-            .offset(x: 115, y: -84)
+            .offset(x: 115, y: -128)
 
             if canSeekWithTonearm {
                 TonearmInteractionCaptureView(
@@ -332,11 +332,11 @@ struct VinylWidgetView: View {
                     }
                 )
                 .frame(width: 90, height: 180)
-                .offset(x: 115, y: -84)
+                .offset(x: 115, y: -128)
             }
 
         }
-        .frame(width: 360, height: 420)
+        .frame(width: 360, height: 500)
         .coordinateSpace(name: "widget")
         .overlay(alignment: widgetSettings.notesSide == .left ? .topLeading : .topTrailing) {
             if widgetSettings.notesEnabled {
@@ -830,7 +830,9 @@ struct VinylWidgetView: View {
     private func platterCenterInScreen() -> CGPoint {
         let frame = widgetFrameInScreen()
         // Calibrated anchor for the platter center so lifted disk/sleeves stay locked to the vinyl.
-        return CGPoint(x: frame.midX, y: frame.midY + 8)
+        // Was +8 when the body was 380 tall; the taller body (460) moved the
+        // platter 44pt up in view space, which is +44 in screen (y-up) space.
+        return CGPoint(x: frame.midX, y: frame.midY + 52)
     }
 
     // MARK: - Platter Area (no tonearm — that's outside the clip)
@@ -859,7 +861,7 @@ struct VinylWidgetView: View {
                 pitchFader.position(x: 286, y: 372)
             }
         }
-        .frame(width: 360, height: 420)
+        .frame(width: 360, height: 500)
     }
 
     private var latch: some View {
@@ -1083,114 +1085,109 @@ struct VinylWidgetView: View {
         .frame(width: 90, height: 180)
     }
 
-    // MARK: - Track Info (modern, liquid-glass panel)
+    // MARK: - Track Info (modern, sits directly on the body — no card)
 
     private var modernTrackPanel: some View {
-        VStack(spacing: 12) {
-            VStack(spacing: 2) {
-                Text(displayedNowPlaying.trackName.isEmpty ? "Nothing Playing" : displayedNowPlaying.trackName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(theme.trackTitle)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+        VStack(spacing: 0) {
+            Text(displayedNowPlaying.trackName.isEmpty ? "Nothing Playing" : displayedNowPlaying.trackName)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(theme.trackTitle)
+                .lineLimit(1)
+                .truncationMode(.tail)
 
-                if !displayedNowPlaying.trackName.isEmpty {
-                    Text(displayedNowPlaying.artistName)
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(theme.trackArtist)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                }
-            }
+            Text(displayedNowPlaying.trackName.isEmpty ? " " : displayedNowPlaying.artistName)
+                .font(.system(size: 12.5, weight: .regular))
+                .foregroundStyle(theme.trackArtist)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.top, 2)
 
-            if !displayedNowPlaying.trackName.isEmpty {
-                if canSeekWithTonearm {
-                    liquidProgressBar
-                }
-                liquidTransportControls
-            }
+            transportRow
+                .padding(.top, 14)
+
+            scrubberRow
+                .padding(.top, 14)
         }
-        .padding(.vertical, 14)
-        .padding(.horizontal, 18)
         .frame(maxWidth: .infinity)
-        .background(liquidGlassBackground)
     }
 
-    private var liquidGlassBackground: some View {
-        RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(
-                        LinearGradient(colors: [.white.opacity(0.5), .white.opacity(0.05)],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing),
-                        lineWidth: 1
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(
-                        LinearGradient(colors: [Color.white.opacity(0.10), .clear],
-                                       startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.6))
-                    )
-            )
-            .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
-    }
-
-    private var liquidProgressBar: some View {
-        TimelineView(.periodic(from: .now, by: 0.25)) { context in
-            let fraction = isTonearmSeeking ? (pendingSeekProgress ?? 0) : (playbackProgress(at: context.date) ?? 0)
-            GeometryReader { geo in
-                let width = geo.size.width
-                let knobX = min(width - 5, max(5, width * fraction))
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.22)).frame(height: 4)
-                    Capsule().fill(theme.trackPlayingDot).frame(width: max(4, width * fraction), height: 4)
-                    Circle().fill(Color.white)
-                        .frame(width: 10, height: 10)
-                        .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                        .position(x: knobX, y: 8)
-                }
-                .frame(height: 16)
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            handleProgressBarDrag(fraction: value.location.x / width)
-                        }
-                        .onEnded { _ in
-                            endProgressBarSeek()
-                        }
-                )
-            }
-            .frame(height: 16)
-        }
-    }
-
-    private var liquidTransportControls: some View {
-        HStack(spacing: 22) {
-            liquidButton(icon: "backward.fill", size: 14) { detector.previousTrack() }
-            liquidButton(icon: displayedNowPlaying.isPlaying ? "pause.fill" : "play.fill", size: 16, prominent: true) {
+    // Bare SF Symbol glyphs, no button chrome — matches Apple's Now Playing.
+    private var transportRow: some View {
+        HStack(spacing: 38) {
+            glyphButton("backward.fill", size: 21) { detector.previousTrack() }
+            glyphButton(displayedNowPlaying.isPlaying ? "pause.fill" : "play.fill", size: 27) {
                 detector.togglePlayback()
             }
-            liquidButton(icon: "forward.fill", size: 14) { detector.nextTrack() }
+            glyphButton("forward.fill", size: 21) { detector.nextTrack() }
         }
+        .foregroundStyle(theme.trackTitle)
     }
 
-    private func liquidButton(icon: String, size: CGFloat, prominent: Bool = false, action: @escaping () -> Void) -> some View {
+    private func glyphButton(_ icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            ZStack {
-                Circle()
-                    .fill(prominent ? Color.white.opacity(0.94) : Color.white.opacity(0.14))
-                    .overlay(Circle().strokeBorder(Color.white.opacity(prominent ? 0 : 0.22), lineWidth: 1))
-                    .frame(width: prominent ? 38 : 30, height: prominent ? 38 : 30)
-                    .shadow(color: .black.opacity(prominent ? 0.28 : 0), radius: 4, y: 2)
-                Image(systemName: icon)
-                    .font(.system(size: size, weight: .semibold))
-                    .foregroundStyle(prominent ? Color.black.opacity(0.85) : theme.trackTitle)
-            }
+            Image(systemName: icon)
+                .font(.system(size: size, weight: .medium))
+                .frame(width: size + 10, height: size + 10)
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressScaleButtonStyle())
+    }
+
+    /// Elapsed / remaining flanking a thin scrubbable bar. The knob only
+    /// appears while scrubbing, like Apple's own transport.
+    private var scrubberRow: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { context in
+            let fraction = isTonearmSeeking
+                ? (pendingSeekProgress ?? 0)
+                : (playbackProgress(at: context.date) ?? 0)
+            let duration = Double(displayedNowPlaying.durationMillis ?? 0) / 1000
+
+            HStack(spacing: 9) {
+                Text(timeLabel(duration * fraction))
+                    .frame(width: 34, alignment: .leading)
+                scrubBar(fraction: fraction)
+                Text("-" + timeLabel(max(0, duration - duration * fraction)))
+                    .frame(width: 34, alignment: .trailing)
+            }
+            .font(.system(size: 10, weight: .medium).monospacedDigit())
+            .foregroundStyle(theme.trackArtist.opacity(0.85))
+        }
+        .opacity(canSeekWithTonearm ? 1 : 0)
+    }
+
+    private func scrubBar(fraction: Double) -> some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(theme.trackArtist.opacity(0.28))
+                    .frame(height: isTonearmSeeking ? 6 : 4)
+                Capsule()
+                    .fill(theme.trackTitle.opacity(0.92))
+                    .frame(width: max(2, width * fraction), height: isTonearmSeeking ? 6 : 4)
+                Circle()
+                    .fill(Color.white)
+                    .frame(width: 11, height: 11)
+                    .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
+                    .offset(x: min(width - 11, max(0, width * fraction - 5.5)))
+                    .opacity(isTonearmSeeking ? 1 : 0)
+            }
+            .frame(height: 22)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in handleProgressBarDrag(fraction: value.location.x / width) }
+                    .onEnded { _ in endProgressBarSeek() }
+            )
+        }
+        .frame(height: 22)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isTonearmSeeking)
+    }
+
+    private func timeLabel(_ seconds: Double) -> String {
+        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
+        let total = Int(seconds.rounded())
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 
 }
@@ -1544,6 +1541,16 @@ private struct RetroButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
             .brightness(configuration.isPressed ? -0.12 : 0)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+/// Springy press feedback for the modern bare-glyph transport buttons.
+private struct PressScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.84 : 1.0)
+            .opacity(configuration.isPressed ? 0.6 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 
