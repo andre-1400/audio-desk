@@ -594,7 +594,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.setFrame(CGRect(origin: origin, size: size), display: false)
 
         let rootView = ScaledWidgetView(animator: animator, themeManager: themeManager, sizeManager: WidgetSizeManager.shared)
-            .modifier(DesktopWidgetChrome())
+            .modifier(DesktopWidgetChrome(cornerInset: 20))
         let hostingView = NSHostingView(rootView: rootView)
         hostingView.frame = window.contentView?.bounds ?? .zero
         hostingView.autoresizingMask = [.width, .height]
@@ -676,7 +676,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let existing = cdWindow {
             existing.contentView?.subviews.forEach { $0.removeFromSuperview() }
-            let host = NSHostingView(rootView: CDSizedRoot(model: model).modifier(DesktopWidgetChrome()))
+            let host = NSHostingView(rootView: CDSizedRoot(model: model).modifier(DesktopWidgetChrome(cornerInset: 16)))
             host.frame = existing.contentView?.bounds ?? .zero
             host.autoresizingMask = [.width, .height]
             existing.contentView?.addSubview(host)
@@ -690,7 +690,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.setContentSize(size)
         window.setFrameOrigin(launchOrigin(xKey: "cdWidgetX", yKey: "cdWidgetY", size: size))
 
-        let host = NSHostingView(rootView: CDSizedRoot(model: model).modifier(DesktopWidgetChrome()))
+        let host = NSHostingView(rootView: CDSizedRoot(model: model).modifier(DesktopWidgetChrome(cornerInset: 16)))
         host.frame = window.contentView?.bounds ?? .zero
         host.autoresizingMask = [.width, .height]
         window.contentView?.addSubview(host)
@@ -859,17 +859,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
 // MARK: - Desktop widget chrome (close button + right-click menu)
 
-/// Shared wrapper for any widget placed on the desktop: a small, always-
-/// present close button in the top-left corner, and a right-click menu for
-/// the rest of the quick actions. No hover reaction on the widget itself —
-/// it used to brighten on hover, which read as a washed-out/cloudy look the
-/// user didn't want.
+/// Shared wrapper for any widget placed on the desktop: a close button in
+/// the top-left corner, shown only on hover, and a right-click menu for the
+/// rest of the quick actions. No hover reaction on the widget itself — it
+/// used to brighten on hover, which read as a washed-out/cloudy look the
+/// user didn't want; only the button's own visibility responds to hover now.
 struct DesktopWidgetChrome: ViewModifier {
+    /// How far the widget's own outer content frame extends past its actual
+    /// visible rounded-rect body, in that widget's own unscaled logical
+    /// points — every widget type reserves this much transparent margin
+    /// around itself for its drop shadow. Vinyl v1 is 20 (frame 384x516,
+    /// body 344x476), CD is 16 (cdMargin). Album Art and Horizontal are 0 —
+    /// their visible shape already fills the whole content frame. Without
+    /// this, the button was positioned relative to the invisible outer
+    /// frame instead of the body users actually see, landing off in the
+    /// shadow margin above-left of the card.
+    var cornerInset: CGFloat = 0
+
+    // This view is added AFTER the widget's own internal scaleEffect (see
+    // ScaledWidgetView/CDSizedRoot/etc.), so the button's own size here is
+    // already unaffected by the size slider — only its POSITION needs to
+    // account for scale, since cornerInset is in the widget's pre-scale
+    // coordinate space but this overlay sits in already-scaled space.
+    @ObservedObject private var sizeManager = WidgetSizeManager.shared
+    @State private var hovered = false
+
     func body(content: Content) -> some View {
         content
+            .onHover { hovered = $0 }
             .overlay(alignment: .topLeading) {
                 closeButton
-                    .padding(8)
+                    .padding(cornerInset * sizeManager.scale + 6)
             }
             .contextMenu {
                 Button {
@@ -902,11 +922,18 @@ struct DesktopWidgetChrome: ViewModifier {
         } label: {
             Image(systemName: "xmark")
                 .font(.system(size: 8, weight: .bold))
-                .foregroundStyle(Color.white.opacity(0.75))
+                .foregroundStyle(.white)
                 .frame(width: 16, height: 16)
-                .background(Circle().fill(Color.black.opacity(0.35)))
+                .background(Circle().fill(Color.black.opacity(0.5)))
         }
         .buttonStyle(.plain)
         .help("Remove from desktop")
+        // Hidden except on hover, and low-opacity even then — visible
+        // without standing out. allowsHitTesting off while hidden so an
+        // invisible button doesn't steal clicks meant for the widget/window
+        // drag underneath it.
+        .opacity(hovered ? 0.55 : 0)
+        .allowsHitTesting(hovered)
+        .animation(.easeOut(duration: 0.18), value: hovered)
     }
 }
