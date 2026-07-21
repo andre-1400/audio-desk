@@ -857,19 +857,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-// MARK: - Desktop widget chrome (hover glow + right-click menu)
+// MARK: - Desktop widget chrome (close button + right-click menu)
 
-/// Shared wrapper for any widget placed on the desktop: a gentle brightness
-/// lift while hovered and a right-click menu for quick actions. Purely
-/// cosmetic — the widget's own animations are untouched.
+/// Shared wrapper for any widget placed on the desktop: a small, always-
+/// present close button in the top-left corner, and a right-click menu for
+/// the rest of the quick actions. No hover reaction on the widget itself —
+/// it used to brighten on hover, which read as a washed-out/cloudy look the
+/// user didn't want.
 struct DesktopWidgetChrome: ViewModifier {
-    @State private var hovered = false
-
     func body(content: Content) -> some View {
         content
-            .brightness(hovered ? 0.045 : 0)
-            .animation(.easeOut(duration: 0.22), value: hovered)
-            .onHover { hovered = $0 }
+            .overlay(alignment: .topLeading) {
+                closeButton
+                    .padding(8)
+            }
             .contextMenu {
                 Button {
                     AppDelegate.shared?.showGallery()
@@ -893,5 +894,19 @@ struct DesktopWidgetChrome: ViewModifier {
                     Label("Close Widget", systemImage: "xmark.circle")
                 }
             }
+    }
+
+    private var closeButton: some View {
+        Button {
+            AppDelegate.shared?.closeActiveWidget()
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.75))
+                .frame(width: 16, height: 16)
+                .background(Circle().fill(Color.black.opacity(0.35)))
+        }
+        .buttonStyle(.plain)
+        .help("Remove from desktop")
     }
 }

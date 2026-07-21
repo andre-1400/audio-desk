@@ -44,6 +44,12 @@ private let hDiscContainerSize: CGFloat = 130
 struct VinylHorizontalWidgetView: View {
     let model: VinylHorizontalModel
     var isPreview: Bool = false
+    // Real playing-track data for the gallery preview, threaded down from
+    // GalleryLiveTrack. Only ever read when isPreview.
+    var previewInfo: NowPlayingInfo? = nil
+    var previewArt: NSImage? = nil
+    var previewColours: ExtractedColours? = nil
+    var previewBlurredArt: NSImage? = nil
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
@@ -62,19 +68,25 @@ struct VinylHorizontalWidgetView: View {
     /// Cached per track — never recomputed per frame.
     @State private var blurredBodyArt: NSImage?
 
+    private var effectiveColours: ExtractedColours {
+        isPreview ? (previewColours ?? .adaptivePreviewPlaceholder) : extractedColours
+    }
+    private var effectiveArt: NSImage? { isPreview ? previewArt : displayedArt }
+    private var effectiveBlurredBodyArt: NSImage? { isPreview ? previewBlurredArt : blurredBodyArt }
+
     private var theme: WidgetThemePalette {
-        model.themeID == .adaptive ? WidgetThemeID.adaptivePalette(from: extractedColours) : model.themeID.palette
+        model.themeID == .adaptive ? WidgetThemeID.adaptivePalette(from: effectiveColours) : model.themeID.palette
     }
 
     /// Foreground colours picked for contrast against the body as drawn.
     private var isAdaptive: Bool { model.themeID == .adaptive }
     private var fgPrimary: Color {
-        isAdaptive ? AdaptiveBody.primary(extractedColours.dominant) : theme.trackTitle
+        isAdaptive ? AdaptiveBody.primary(effectiveColours.dominant) : theme.trackTitle
     }
     private var fgSecondary: Color {
-        isAdaptive ? AdaptiveBody.secondary(extractedColours.dominant) : theme.trackArtist
+        isAdaptive ? AdaptiveBody.secondary(effectiveColours.dominant) : theme.trackArtist
     }
-    private var np: NowPlayingInfo { displayedInfo }
+    private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
 
     private var trackIdentityKey: String {
         "\(detector.nowPlaying.trackName)|\(detector.nowPlaying.artistName)|\(detector.nowPlaying.albumName)"
@@ -99,7 +111,7 @@ struct VinylHorizontalWidgetView: View {
                 LinearGradient(colors: theme.widgetBodyGradient, startPoint: .topLeading, endPoint: .bottomTrailing)
                 // Adaptive: same treatment as every other adaptive style —
                 // the body is the blurred album art, not an averaged colour.
-                AdaptiveBodyFill(blurredArt: blurredBodyArt, size: horizontalBaseSize)
+                AdaptiveBodyFill(blurredArt: effectiveBlurredBodyArt, size: horizontalBaseSize)
             }
         )
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -211,8 +223,12 @@ struct VinylHorizontalWidgetView: View {
         let discRadius = discSize / 2
         return ZStack {
             SpinningVinylView(
-                isPlaying: displayedInfo.isPlaying,
-                albumArt: displayedArt,
+                // Preview cards never spin the disc — no hover-spin gate
+                // exists for this widget type, so if a real track happens
+                // to be playing this would otherwise animate every visible
+                // card continuously, all at once.
+                isPlaying: isPreview ? false : displayedInfo.isPlaying,
+                albumArt: effectiveArt,
                 vinylTint: theme.albumArtLabelGradient.first ?? Color(hex: "9B5523"),
                 albumArtLabelGradient: theme.albumArtLabelGradient,
                 albumArtRingColor: theme.albumArtRingColor
@@ -337,10 +353,12 @@ struct VinylHorizontalWidgetView: View {
     }
 
     private var transportRow: some View {
+        // Preview cards show these purely for looks — cosmetic only, never
+        // wired to real transport commands.
         HStack(spacing: 18) {
-            transportButton("backward.fill", size: 13) { detector.previousTrack() }
+            transportButton("backward.fill", size: 13) { if !isPreview { detector.previousTrack() } }
             transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15) { togglePlayback() }
-            transportButton("forward.fill", size: 13) { detector.nextTrack() }
+            transportButton("forward.fill", size: 13) { if !isPreview { detector.nextTrack() } }
         }
     }
 
@@ -423,11 +441,16 @@ struct VinylHorizontalSizedRoot: View {
 
 struct VinylHorizontalModelPreview: View {
     let model: VinylHorizontalModel
+    @ObservedObject var live: GalleryLiveTrack = GalleryLiveTrack()
 
     var body: some View {
         GeometryReader { geo in
             let s = min(geo.size.width / horizontalBaseSize.width, geo.size.height / horizontalBaseSize.height)
-            VinylHorizontalWidgetView(model: model, isPreview: true)
+            VinylHorizontalWidgetView(
+                model: model, isPreview: true,
+                previewInfo: live.info, previewArt: live.art,
+                previewColours: live.colours, previewBlurredArt: live.blurredArt
+            )
                 .frame(width: horizontalBaseSize.width, height: horizontalBaseSize.height)
                 .scaleEffect(s)
                 .frame(width: horizontalBaseSize.width * s, height: horizontalBaseSize.height * s)

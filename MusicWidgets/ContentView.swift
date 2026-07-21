@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 
 // MARK: - Brand (which music service look the app wears)
 
@@ -572,6 +573,62 @@ private struct SliderDragCaptureView: NSViewRepresentable {
 
 // MARK: - Detail pane (grid + now playing)
 
+// MARK: - Live data for gallery preview cards
+
+/// Feeds real track/art/colour into the gallery's preview cards, so hovering
+/// a style shows what it would actually look like with the song that's
+/// currently playing — without reintroducing the scroll-lag bug GalleryDetail
+/// was fixed for. That fix was about observing detector.nowPlaying directly,
+/// which republishes ~4x/second (it carries live playback position);
+/// GalleryLiveTrack subscribes to the same detector but only republishes when
+/// the track identity actually changes, so observing it costs nothing during
+/// scroll and only re-renders the grid once per track change.
+///
+/// Art/colour/blur are computed once here, centrally, and hovering a card is
+/// purely visual — the preview's transport buttons are never wired to real
+/// playback (deliberately: real controls per visible card would mean actual
+/// AppleScript commands firing from decorative buttons, for no benefit).
+final class GalleryLiveTrack: ObservableObject {
+    @Published private(set) var info: NowPlayingInfo = .empty
+    @Published private(set) var art: NSImage?
+    @Published private(set) var colours: ExtractedColours = .adaptivePreviewPlaceholder
+    @Published private(set) var blurredArt: NSImage?
+
+    private let artFetcher = AlbumArtFetcher()
+    private var cancellable: AnyCancellable?
+    private var lastIdentityKey = ""
+
+    func start(observing detector: MusicDetector) {
+        guard cancellable == nil else { return }
+        cancellable = detector.$nowPlaying
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.handle($0) }
+    }
+
+    private func handle(_ np: NowPlayingInfo) {
+        let key = "\(np.trackName)|\(np.artistName)|\(np.albumName)"
+        guard key != lastIdentityKey else { return }
+        lastIdentityKey = key
+        info = np
+
+        guard let url = np.albumArtURL, !url.isEmpty else {
+            art = nil
+            blurredArt = nil
+            colours = .adaptivePreviewPlaceholder
+            return
+        }
+        artFetcher.fetchArt(from: url, trackKey: key, forceRefresh: false) { [weak self] image in
+            guard let self, let image else { return }
+            self.art = image
+            self.colours = ColourExtractor.extract(from: image)
+            DispatchQueue.global(qos: .userInitiated).async {
+                let blurred = ArtBlurrer.blurredBody(from: image)
+                DispatchQueue.main.async { self.blurredArt = blurred }
+            }
+        }
+    }
+}
+
 private struct GalleryDetail: View {
     let category: WidgetCategory
     // Not @ObservedObject on purpose: GalleryDetail never reads detector's
@@ -583,6 +640,10 @@ private struct GalleryDetail: View {
     let detector: MusicDetector
     @ObservedObject private var activeWidget = ActiveWidgetState.shared
     @ObservedObject private var sizeM = WidgetSizeManager.shared
+    // Deduped (identity-only) live feed for preview cards — see
+    // GalleryLiveTrack's own doc comment for why this is safe to observe
+    // here despite the scroll-lag history with the raw detector.
+    @StateObject private var liveTrack = GalleryLiveTrack()
     @State private var hoveredID: String? = nil
     @State private var contentWidth: CGFloat = 0
 
@@ -633,7 +694,7 @@ private struct GalleryDetail: View {
                                             active: activeWidget.entry == "vinyl:\(style.themeID.rawValue)",
                                             onHover: { setHover(style.id, $0) },
                                             action: { AppDelegate.shared?.launchVinylWidget(themeID: style.themeID) }) { animated in
-                                    VinylStylePreview(themeID: style.themeID, animated: animated)
+                                    VinylStylePreview(themeID: style.themeID, animated: animated, live: liveTrack)
                                 }
                             }
                         }
@@ -645,7 +706,7 @@ private struct GalleryDetail: View {
                                         active: activeWidget.entry == "vinylh:\(model.id)",
                                         onHover: { setHover(model.id, $0) },
                                         action: { AppDelegate.shared?.launchVinylHorizontalWidget(model: model) }) { _ in
-                                VinylHorizontalModelPreview(model: model)
+                                VinylHorizontalModelPreview(model: model, live: liveTrack)
                             }
                         }
                     } else if category == .cd {
@@ -658,7 +719,7 @@ private struct GalleryDetail: View {
                                             active: activeWidget.entry == "cd:\(model.id)",
                                             onHover: { setHover(model.id, $0) },
                                             action: { AppDelegate.shared?.launchCDWidget(model: model) }) { animated in
-                                    CDModelPreview(model: model, animated: animated)
+                                    CDModelPreview(model: model, animated: animated, live: liveTrack)
                                 }
                             }
                         }
@@ -671,7 +732,7 @@ private struct GalleryDetail: View {
                                         active: activeWidget.entry == "albumart:\(model.id)",
                                         onHover: { setHover(model.id, $0) },
                                         action: { AppDelegate.shared?.launchAlbumArtWidget(model: model) }) { _ in
-                                AlbumArtModelPreview(model: model)
+                                AlbumArtModelPreview(model: model, live: liveTrack)
                             }
                         }
                     }
@@ -695,6 +756,7 @@ private struct GalleryDetail: View {
                 .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { liveTrack.start(observing: detector) }
     }
 
     @ViewBuilder
@@ -926,6 +988,7 @@ extension VinylStyle {
 struct CDModelPreview: View {
     let model: CDModel
     var animated: Bool = false
+    @ObservedObject var live: GalleryLiveTrack = GalleryLiveTrack()
 
     var body: some View {
         GeometryReader { geo in
@@ -940,7 +1003,11 @@ struct CDModelPreview: View {
     }
 
     @ViewBuilder private var content: some View {
-        let view = CDWidgetView(model: model, isPreview: true, previewSpinning: animated)
+        let view = CDWidgetView(
+            model: model, isPreview: true, previewSpinning: animated,
+            previewInfo: live.info, previewArt: live.art,
+            previewColours: live.colours, previewBlurredArt: live.blurredArt
+        )
         if animated {
             view                       // live spin — don't flatten (drawingGroup re-rasterizes each frame)
         } else {
@@ -955,6 +1022,11 @@ struct CDModelPreview: View {
 struct VinylStylePreview: View {
     let themeID: WidgetThemeID
     var animated: Bool = false
+    // Defaults to a fresh, never-started GalleryLiveTrack — callers that
+    // don't pass one (e.g. OnboardingView) just get the static placeholder
+    // look, unchanged.
+    @ObservedObject var live: GalleryLiveTrack = GalleryLiveTrack()
+
     var body: some View {
         GeometryReader { geo in
             let base = CGSize(width: 384, height: 516)
@@ -967,8 +1039,23 @@ struct VinylStylePreview: View {
         }
     }
 
+    /// For the Adaptive style specifically, the preview's whole palette
+    /// tracks the real playing track's colours, same as the live widget.
+    private var resolvedPalette: WidgetThemePalette {
+        guard themeID == .adaptive, live.art != nil else { return themeID.palette }
+        return WidgetThemeID.adaptivePalette(from: live.colours)
+    }
+
     @ViewBuilder private var content: some View {
-        let replica = VinylWidgetReplica(palette: themeID.palette, traits: themeID.traits, spinning: animated)
+        let replica = VinylWidgetReplica(
+            palette: resolvedPalette,
+            traits: themeID.traits,
+            spinning: animated,
+            liveArt: live.art,
+            liveBlurredArt: themeID == .adaptive ? live.blurredArt : nil,
+            liveTrackName: live.info.trackName,
+            liveArtistName: live.info.artistName
+        )
         if animated {
             replica                    // live spin — don't flatten
         } else {
@@ -981,6 +1068,13 @@ private struct VinylWidgetReplica: View {
     let palette: WidgetThemePalette
     var traits: VinylModelTraits = VinylModelTraits()
     var spinning: Bool = false   // gallery hover: rotate the disc
+    // Real playing-track data, threaded down from VinylStylePreview. All
+    // default empty/nil so this replica still renders its plain placeholder
+    // look wherever no live data is supplied.
+    var liveArt: NSImage? = nil
+    var liveBlurredArt: NSImage? = nil
+    var liveTrackName: String = ""
+    var liveArtistName: String = ""
 
     var body: some View {
         ZStack {
@@ -993,6 +1087,10 @@ private struct VinylWidgetReplica: View {
                                            startPoint: .topLeading, endPoint: .bottomTrailing)
                         )
                         .shadow(color: .black.opacity(0.7), radius: 30, x: 0, y: 20)
+
+                    // Adaptive preview: same real-blurred-art body as the
+                    // live widget, not just the fixed palette gradient.
+                    AdaptiveBodyFill(blurredArt: liveBlurredArt, size: CGSize(width: 344, height: 476))
 
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .strokeBorder(palette.widgetBorder, lineWidth: 1)
@@ -1032,7 +1130,7 @@ private struct VinylWidgetReplica: View {
                     .padding(.horizontal, 24)
                     .padding(.bottom, 14)
                 } else {
-                    trackInfoPlaceholder
+                    trackInfo
                         .padding(.top, 16)
                         .padding(.horizontal, 38)
                         .padding(.bottom, 20)
@@ -1193,14 +1291,22 @@ private struct VinylWidgetReplica: View {
         }
     }
 
-    private var albumArtLabel: some View {
-        ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(colors: palette.albumArtLabelGradient,
-                                   center: .center, startRadius: 0, endRadius: 62.5)
-                )
-                .frame(width: 125, height: 125)
+    @ViewBuilder private var albumArtLabel: some View {
+        Group {
+            if let liveArt {
+                Image(nsImage: liveArt)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 125, height: 125)
+                    .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(
+                        RadialGradient(colors: palette.albumArtLabelGradient,
+                                       center: .center, startRadius: 0, endRadius: 62.5)
+                    )
+                    .frame(width: 125, height: 125)
+            }
         }
         .frame(width: 125, height: 125)
         .overlay(Circle().strokeBorder(palette.albumArtRingColor, lineWidth: 2))
@@ -1272,7 +1378,50 @@ private struct VinylWidgetReplica: View {
 
     // MARK: Track info placeholder (mirrors the live widget's integrated panel)
 
-    private var trackInfoPlaceholder: some View {
+    @ViewBuilder private var trackInfo: some View {
+        if !liveTrackName.isEmpty {
+            VStack(spacing: 0) {
+                Text(liveTrackName)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(palette.trackTitle)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .truncationMode(.tail)
+                Text(liveArtistName)
+                    .font(.system(size: 14.5, weight: .medium))
+                    .foregroundStyle(palette.trackArtist)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .truncationMode(.tail)
+                    .padding(.top, 4)
+
+                HStack(spacing: 38) {
+                    Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
+                    Image(systemName: "play.fill").font(.system(size: 27, weight: .medium))
+                    Image(systemName: "forward.fill").font(.system(size: 21, weight: .medium))
+                }
+                .foregroundStyle(palette.trackTitle)
+                .frame(height: 37)
+                .padding(.top, 12)
+
+                HStack(spacing: 9) {
+                    Text("0:00").frame(width: 34, alignment: .leading)
+                    Capsule().fill(palette.trackArtist.opacity(0.32)).frame(height: 4)
+                    Text("-0:00").frame(width: 34, alignment: .trailing)
+                }
+                .font(.system(size: 10, weight: .medium).monospacedDigit())
+                .foregroundStyle(palette.trackArtist.opacity(0.85))
+                .frame(height: 22)
+                .padding(.top, 12)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 140)
+        } else {
+            placeholderTrackInfo
+        }
+    }
+
+    private var placeholderTrackInfo: some View {
         VStack(spacing: 0) {
             RoundedRectangle(cornerRadius: 3)
                 .fill(palette.trackTitle.opacity(0.85))

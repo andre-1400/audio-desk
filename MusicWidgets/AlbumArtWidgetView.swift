@@ -39,6 +39,11 @@ struct AlbumArtModel: Identifiable {
 struct AlbumArtWidgetView: View {
     let model: AlbumArtModel
     var isPreview: Bool = false
+    // Real playing-track data for the gallery preview, threaded down from
+    // GalleryLiveTrack. Only ever read when isPreview.
+    var previewInfo: NowPlayingInfo? = nil
+    var previewArt: NSImage? = nil
+    var previewExtracted: ExtractedColours? = nil
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
@@ -47,8 +52,13 @@ struct AlbumArtWidgetView: View {
     @State private var displayedInfo: NowPlayingInfo = .empty
     @State private var extracted: ExtractedColours = .fallback
 
-    private var np: NowPlayingInfo { displayedInfo }
-    private var art: NSImage { displayedArt ?? FallbackCoverArtGenerator.fallbackImage }
+    private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
+    private var art: NSImage {
+        (isPreview ? previewArt : displayedArt) ?? FallbackCoverArtGenerator.fallbackImage
+    }
+    private var effectiveExtracted: ExtractedColours {
+        isPreview ? (previewExtracted ?? .fallback) : extracted
+    }
     private var trackKey: String { "\(np.trackName)|\(np.artistName)" }
 
     var body: some View {
@@ -167,10 +177,10 @@ struct AlbumArtWidgetView: View {
 
     private var cardBackground: some View {
         LinearGradient(
-            colors: [extracted.dominant, extracted.secondary],
+            colors: [effectiveExtracted.dominant, effectiveExtracted.secondary],
             startPoint: .top, endPoint: .bottom
         )
-        .animation(.easeInOut(duration: 0.5), value: extracted.dominant)
+        .animation(.easeInOut(duration: 0.5), value: effectiveExtracted.dominant)
     }
 
     // MARK: - Hero (380x460) — full-bleed backdrop + transport controls
@@ -226,10 +236,12 @@ struct AlbumArtWidgetView: View {
                 ProgressStrip(info: np, tint: .white)
                     .frame(width: 260)
 
+                // Preview cards show these purely for looks — cosmetic
+                // only, never wired to real transport commands.
                 HStack(spacing: 28) {
-                    transportButton("backward.fill", size: 15) { detector.previousTrack() }
+                    transportButton("backward.fill", size: 15) { if !isPreview { detector.previousTrack() } }
                     transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 20, prominent: true) { togglePlayback() }
-                    transportButton("forward.fill", size: 15) { detector.nextTrack() }
+                    transportButton("forward.fill", size: 15) { if !isPreview { detector.nextTrack() } }
                 }
                 .padding(.top, 2)
 
@@ -328,12 +340,16 @@ struct AlbumArtSizedRoot: View {
 
 struct AlbumArtModelPreview: View {
     let model: AlbumArtModel
+    @ObservedObject var live: GalleryLiveTrack = GalleryLiveTrack()
 
     var body: some View {
         GeometryReader { geo in
             let base = model.size.baseSize
             let s = min(geo.size.width / base.width, geo.size.height / base.height)
-            AlbumArtWidgetView(model: model, isPreview: true)
+            AlbumArtWidgetView(
+                model: model, isPreview: true,
+                previewInfo: live.info, previewArt: live.art, previewExtracted: live.colours
+            )
                 .frame(width: base.width, height: base.height)
                 .scaleEffect(s)
                 .frame(width: base.width * s, height: base.height * s)

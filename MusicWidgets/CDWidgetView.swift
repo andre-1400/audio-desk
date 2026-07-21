@@ -258,6 +258,14 @@ struct CDWidgetView: View {
     let model: CDModel
     var isPreview: Bool = false
     var previewSpinning: Bool = false   // gallery hover: spin the disc without the detector
+    // Real playing-track data for the gallery preview, threaded down from
+    // GalleryLiveTrack. Only ever read when isPreview — the live desktop
+    // widget always uses its own detector/state. All nil/default so a
+    // preview with none supplied still renders the plain placeholder look.
+    var previewInfo: NowPlayingInfo? = nil
+    var previewArt: NSImage? = nil
+    var previewColours: ExtractedColours? = nil
+    var previewBlurredArt: NSImage? = nil
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
@@ -279,8 +287,13 @@ struct CDWidgetView: View {
 
     private let maxSpinSpeed: Double = 4200   // fast, but stays under the 60fps strobing threshold
 
-    private var mat: CDMaterial { model.isAdaptive ? .adaptive(from: extractedColours) : model.material }
-    private var np: NowPlayingInfo { detector.nowPlaying }
+    private var effectiveColours: ExtractedColours {
+        isPreview ? (previewColours ?? .adaptivePreviewPlaceholder) : extractedColours
+    }
+    private var effectiveDisplayedArt: NSImage? { isPreview ? previewArt : displayedArt }
+    private var effectiveBlurredBodyArt: NSImage? { isPreview ? previewBlurredArt : blurredBodyArt }
+    private var mat: CDMaterial { model.isAdaptive ? .adaptive(from: effectiveColours) : model.material }
+    private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : detector.nowPlaying }
     private var playing: Bool { optimisticPlaying ?? np.isPlaying }
     private var trackKey: String { "\(np.trackName)|\(np.artistName)|\(np.albumName)" }
 
@@ -326,8 +339,8 @@ struct CDWidgetView: View {
     private var deck: some View {
         CDDeck(material: mat, diameter: model.archetype.deckDiameter,
                phase: transition.phase, targetSpeed: targetSpeed,
-               displayedArt: displayedArt, incomingArt: incomingArt,
-               onTap: { togglePlayback() }, isStatic: isPreview && !previewSpinning)
+               displayedArt: effectiveDisplayedArt, incomingArt: isPreview ? nil : incomingArt,
+               onTap: { if !isPreview { togglePlayback() } }, isStatic: isPreview && !previewSpinning)
     }
 
     private var lcd: some View {
@@ -339,10 +352,12 @@ struct CDWidgetView: View {
     }
 
     private var controls: some View {
+        // Preview cards show these purely for looks — cosmetic only, never
+        // wired to real transport commands.
         CDControls(playing: playing, material: mat, analog: isPortrait,
-                   onPrev: { detector.previousTrack() },
-                   onPlay: { togglePlayback() },
-                   onNext: { detector.nextTrack() })
+                   onPrev: { if !isPreview { detector.previousTrack() } },
+                   onPlay: { if !isPreview { togglePlayback() } },
+                   onNext: { if !isPreview { detector.nextTrack() } })
     }
 
     private func brandBar(wide: Bool = false) -> some View {
@@ -429,7 +444,7 @@ struct CDWidgetView: View {
             // Adaptive: the housing IS the blurred album art, same treatment
             // as the adaptive vinyl styles.
             .overlay(
-                AdaptiveBodyFill(blurredArt: blurredBodyArt, size: cardSize)
+                AdaptiveBodyFill(blurredArt: effectiveBlurredBodyArt, size: cardSize)
                     .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     .allowsHitTesting(false)
             )

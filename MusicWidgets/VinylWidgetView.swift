@@ -1307,7 +1307,7 @@ struct SpinningVinylView: View {
     @State private var spinDownEndAngle: Double = 0
     @State private var spinDownToken: UUID?
 
-    private let degreesPerSecond: Double = (8.0 / 60.0) * 360.0
+    private let degreesPerSecond: Double = (7.0 / 60.0) * 360.0
     private let spinDownDuration: TimeInterval = 1.5
 
     // MARK: - Body
