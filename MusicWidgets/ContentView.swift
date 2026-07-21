@@ -479,7 +479,13 @@ struct NeuSegmented: View {
 
 private struct GalleryDetail: View {
     let category: WidgetCategory
-    @ObservedObject var detector: MusicDetector
+    // Not @ObservedObject on purpose: GalleryDetail never reads detector's
+    // published properties itself, only hands it to NowPlayingBar. Observing
+    // it here forced this view's entire body — the whole card grid — to
+    // re-evaluate on every playback tick (~4x/second), competing with scroll
+    // for no benefit. NowPlayingBar still observes it correctly, so it's the
+    // only part of the tree that actually re-renders live.
+    let detector: MusicDetector
     @ObservedObject private var activeWidget = ActiveWidgetState.shared
     @ObservedObject private var sizeM = WidgetSizeManager.shared
     @State private var hoveredID: String? = nil
