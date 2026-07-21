@@ -166,7 +166,10 @@ extension CDMaterial {
         let dominant = colours.dominant
         let secondary = colours.secondary
         let darkest = secondary.adjustBrightness(-0.12)
-        let isLight = dominant.isPerceivedLight
+        // Measured against the housing as actually drawn — the blurred art
+        // under its darkening scrim — not the raw artwork, so text on the
+        // housing keeps contrast. Same rule as the adaptive vinyl styles.
+        let isLight = AdaptiveBody.isLight(dominant)
         return CDMaterial(
             housing: [dominant, secondary, darkest],
             ring: [Color(hex: "f0f2f6"), Color(hex: "b0b6c0"), Color(hex: "5a606a"), Color(hex: "d6dce4")],
@@ -177,7 +180,7 @@ extension CDMaterial {
             panel: [secondary, darkest],
             lcdBg: [darkest, darkest.adjustBrightness(-0.06)],
             lcd: dominant,
-            subtitle: isLight ? secondary : dominant.adjustBrightness(0.28),
+            subtitle: AdaptiveBody.secondary(dominant),
             isLight: isLight
         )
     }
@@ -268,6 +271,9 @@ struct CDWidgetView: View {
     // the generic extraction-failure fallback so it reads as "will become
     // whatever's playing," not a fixed brown.
     @State private var extractedColours: ExtractedColours = .adaptivePreviewPlaceholder
+    /// Adaptive models only: current album art, heavily blurred, used as the
+    /// housing. Cached per track — never recomputed per frame.
+    @State private var blurredBodyArt: NSImage?
 
     @ObservedObject private var settings = WidgetSettings.shared
 
@@ -420,6 +426,13 @@ struct CDWidgetView: View {
     private func housingShape(cornerRadius: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             .fill(LinearGradient(colors: mat.housing, startPoint: .top, endPoint: .bottom))
+            // Adaptive: the housing IS the blurred album art, same treatment
+            // as the adaptive vinyl styles.
+            .overlay(
+                AdaptiveBodyFill(blurredArt: blurredBodyArt, size: cardSize)
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                    .allowsHitTesting(false)
+            )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(LinearGradient(colors: [Color.white.opacity(mat.isLight ? 0.9 : 0.2), .clear],
@@ -483,6 +496,10 @@ struct CDWidgetView: View {
     private func updateAdaptiveColoursIfNeeded() {
         guard model.isAdaptive, let art = displayedArt else { return }
         extractedColours = ColourExtractor.extract(from: art)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let blurred = ArtBlurrer.blurredBody(from: art)
+            DispatchQueue.main.async { blurredBodyArt = blurred }
+        }
     }
 }
 

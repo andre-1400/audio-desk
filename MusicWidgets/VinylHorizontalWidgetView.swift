@@ -58,9 +58,21 @@ struct VinylHorizontalWidgetView: View {
     // than the generic extraction-failure fallback, so the gallery/initial
     // look reads as "becomes whatever's playing," not "this one is brown."
     @State private var extractedColours: ExtractedColours = .adaptivePreviewPlaceholder
+    /// Adaptive only: current album art, heavily blurred, used as the body.
+    /// Cached per track — never recomputed per frame.
+    @State private var blurredBodyArt: NSImage?
 
     private var theme: WidgetThemePalette {
         model.themeID == .adaptive ? WidgetThemeID.adaptivePalette(from: extractedColours) : model.themeID.palette
+    }
+
+    /// Foreground colours picked for contrast against the body as drawn.
+    private var isAdaptive: Bool { model.themeID == .adaptive }
+    private var fgPrimary: Color {
+        isAdaptive ? AdaptiveBody.primary(extractedColours.dominant) : theme.trackTitle
+    }
+    private var fgSecondary: Color {
+        isAdaptive ? AdaptiveBody.secondary(extractedColours.dominant) : theme.trackArtist
     }
     private var np: NowPlayingInfo { displayedInfo }
 
@@ -83,7 +95,12 @@ struct VinylHorizontalWidgetView: View {
         .padding(.leading, 12)
         .frame(width: horizontalBaseSize.width, height: horizontalBaseSize.height, alignment: .leading)
         .background(
-            LinearGradient(colors: theme.widgetBodyGradient, startPoint: .topLeading, endPoint: .bottomTrailing)
+            ZStack {
+                LinearGradient(colors: theme.widgetBodyGradient, startPoint: .topLeading, endPoint: .bottomTrailing)
+                // Adaptive: same treatment as every other adaptive style —
+                // the body is the blurred album art, not an averaged colour.
+                AdaptiveBodyFill(blurredArt: blurredBodyArt, size: horizontalBaseSize)
+            }
         )
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
@@ -174,6 +191,10 @@ struct VinylHorizontalWidgetView: View {
             }
             if model.themeID == .adaptive {
                 extractedColours = ColourExtractor.extract(from: image)
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let blurred = ArtBlurrer.blurredBody(from: image)
+                    DispatchQueue.main.async { blurredBodyArt = blurred }
+                }
             }
         }
     }
@@ -301,13 +322,13 @@ struct VinylHorizontalWidgetView: View {
         VStack(alignment: .leading, spacing: 3) {
             Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(theme.trackTitle)
+                .foregroundStyle(fgPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
             if !np.artistName.isEmpty {
                 Text(np.artistName)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(theme.trackArtist)
+                    .foregroundStyle(fgSecondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -327,7 +348,7 @@ struct VinylHorizontalWidgetView: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(theme.trackTitle)
+                .foregroundStyle(fgPrimary)
                 .frame(width: 24, height: 24)
                 .contentShape(Rectangle())
         }
@@ -341,18 +362,18 @@ struct VinylHorizontalWidgetView: View {
             HStack(spacing: 8) {
                 Text(formatTime(elapsedMillis(at: context.date)))
                     .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                    .foregroundStyle(theme.trackArtist)
+                    .foregroundStyle(fgSecondary)
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        Capsule().fill(theme.trackArtist.opacity(0.25))
-                        Capsule().fill(theme.trackTitle)
+                        Capsule().fill(fgSecondary.opacity(0.25))
+                        Capsule().fill(fgPrimary)
                             .frame(width: geo.size.width * fraction)
                     }
                 }
                 .frame(height: 3)
                 Text("-" + formatTime(remainingMillis(at: context.date)))
                     .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                    .foregroundStyle(theme.trackArtist)
+                    .foregroundStyle(fgSecondary)
             }
         }
         .frame(maxWidth: .infinity)

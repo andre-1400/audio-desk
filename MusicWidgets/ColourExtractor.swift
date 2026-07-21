@@ -32,6 +32,62 @@ extension Color {
     var isPerceivedLight: Bool { perceivedBrightness > 0.58 }
 }
 
+/// The shared "Adaptive" look, used by every adaptive style in the app (vinyl,
+/// vinyl horizontal, CD) so they can't drift apart: the widget body is the
+/// album art, heavily blurred, slightly zoomed in and knocked back, with
+/// foreground colours picked for contrast against it.
+enum AdaptiveBody {
+    /// Flat black scrim over the blurred art. Keeps the artwork's hue and
+    /// internal shading while taking the edge off bright covers. Flat rather
+    /// than a gradient on purpose — an evenly lit body gives one well-defined
+    /// brightness for the contrast decision below.
+    static let darkening: Double = 0.30
+
+    /// Slight zoom so the body shows the middle of the cover rather than its
+    /// full frame — keeps the softest part of the blur in view.
+    static let zoom: CGFloat = 1.18
+
+    /// 0.50, not the 0.58 of Color.isPerceivedLight: checked against WCAG
+    /// contrast ratios across a spread of cover colours, 0.50 picks whichever
+    /// of white/black actually has the better contrast on every one of them,
+    /// while 0.58 gets mid-light covers (e.g. pale pink) wrong.
+    ///
+    /// Note this measures the body *as drawn* — compositing black at alpha a
+    /// scales the components by (1 - a), so the scrim scales perceived
+    /// brightness the same way. Deciding against the raw artwork instead would
+    /// leave dark text on covers that the scrim has already darkened.
+    static func isLight(_ dominant: Color) -> Bool {
+        dominant.perceivedBrightness * (1 - darkening) > 0.50
+    }
+
+    static func primary(_ dominant: Color) -> Color {
+        isLight(dominant) ? Color.black.opacity(0.88) : .white
+    }
+
+    static func secondary(_ dominant: Color) -> Color {
+        isLight(dominant) ? Color.black.opacity(0.58) : Color.white.opacity(0.72)
+    }
+}
+
+/// Draws the blurred artwork as a widget body. Expects art already blurred by
+/// ArtBlurrer (cached per track by the caller) — never blurs per frame.
+struct AdaptiveBodyFill: View {
+    let blurredArt: NSImage?
+    let size: CGSize
+
+    var body: some View {
+        if let blurredArt {
+            Image(nsImage: blurredArt)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height)
+                .scaleEffect(AdaptiveBody.zoom)
+                .clipped()
+                .overlay(Color.black.opacity(AdaptiveBody.darkening))
+        }
+    }
+}
+
 /// Produces the heavily-blurred version of the album art used as the Adaptive
 /// theme's widget body. Downscales first, then blurs — a small image blurred by
 /// a proportionally small radius looks identical to the full-size version once

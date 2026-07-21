@@ -246,24 +246,16 @@ struct VinylWidgetView: View {
     /// blurred album art under Adaptive, otherwise the theme's body gradient.
     /// Everything drawn on top keys off this so a near-white album can't leave
     /// white text on a white body (or vice versa).
-    /// 0.50, not the 0.58 used by Color.isPerceivedLight: checked against WCAG
-    /// contrast ratios across a spread of cover colours, 0.50 picks whichever
-    /// of white/black actually has the better contrast on every one of them,
-    /// while 0.58 gets mid-light covers (e.g. pale pink) wrong.
-    private var bodyIsLight: Bool { effectiveBodyBrightness > 0.50 }
-
-    /// Brightness of the body *as actually drawn*, i.e. after the Adaptive
-    /// scrim. Compositing black at alpha a over a colour scales its components
-    /// by (1 - a), so the scrim scales perceived brightness the same way — the
-    /// text polarity has to be decided against this, not the raw artwork,
-    /// otherwise a bright cover that gets darkened still gets dark text.
-    private var effectiveBodyBrightness: Double {
+    /// Perceived lightness of the body as actually drawn — see AdaptiveBody.
+    /// Non-adaptive themes have no artwork, so they average their own gradient.
+    private var bodyIsLight: Bool {
         if themeManager.themeID == .adaptive {
-            return extractedColours.dominant.perceivedBrightness * (1 - Self.adaptiveBodyDarkening)
+            return AdaptiveBody.isLight(extractedColours.dominant)
         }
         let colours = theme.widgetBodyGradient
-        guard !colours.isEmpty else { return 0 }
-        return colours.map(\.perceivedBrightness).reduce(0, +) / Double(colours.count)
+        guard !colours.isEmpty else { return false }
+        let mean = colours.map(\.perceivedBrightness).reduce(0, +) / Double(colours.count)
+        return mean > 0.50
     }
 
     private var panelPrimary: Color {
@@ -272,18 +264,6 @@ struct VinylWidgetView: View {
 
     private var panelSecondary: Color {
         bodyIsLight ? Color.black.opacity(0.58) : Color.white.opacity(0.72)
-    }
-
-    /// How much the blurred artwork is knocked back before it becomes the
-    /// body. Uniform black at this alpha keeps the hue and relative shading of
-    /// the artwork intact while taking the edge off bright covers, so a
-    /// screaming-yellow album reads as a calmer yellow rather than glowing.
-    /// Deliberately flat rather than a gradient: an even body means one
-    /// well-defined brightness for the text-contrast decision above.
-    private static let adaptiveBodyDarkening: Double = 0.30
-
-    private var adaptiveBodyScrim: some View {
-        Color.black.opacity(Self.adaptiveBodyDarkening)
     }
 
     // MARK: - Body
@@ -304,14 +284,7 @@ struct VinylWidgetView: View {
 
                     // Adaptive: the body IS the album art, blurred until it
                     // reads as almost one colour, rather than a flat average.
-                    if let blurredBodyArt {
-                        Image(nsImage: blurredBodyArt)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: bodySize.width, height: bodySize.height)
-                            .clipped()
-                            .overlay(adaptiveBodyScrim)
-                    }
+                    AdaptiveBodyFill(blurredArt: blurredBodyArt, size: bodySize)
 
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .strokeBorder(theme.widgetBorder, lineWidth: 1)

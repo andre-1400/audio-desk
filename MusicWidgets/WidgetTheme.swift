@@ -220,10 +220,12 @@ extension WidgetThemeID {
         let dominant = colours.dominant
         let secondary = colours.secondary
         let darkest = secondary.adjustBrightness(-0.12)
-        let isLight = dominant.isPerceivedLight
+        // Judged against the body as actually drawn (blurred art + darkening
+        // scrim), not the raw artwork — see AdaptiveBody.
+        let isLight = AdaptiveBody.isLight(dominant)
 
-        let title: Color = isLight ? Color.black.opacity(0.86) : .white
-        let artist: Color = isLight ? Color.black.opacity(0.58) : Color.white.opacity(0.7)
+        let title: Color = AdaptiveBody.primary(dominant)
+        let artist: Color = AdaptiveBody.secondary(dominant)
         let idle: Color = isLight ? Color.black.opacity(0.38) : Color.white.opacity(0.45)
 
         let bodyColors = [dominant, secondary, darkest, secondary]
