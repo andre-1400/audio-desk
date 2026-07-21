@@ -366,11 +366,6 @@ struct VinylWidgetView: View {
         .onChange(of: trackIdentityKey) { oldValue, newValue in
             handleTrackIdentityChange(oldValue: oldValue, newValue: newValue)
         }
-        // Adaptive theme: keep the manager's live colour in sync whenever the
-        // extracted palette changes. Harmless no-op unless themeID == .adaptive.
-        .onChange(of: extractedColours) { _, newValue in
-            themeManager.adaptiveColours = newValue
-        }
         .onChange(of: detector.nowPlaying) { _, live in
             updateDisplayedPlaybackState(from: live)
         }
@@ -409,6 +404,12 @@ struct VinylWidgetView: View {
                 progressSampledAt: detector.nowPlaying.progressSampledAt
             )
             displayedAlbumArt = snapshot.albumArt ?? bufferedIncomingAlbumArt ?? artFetcher.albumArt
+            // Adaptive theme changes here, at reveal — when the new disc
+            // actually lands — not earlier when the new art first arrives
+            // (that's mid lift-off, still showing the outgoing disc).
+            if let art = displayedAlbumArt {
+                themeManager.adaptiveColours = ColourExtractor.extract(from: art)
+            }
         }
     }
 
@@ -725,6 +726,10 @@ struct VinylWidgetView: View {
             bufferedIncomingAlbumArt = image
             if updateDisplayedArt {
                 displayedAlbumArt = image
+                // No sleeve-flying transition happens on this path (first
+                // track, widget just launched) — nothing to time the
+                // Adaptive colour change against, so update immediately.
+                themeManager.adaptiveColours = extractedColours
             } else if animator.isAnimating {
                 animator.updateIncomingAlbumArtIfPossible(image, identityKey: animatorTrackIdentityKey)
             }
