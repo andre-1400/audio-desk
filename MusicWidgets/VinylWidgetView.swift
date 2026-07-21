@@ -125,6 +125,11 @@ struct VinylWidgetView: View {
     @State private var tonearmPlaybackTransition: TonearmPlaybackTransition?
     @State private var seekHandoffUntil: Date?
     @State private var trackProgressClampUntil: Date?
+    /// Adaptive theme only: the current album art, heavily blurred, used as the
+    /// widget body. Cached per track — never recomputed per frame.
+    @State private var blurredBodyArt: NSImage?
+    @State private var isScrubbing = false
+    @State private var scrubProgress: Double = 0
 
     private let tonearmRestAngle = -22.0
     private let tonearmStartAngle = -8.0
@@ -134,7 +139,7 @@ struct VinylWidgetView: View {
     private let tonearmPlaybackTransitionDuration: TimeInterval = 0.42
     private let seekHandoffSuppressionDuration = 0.45
     private let trackStartProgressClampDuration = 1.2
-    private let tonearmPivotInWidget = CGPoint(x: 318, y: 48)
+    private let tonearmPivotInWidget = CGPoint(x: 330, y: 47)
     private let tonearmNeedleLocalPoint = CGPoint(x: 28, y: 164)
     private let tonearmPivotLocalPoint = CGPoint(x: 68, y: 16)
 
@@ -178,6 +183,11 @@ struct VinylWidgetView: View {
 
         if isTonearmSeeking, let pendingSeekProgress {
             return tonearmAngle(forProgress: pendingSeekProgress)
+        }
+
+        // Scrub bar drags: the arm tracks the bar, read-only.
+        if isScrubbing {
+            return tonearmAngle(forProgress: scrubProgress)
         }
 
         if let transitionAngle = tonearmPlaybackTransition?.angle(at: date) {
@@ -230,6 +240,23 @@ struct VinylWidgetView: View {
     private var theme: WidgetThemePalette { themeManager.palette }
     private var traits: VinylModelTraits { themeManager.themeID.traits }
 
+    private let bodySize = CGSize(width: 344, height: 466)
+
+    /// Nudges the blurred-art body slightly further toward its own perceived
+    /// polarity, so the light/dark text choice the Adaptive palette already
+    /// made stays correct, plus a little vertical depth.
+    private var adaptiveBodyScrim: some View {
+        let light = extractedColours.dominant.isPerceivedLight
+        return ZStack {
+            (light ? Color.white : Color.black).opacity(light ? 0.10 : 0.20)
+            LinearGradient(
+                colors: [.clear, (light ? Color.white : Color.black).opacity(0.22)],
+                startPoint: .center,
+                endPoint: .bottom
+            )
+        }
+    }
+
     // MARK: - Body
     var body: some View {
         ZStack {
@@ -245,6 +272,17 @@ struct VinylWidgetView: View {
                             )
                         )
                         .shadow(color: .black.opacity(0.7), radius: 30, x: 0, y: 20)
+
+                    // Adaptive: the body IS the album art, blurred until it
+                    // reads as almost one colour, rather than a flat average.
+                    if let blurredBodyArt {
+                        Image(nsImage: blurredBodyArt)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: bodySize.width, height: bodySize.height)
+                            .clipped()
+                            .overlay(adaptiveBodyScrim)
+                    }
 
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .strokeBorder(theme.widgetBorder, lineWidth: 1)
@@ -270,7 +308,7 @@ struct VinylWidgetView: View {
 
                     VinylBodyTexture(pattern: traits.pattern)
                 }
-                .frame(width: 320, height: 460)
+                .frame(width: 344, height: 466)
                 .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
 
@@ -280,7 +318,7 @@ struct VinylWidgetView: View {
             // === Content (always shown) ===
             VStack(spacing: 0) {
                 platterArea
-                    .padding(.top, theme.showBody ? 18 : 8)
+                    .padding(.top, theme.showBody ? 20 : 8)
 
                 if traits.hasTransportControls {
                     VStack(spacing: 9) {
@@ -296,8 +334,8 @@ struct VinylWidgetView: View {
                 } else {
                     modernTrackPanel
                         .padding(.top, 16)
-                        .padding(.horizontal, 26)
-                        .padding(.bottom, 18)
+                        .padding(.horizontal, 38)
+                        .padding(.bottom, 20)
                 }
             }
 
@@ -314,10 +352,10 @@ struct VinylWidgetView: View {
             }
             .animation(.spring(response: 1.2, dampingFraction: 0.7), value: animator.tonearmShouldRest)
             .animation(.easeOut(duration: 0.16), value: isTonearmSeeking)
-            .offset(x: 115, y: -128)
+            .offset(x: 115, y: -132)
 
             if canSeekWithTonearm {
-                TonearmInteractionCaptureView(
+                DragCaptureView(
                     onBegan: { point in
                         beginTonearmGestureSessionIfNeeded(at: widgetLocation(forTonearmLocalPoint: point))
                     },
@@ -332,11 +370,11 @@ struct VinylWidgetView: View {
                     }
                 )
                 .frame(width: 90, height: 180)
-                .offset(x: 115, y: -128)
+                .offset(x: 115, y: -132)
             }
 
         }
-        .frame(width: 360, height: 500)
+        .frame(width: 384, height: 506)
         .coordinateSpace(name: "widget")
         .overlay(alignment: widgetSettings.notesSide == .left ? .topLeading : .topTrailing) {
             if widgetSettings.notesEnabled {
@@ -363,6 +401,9 @@ struct VinylWidgetView: View {
         }
         .onChange(of: trackIdentityKey) { oldValue, newValue in
             handleTrackIdentityChange(oldValue: oldValue, newValue: newValue)
+        }
+        .onChange(of: themeManager.themeID) { _, _ in
+            if let art = displayedAlbumArt { updateBlurredBodyArt(from: art) }
         }
         .onChange(of: detector.nowPlaying) { _, live in
             updateDisplayedPlaybackState(from: live)
@@ -407,6 +448,7 @@ struct VinylWidgetView: View {
             // (that's mid lift-off, still showing the outgoing disc).
             if let art = displayedAlbumArt {
                 themeManager.adaptiveColours = ColourExtractor.extract(from: art)
+                updateBlurredBodyArt(from: art)
             }
         }
     }
@@ -484,14 +526,20 @@ struct VinylWidgetView: View {
     }
 
     private func finishTonearmSeek(shouldCommit: Bool) {
+        guard shouldCommit, let pendingSeekProgress else { return }
+        commitSeek(toProgress: pendingSeekProgress)
+    }
+
+    /// Shared commit path for both seek gestures (tonearm drag and scrub bar):
+    /// optimistically move the displayed position so the UI doesn't snap back
+    /// while the player catches up, then tell the player.
+    private func commitSeek(toProgress progress: Double) {
         guard
-            shouldCommit,
             canSeekWithTonearm,
-            let pendingSeekProgress,
             let durationMillis = displayedNowPlaying.durationMillis
         else { return }
 
-        let targetMillis = Int((pendingSeekProgress * Double(durationMillis)).rounded())
+        let targetMillis = Int((progress * Double(durationMillis)).rounded())
         let sampledAt = displayedNowPlaying.isPlaying ? Date() : nil
         seekHandoffUntil = Date().addingTimeInterval(seekHandoffSuppressionDuration)
 
@@ -523,26 +571,51 @@ struct VinylWidgetView: View {
         setWidgetBackgroundDraggingEnabled(true)
     }
 
+    /// Adaptive only, and only once per track — the blur itself is done off the
+    /// main thread since it's a Core Image render, not a cheap sample.
+    private func updateBlurredBodyArt(from art: NSImage) {
+        guard themeManager.themeID == .adaptive else {
+            if blurredBodyArt != nil { blurredBodyArt = nil }
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let blurred = ArtBlurrer.blurredBody(from: art)
+            DispatchQueue.main.async { blurredBodyArt = blurred }
+        }
+    }
+
     private func setWidgetBackgroundDraggingEnabled(_ enabled: Bool) {
         guard let window = NSApp.windows.first(where: { $0 is WidgetWindow }) else { return }
         window.isMovableByWindowBackground = enabled
     }
 
-    // MARK: - Progress bar scrubbing (shares the tonearm's seek state so the
-    // tonearm visually follows a drag on the bar too).
+    // MARK: - Progress bar scrubbing
+    //
+    // Deliberately keeps its OWN state rather than reusing the tonearm's
+    // isTonearmSeeking/pendingSeekProgress. Sharing them made the two
+    // gestures drive each other: a bar drag swung the tonearm, whose own
+    // handlers then fought the bar. The tonearm still *follows* a scrub
+    // visually (see tonearmAngle) — it just no longer shares the mutable
+    // seek session.
 
-    private func handleProgressBarDrag(fraction: Double) {
+    private func handleScrubDrag(fraction: Double) {
         guard canSeekWithTonearm else { return }
-        if !isTonearmSeeking {
+        if !isScrubbing {
             setWidgetBackgroundDraggingEnabled(false)
-            isTonearmSeeking = true
+            isScrubbing = true
         }
-        pendingSeekProgress = min(tonearmMaxSeekProgress, max(0, fraction))
+        scrubProgress = min(tonearmMaxSeekProgress, max(0, fraction))
     }
 
-    private func endProgressBarSeek() {
-        finishTonearmSeek(shouldCommit: true)
-        endTonearmGestureSession()
+    private func commitScrub() {
+        defer { endScrubSession() }
+        guard isScrubbing else { return }
+        commitSeek(toProgress: scrubProgress)
+    }
+
+    private func endScrubSession() {
+        isScrubbing = false
+        setWidgetBackgroundDraggingEnabled(true)
     }
 
     private func seekProgress(for location: CGPoint) -> Double {
@@ -616,7 +689,7 @@ struct VinylWidgetView: View {
     }
 
     private func shouldAnimateTonearmPlaybackTransition(to info: NowPlayingInfo) -> Bool {
-        !isTonearmSeeking &&
+        !isTonearmSeeking && !isScrubbing &&
             isSameTrack(displayedNowPlaying, info) &&
             displayedNowPlaying.isPlaying != info.isPlaying
     }
@@ -789,6 +862,7 @@ struct VinylWidgetView: View {
                 // track, widget just launched) — nothing to time the
                 // Adaptive colour change against, so update immediately.
                 themeManager.adaptiveColours = extractedColours
+                updateBlurredBodyArt(from: image)
             } else if animator.isAnimating {
                 animator.updateIncomingAlbumArtIfPossible(image, identityKey: animatorTrackIdentityKey)
             }
@@ -832,7 +906,7 @@ struct VinylWidgetView: View {
         // Calibrated anchor for the platter center so lifted disk/sleeves stay locked to the vinyl.
         // Was +8 when the body was 380 tall; the taller body (460) moved the
         // platter 44pt up in view space, which is +44 in screen (y-up) space.
-        return CGPoint(x: frame.midX, y: frame.midY + 52)
+        return CGPoint(x: frame.midX, y: frame.midY + 56)
     }
 
     // MARK: - Platter Area (no tonearm — that's outside the clip)
@@ -861,7 +935,7 @@ struct VinylWidgetView: View {
                 pitchFader.position(x: 286, y: 372)
             }
         }
-        .frame(width: 360, height: 500)
+        .frame(width: 384, height: 506)
     }
 
     private var latch: some View {
@@ -1090,25 +1164,30 @@ struct VinylWidgetView: View {
     private var modernTrackPanel: some View {
         VStack(spacing: 0) {
             Text(displayedNowPlaying.trackName.isEmpty ? "Nothing Playing" : displayedNowPlaying.trackName)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 19, weight: .bold))
                 .foregroundStyle(theme.trackTitle)
                 .lineLimit(1)
+                .minimumScaleFactor(0.75)
                 .truncationMode(.tail)
 
             Text(displayedNowPlaying.trackName.isEmpty ? " " : displayedNowPlaying.artistName)
-                .font(.system(size: 12.5, weight: .regular))
+                .font(.system(size: 14.5, weight: .medium))
                 .foregroundStyle(theme.trackArtist)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .truncationMode(.tail)
                 .padding(.top, 2)
 
             transportRow
-                .padding(.top, 14)
+                .padding(.top, 12)
 
             scrubberRow
-                .padding(.top, 14)
+                .padding(.top, 12)
         }
+        // Fixed height keeps the platter (and therefore the tonearm) at a
+        // known position regardless of how the text metrics resolve.
         .frame(maxWidth: .infinity)
+        .frame(height: 130)
     }
 
     // Bare SF Symbol glyphs, no button chrome — matches Apple's Now Playing.
@@ -1137,8 +1216,8 @@ struct VinylWidgetView: View {
     /// appears while scrubbing, like Apple's own transport.
     private var scrubberRow: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { context in
-            let fraction = isTonearmSeeking
-                ? (pendingSeekProgress ?? 0)
+            let fraction = isScrubbing
+                ? scrubProgress
                 : (playbackProgress(at: context.date) ?? 0)
             let duration = Double(displayedNowPlaying.durationMillis ?? 0) / 1000
 
@@ -1161,27 +1240,36 @@ struct VinylWidgetView: View {
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(theme.trackArtist.opacity(0.28))
-                    .frame(height: isTonearmSeeking ? 6 : 4)
+                    .frame(height: isScrubbing ? 6 : 4)
                 Capsule()
                     .fill(theme.trackTitle.opacity(0.92))
-                    .frame(width: max(2, width * fraction), height: isTonearmSeeking ? 6 : 4)
+                    .frame(width: max(2, width * fraction), height: isScrubbing ? 6 : 4)
                 Circle()
                     .fill(Color.white)
                     .frame(width: 11, height: 11)
                     .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
                     .offset(x: min(width - 11, max(0, width * fraction - 5.5)))
-                    .opacity(isTonearmSeeking ? 1 : 0)
+                    .opacity(isScrubbing ? 1 : 0)
             }
             .frame(height: 22)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in handleProgressBarDrag(fraction: value.location.x / width) }
-                    .onEnded { _ in endProgressBarSeek() }
+            // An NSView capture, not a SwiftUI DragGesture: the window is
+            // movable-by-background, and AppKit decides that at mouse-down —
+            // too early for a gesture callback to veto, which is why dragging
+            // the bar used to drag the whole widget.
+            .overlay(
+                DragCaptureView(
+                    onBegan: { handleScrubDrag(fraction: $0.x / width) },
+                    onMoved: { handleScrubDrag(fraction: $0.x / width) },
+                    onEnded: {
+                        handleScrubDrag(fraction: $0.x / width)
+                        commitScrub()
+                    },
+                    onCancelled: { endScrubSession() }
+                )
             )
         }
         .frame(height: 22)
-        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isTonearmSeeking)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
     }
 
     private func timeLabel(_ seconds: Double) -> String {
@@ -1192,7 +1280,7 @@ struct VinylWidgetView: View {
 
 }
 
-private struct TonearmInteractionCaptureView: NSViewRepresentable {
+private struct DragCaptureView: NSViewRepresentable {
     var onBegan: (CGPoint) -> Void
     var onMoved: (CGPoint) -> Void
     var onEnded: (CGPoint) -> Void

@@ -865,7 +865,7 @@ struct VinylStylePreview: View {
     var animated: Bool = false
     var body: some View {
         GeometryReader { geo in
-            let base = CGSize(width: 360, height: 500)
+            let base = CGSize(width: 384, height: 506)
             let s = min(geo.size.width / base.width, geo.size.height / base.height)
             content
                 .frame(width: base.width, height: base.height)
@@ -892,7 +892,7 @@ private struct VinylWidgetReplica: View {
 
     var body: some View {
         ZStack {
-            // === Body shell (320×460) ===
+            // === Body shell (344×466) ===
             if palette.showBody {
                 ZStack {
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -920,7 +920,7 @@ private struct VinylWidgetReplica: View {
 
                     VinylBodyTexture(pattern: traits.pattern)
                 }
-                .frame(width: 320, height: 460)
+                .frame(width: 344, height: 466)
                 .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
 
@@ -929,7 +929,7 @@ private struct VinylWidgetReplica: View {
             // === Content (platter + track info / controls) ===
             VStack(spacing: 0) {
                 platterArea
-                    .padding(.top, palette.showBody ? 18 : 8)
+                    .padding(.top, palette.showBody ? 20 : 8)
 
                 if traits.hasTransportControls {
                     VStack(spacing: 9) {
@@ -942,17 +942,17 @@ private struct VinylWidgetReplica: View {
                 } else {
                     trackInfoPlaceholder
                         .padding(.top, 16)
-                        .padding(.horizontal, 26)
-                        .padding(.bottom, 18)
+                        .padding(.horizontal, 38)
+                        .padding(.bottom, 20)
                 }
             }
 
             // === Tonearm (cued onto the record) ===
             tonearmView
                 .rotationEffect(.degrees(-6), anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0))
-                .offset(x: 115, y: -128)
+                .offset(x: 115, y: -132)
         }
-        .frame(width: 360, height: 500)
+        .frame(width: 384, height: 506)
     }
 
     // MARK: Static retro transport buttons (visual only)
@@ -1020,7 +1020,7 @@ private struct VinylWidgetReplica: View {
                 pitchFader.position(x: 286, y: 372)
             }
         }
-        .frame(width: 360, height: 500)
+        .frame(width: 384, height: 506)
     }
 
     private var latch: some View {

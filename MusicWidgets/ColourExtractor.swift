@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import CoreImage
 
 struct ExtractedColours: Equatable {
     let dominant: Color
@@ -29,6 +30,38 @@ extension Color {
         return Double(ns.redComponent) * 0.299 + Double(ns.greenComponent) * 0.587 + Double(ns.blueComponent) * 0.114
     }
     var isPerceivedLight: Bool { perceivedBrightness > 0.58 }
+}
+
+/// Produces the heavily-blurred version of the album art used as the Adaptive
+/// theme's widget body. Downscales first, then blurs — a small image blurred by
+/// a proportionally small radius looks identical to the full-size version once
+/// it's this soft, and costs a fraction of the work. Results are cached by the
+/// caller (one per track), so this never runs per frame.
+enum ArtBlurrer {
+    private static let context = CIContext(options: [.useSoftwareRenderer: false])
+
+    static func blurredBody(from image: NSImage, targetSize: CGSize = CGSize(width: 160, height: 160)) -> NSImage? {
+        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return nil }
+
+        // 1. Downscale to a small square (the body is drawn with scaledToFill,
+        //    so aspect distortion here is invisible once blurred this far).
+        let scaled = CIImage(cgImage: cgImage).transformed(by: CGAffineTransform(
+            scaleX: targetSize.width / CGFloat(cgImage.width),
+            y: targetSize.height / CGFloat(cgImage.height)
+        ))
+
+        // 2. Clamp before blurring, otherwise the edges bleed to transparent
+        //    and the body gets a washed-out border.
+        guard let blur = CIFilter(name: "CIGaussianBlur") else { return nil }
+        blur.setValue(scaled.clampedToExtent(), forKey: kCIInputImageKey)
+        blur.setValue(targetSize.width * 0.14, forKey: kCIInputRadiusKey)
+
+        guard let output = blur.outputImage?.cropped(to: scaled.extent),
+              let rendered = context.createCGImage(output, from: scaled.extent)
+        else { return nil }
+
+        return NSImage(cgImage: rendered, size: targetSize)
+    }
 }
 
 enum ColourExtractor {
