@@ -271,7 +271,7 @@ struct CDWidgetView: View {
 
     @ObservedObject private var settings = WidgetSettings.shared
 
-    private let maxSpinSpeed: Double = 2200   // real CDs spin fast — art blurs
+    private let maxSpinSpeed: Double = 4200   // real CDs spin fast — art blurs
 
     private var mat: CDMaterial { model.isAdaptive ? .adaptive(from: extractedColours) : model.material }
     private var np: NowPlayingInfo { detector.nowPlaying }
