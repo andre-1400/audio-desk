@@ -10,6 +10,12 @@ import AppKit
 // EXACT disc renderer (SpinningVinylView) and the exact tonearm geometry
 // from the main widget — both just scaled down uniformly — rather than a
 // hand-approximated mini version. It does not modify VinylWidgetView.swift.
+//
+// Track-change transition is intentionally simple here: a quick disc-shrink
+// pulse, not the full sleeve-flying animation. That system is tuned for the
+// main widget's much larger disc (hardcoded ~258pt elements/travel
+// distances) and reusing it at this size didn't read well — kept this
+// widget on its own simple, self-contained transition instead.
 
 struct VinylHorizontalModel: Identifiable {
     let id: String
@@ -37,29 +43,21 @@ private let hDiscContainerSize: CGFloat = 118
 struct VinylHorizontalWidgetView: View {
     let model: VinylHorizontalModel
     var isPreview: Bool = false
-    /// Injected so the live widget can share a dedicated animator/overlay
-    /// with AppDelegate; gallery previews just get a throwaway instance.
-    @ObservedObject var animator: SongSwitchAnimator = SongSwitchAnimator()
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
 
     @State private var displayedInfo: NowPlayingInfo = .empty
     @State private var displayedArt: NSImage?
-    @State private var bufferedIncomingArt: NSImage?
     @State private var lastObservedTrackIdentity: String = ""
     @State private var hasSeenInitialTrackIdentity = false
+    @State private var discPulseScale: Double = 1.0
 
     private var theme: WidgetThemePalette { model.themeID.palette }
     private var np: NowPlayingInfo { displayedInfo }
 
     private var trackIdentityKey: String {
         "\(detector.nowPlaying.trackName)|\(detector.nowPlaying.artistName)|\(detector.nowPlaying.albumName)"
-    }
-    private var animatorTrackIdentityKey: String {
-        [detector.nowPlaying.trackName, detector.nowPlaying.artistName, detector.nowPlaying.albumName]
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
-            .joined(separator: "|")
     }
 
     var body: some View {
@@ -92,13 +90,12 @@ struct VinylHorizontalWidgetView: View {
             lastObservedTrackIdentity = trackIdentityKey
             hasSeenInitialTrackIdentity = true
             if !detector.nowPlaying.trackName.isEmpty {
-                refreshArt(forceRefresh: false, updateDisplayed: true)
+                refreshArt(forceRefresh: false)
             }
         }
         .onDisappear {
             guard !isPreview else { return }
             detector.stop()
-            animator.cancelAndReset()
         }
         .onChange(of: trackIdentityKey) { oldValue, newValue in
             guard !isPreview else { return }
@@ -106,45 +103,21 @@ struct VinylHorizontalWidgetView: View {
         }
         .onChange(of: detector.nowPlaying) { _, live in
             guard !isPreview else { return }
-            updateDisplayedPlaybackState(from: live)
+            displayedInfo = live
         }
         .onChange(of: detector.nowPlaying.albumArtURL) { _, newURL in
             guard !isPreview else { return }
-            if let url = newURL {
-                artFetcher.fetchArt(from: url, trackKey: trackIdentityKey, forceRefresh: false) { image in
-                    guard let image else { return }
-                    bufferedIncomingArt = image
-                    if animator.isAnimating {
-                        animator.updateIncomingAlbumArtIfPossible(image, identityKey: animatorTrackIdentityKey)
-                    } else {
-                        displayedArt = image
-                    }
-                }
+            if newURL != nil {
+                refreshArt(forceRefresh: false)
             } else if detector.nowPlaying.trackName.isEmpty {
                 artFetcher.fetchArt(from: "", trackKey: "", forceRefresh: true) { _ in
-                    bufferedIncomingArt = nil
                     displayedArt = nil
                 }
             }
         }
-        .onChange(of: animator.revealEventID) { _, eventID in
-            guard eventID != nil, let snapshot = animator.revealedIncomingSnapshot else { return }
-            displayedInfo = NowPlayingInfo(
-                trackName: snapshot.trackName,
-                artistName: snapshot.artistName,
-                albumName: snapshot.albumName,
-                albumArtURL: detector.nowPlaying.albumArtURL,
-                isPlaying: detector.nowPlaying.isPlaying,
-                source: detector.nowPlaying.source,
-                positionMillis: detector.nowPlaying.positionMillis,
-                durationMillis: detector.nowPlaying.durationMillis,
-                progressSampledAt: detector.nowPlaying.progressSampledAt
-            )
-            displayedArt = snapshot.albumArt ?? bufferedIncomingArt ?? artFetcher.albumArt
-        }
     }
 
-    // MARK: - Track transition (drives the same SongSwitchAnimator the main widget uses)
+    // MARK: - Track transition — simple crossfade + a quick disc-shrink pulse
 
     private func handleTrackIdentityChange(oldValue: String, newValue: String) {
         if !hasSeenInitialTrackIdentity {
@@ -157,61 +130,39 @@ struct VinylHorizontalWidgetView: View {
 
         let live = detector.nowPlaying
         guard !live.trackName.isEmpty else {
-            animator.cancelAndReset()
-            displayedInfo = live
-            displayedArt = nil
-            bufferedIncomingArt = nil
+            withAnimation(.easeInOut(duration: 0.3)) {
+                displayedInfo = live
+                displayedArt = nil
+            }
             return
         }
 
         let isInitialTrack = oldValue.isEmpty || displayedInfo.trackName.isEmpty
-        if isInitialTrack {
+        withAnimation(.easeInOut(duration: 0.3)) {
             displayedInfo = live
-            refreshArt(forceRefresh: true, updateDisplayed: true)
-            return
         }
+        refreshArt(forceRefresh: true)
 
-        guard live.isPlaying else {
-            displayedInfo = live
-            return
+        guard !isInitialTrack else { return }
+
+        // Quick "disc dips" pulse to mark the change, instead of a full
+        // sleeve-flying transition.
+        withAnimation(.easeOut(duration: 0.16)) {
+            discPulseScale = 0.82
         }
-
-        let outgoingSnapshot = SongSwitchAnimator.TrackSnapshot(
-            trackName: displayedInfo.trackName,
-            artistName: displayedInfo.artistName,
-            albumName: displayedInfo.albumName,
-            albumArt: displayedArt
-        )
-        let incomingSnapshot = SongSwitchAnimator.TrackSnapshot(
-            trackName: live.trackName,
-            artistName: live.artistName,
-            albumName: live.albumName,
-            albumArt: bufferedIncomingArt ?? artFetcher.albumArt
-        )
-        let request = SongSwitchAnimator.TransitionRequest(
-            outgoing: outgoingSnapshot,
-            incoming: incomingSnapshot,
-            widgetFrameInScreen: widgetFrameInScreen(),
-            platterCenterInScreen: platterCenterInScreen()
-        )
-        animator.startTransition(request)
-        refreshArt(forceRefresh: true, updateDisplayed: false)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.6)) {
+                discPulseScale = 1.0
+            }
+        }
     }
 
-    private func updateDisplayedPlaybackState(from live: NowPlayingInfo) {
-        guard !animator.isAnimating else { return }
-        displayedInfo = live
-    }
-
-    private func refreshArt(forceRefresh: Bool, updateDisplayed: Bool) {
+    private func refreshArt(forceRefresh: Bool) {
         let artURL = detector.nowPlaying.albumArtURL ?? ""
         artFetcher.fetchArt(from: artURL, trackKey: trackIdentityKey, forceRefresh: forceRefresh) { image in
             guard let image else { return }
-            bufferedIncomingArt = image
-            if updateDisplayed {
+            withAnimation(.easeInOut(duration: 0.3)) {
                 displayedArt = image
-            } else if animator.isAnimating {
-                animator.updateIncomingAlbumArtIfPossible(image, identityKey: animatorTrackIdentityKey)
             }
         }
     }
@@ -219,32 +170,6 @@ struct VinylHorizontalWidgetView: View {
     private func togglePlayback() {
         guard !isPreview else { return }
         detector.togglePlayback()
-    }
-
-    // MARK: - Screen geometry (feeds the shared song-switch animator)
-
-    /// Only one WidgetWindow exists at a time (one-widget-at-a-time is
-    /// enforced by AppDelegate), so this is unambiguous even though the
-    /// vertical widget uses the same window class.
-    private func widgetFrameInScreen() -> CGRect {
-        if let frame = NSApp.windows.first(where: { $0 is WidgetWindow })?.frame {
-            return frame
-        }
-        return CGRect(x: 0, y: 0, width: horizontalBaseSize.width, height: horizontalBaseSize.height)
-    }
-
-    /// Unlike the vertical widget (disc centered in the window), the disc
-    /// here sits in the left column, so this is computed from the actual
-    /// layout instead of just frame.mid. leftInset/discCenterLocal mirror
-    /// the constants used in `discArea` below.
-    private func platterCenterInScreen() -> CGPoint {
-        let frame = widgetFrameInScreen()
-        let scale = frame.width / horizontalBaseSize.width
-        let discCenterLocal = CGPoint(x: 12 + hDiscContainerSize / 2, y: horizontalBaseSize.height / 2)
-        return CGPoint(
-            x: frame.minX + discCenterLocal.x * scale,
-            y: frame.maxY - discCenterLocal.y * scale
-        )
     }
 
     // MARK: - Disc + tonearm (left side) — exact reuse, uniformly scaled
@@ -255,17 +180,12 @@ struct VinylHorizontalWidgetView: View {
                 isPlaying: displayedInfo.isPlaying,
                 albumArt: displayedArt,
                 vinylTint: theme.albumArtLabelGradient.first ?? Color(hex: "9B5523"),
-                isVisible: true,
-                diskOpacity: animator.widgetDiskOpacity,
-                freezeRotation: animator.platterRotationFrozen,
-                overrideAlbumArt: animator.diskArtMode == .incoming
-                    ? (animator.incomingAlbumArt ?? bufferedIncomingArt)
-                    : nil,
                 albumArtLabelGradient: theme.albumArtLabelGradient,
                 albumArtRingColor: theme.albumArtRingColor
             )
             .scaleEffect(hDiscScale)
             .frame(width: 272 * hDiscScale, height: 272 * hDiscScale)
+            .scaleEffect(discPulseScale)
 
             hTonearm
                 .scaleEffect(hDiscScale)
@@ -419,32 +339,15 @@ struct VinylHorizontalWidgetView: View {
     }
 }
 
-// MARK: - Scaled overlay (song-switch animation), matching ScaledOverlayView's
-// pattern for the vertical widget — combines the disc-scale factor (this
-// widget's disc is uniformly smaller than the main widget's) with the
-// global small/medium/large size setting, so the flying sleeve/disk render
-// at the same visual size as this widget's own resting disc.
-
-struct HorizontalScaledOverlayView: View {
-    @ObservedObject var animator: SongSwitchAnimator
-    @ObservedObject var sizeManager: WidgetSizeManager
-
-    var body: some View {
-        AnimationOverlayView(animator: animator)
-            .scaleEffect(hDiscScale * sizeManager.scale, anchor: .center)
-    }
-}
-
 // MARK: - Sized root (applies the global small/medium/large scale)
 
 struct VinylHorizontalSizedRoot: View {
     let model: VinylHorizontalModel
-    @ObservedObject var animator: SongSwitchAnimator
     @ObservedObject private var sizeM = WidgetSizeManager.shared
 
     var body: some View {
         let s = sizeM.scale
-        VinylHorizontalWidgetView(model: model, animator: animator)
+        VinylHorizontalWidgetView(model: model)
             .scaleEffect(s)
             .frame(width: horizontalBaseSize.width * s, height: horizontalBaseSize.height * s)
     }

@@ -25,17 +25,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var albumArtModel: AlbumArtModel?
     private var vinylHorizontalWindow: WidgetWindow?
     private var vinylHorizontalModel: VinylHorizontalModel?
-    private var vinylHorizontalOverlayWindow: AnimationOverlayWindow?
 
     private var galleryWindow: NSWindow?
     private var statusItem: NSStatusItem?
 
     private let themeManager = WidgetThemeManager()
     private let animator = SongSwitchAnimator()
-    /// Separate from `animator` on purpose — never shares state with the
-    /// vertical widget's animator, even though only one of them is ever
-    /// visible at a time. Keeps the two widget families fully isolated.
-    private let vinylHorizontalAnimator = SongSwitchAnimator()
 
     /// App-level now-playing feed: menu-bar track info + hide-on-pause.
     private let statusDetector = MusicDetector()
@@ -43,9 +38,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var hiddenByPause = false
     private var hiddenByUser = false
 
-    private var cancellables = Set<AnyCancellable>()               // per-vinyl-launch
-    private var vinylHorizontalCancellables = Set<AnyCancellable>() // per-vinyl-horizontal-launch
-    private var globalCancellables = Set<AnyCancellable>()          // settings (persistent)
+    private var cancellables = Set<AnyCancellable>()        // per-vinyl-launch
+    private var globalCancellables = Set<AnyCancellable>()  // settings (persistent)
 
     /// Grace period before hide-on-pause kicks in, so track changes don't flicker the widget.
     private let pauseHideGrace: TimeInterval = 4.0
@@ -812,10 +806,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let existing = vinylHorizontalWindow {
             existing.contentView?.subviews.forEach { $0.removeFromSuperview() }
-            let host = NSHostingView(
-                rootView: VinylHorizontalSizedRoot(model: model, animator: vinylHorizontalAnimator)
-                    .modifier(DesktopWidgetChrome())
-            )
+            let host = NSHostingView(rootView: VinylHorizontalSizedRoot(model: model).modifier(DesktopWidgetChrome()))
             host.frame = existing.contentView?.bounds ?? .zero
             host.autoresizingMask = [.width, .height]
             existing.contentView?.addSubview(host)
@@ -829,46 +820,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.setContentSize(size)
         window.setFrameOrigin(launchOrigin(xKey: "vinylHWidgetX", yKey: "vinylHWidgetY", size: size))
 
-        let host = NSHostingView(
-            rootView: VinylHorizontalSizedRoot(model: model, animator: vinylHorizontalAnimator)
-                .modifier(DesktopWidgetChrome())
-        )
+        let host = NSHostingView(rootView: VinylHorizontalSizedRoot(model: model).modifier(DesktopWidgetChrome()))
         host.frame = window.contentView?.bounds ?? .zero
         host.autoresizingMask = [.width, .height]
         window.contentView?.addSubview(host)
         self.vinylHorizontalWindow = window
 
-        // Animation overlay window — same system the vertical widget uses,
-        // just its own instance so it never shares state with `animator`.
-        let overlay = AnimationOverlayWindow()
-        let overlayHosting = NSHostingView(
-            rootView: HorizontalScaledOverlayView(animator: vinylHorizontalAnimator, sizeManager: WidgetSizeManager.shared)
-        )
-        overlayHosting.frame = overlay.contentView?.bounds ?? .zero
-        overlayHosting.autoresizingMask = [.width, .height]
-        overlayHosting.wantsLayer = true
-        overlayHosting.layer?.backgroundColor = .clear
-        overlay.contentView?.addSubview(overlayHosting)
-        overlay.contentView?.wantsLayer = true
-        overlay.contentView?.layer?.backgroundColor = .clear
-        overlay.position(over: window.frame)
-        overlay.orderOut(nil)
-        self.vinylHorizontalOverlayWindow = overlay
-
-        vinylHorizontalAnimator.$phase
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] phase in
-                guard let self, let w = self.vinylHorizontalWindow, let o = self.vinylHorizontalOverlayWindow else { return }
-                o.position(over: w.frame)
-                if phase == .idle { o.orderOut(nil) } else { o.orderFrontRegardless() }
-            }
-            .store(in: &vinylHorizontalCancellables)
-
-        NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: window, queue: .main) { [weak self] _ in
-            guard let self, let w = self.vinylHorizontalWindow else { return }
-            UserDefaults.standard.set(w.frame.origin.x, forKey: "vinylHWidgetX")
-            UserDefaults.standard.set(w.frame.origin.y, forKey: "vinylHWidgetY")
-            if self.vinylHorizontalAnimator.isAnimating { self.vinylHorizontalOverlayWindow?.position(over: w.frame) }
+        NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: window, queue: .main) { _ in
+            UserDefaults.standard.set(window.frame.origin.x, forKey: "vinylHWidgetX")
+            UserDefaults.standard.set(window.frame.origin.y, forKey: "vinylHWidgetY")
         }
 
         applyWindowPreferences()
@@ -883,7 +843,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.setFrame(CGRect(origin: origin, size: size), display: true, animate: false)
         UserDefaults.standard.set(window.frame.origin.x, forKey: "vinylHWidgetX")
         UserDefaults.standard.set(window.frame.origin.y, forKey: "vinylHWidgetY")
-        vinylHorizontalOverlayWindow?.position(over: window.frame)
     }
 
     func closeVinylHorizontalWidget() {
@@ -894,11 +853,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 ActiveWidgetState.shared.entry = nil
             }
         }
-        if let overlay = vinylHorizontalOverlayWindow {
-            vinylHorizontalOverlayWindow = nil
-            fadeOut(overlay, thenClose: true)
-        }
-        vinylHorizontalCancellables.removeAll()
         vinylHorizontalModel = nil
     }
 }
