@@ -579,7 +579,7 @@ struct CDDeck: View {
     }
 
     private var clampHub: some View {
-        let hub = diameter * 0.13
+        let hub = diameter * 0.075
         return ZStack {
             Circle().fill(AngularGradient(colors: [Color(hex: "f0f4fa"), Color(hex: "8a93a0"),
                                                    Color(hex: "e4e9f0"), Color(hex: "7e8794"),
@@ -879,7 +879,7 @@ struct CDDiscView: View {
     }
 
     private var clampArea: some View {
-        let ring = diameter * 0.22
+        let ring = diameter * 0.14
         return ZStack {
             Circle().fill(RadialGradient(colors: [Color(hex: "d8dde6"), Color(hex: "b4bcc8")],
                                          center: UnitPoint(x: 0.4, y: 0.35), startRadius: 0, endRadius: ring * 0.5))
