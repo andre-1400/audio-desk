@@ -246,14 +246,24 @@ struct VinylWidgetView: View {
     /// blurred album art under Adaptive, otherwise the theme's body gradient.
     /// Everything drawn on top keys off this so a near-white album can't leave
     /// white text on a white body (or vice versa).
-    private var bodyIsLight: Bool {
+    /// 0.50, not the 0.58 used by Color.isPerceivedLight: checked against WCAG
+    /// contrast ratios across a spread of cover colours, 0.50 picks whichever
+    /// of white/black actually has the better contrast on every one of them,
+    /// while 0.58 gets mid-light covers (e.g. pale pink) wrong.
+    private var bodyIsLight: Bool { effectiveBodyBrightness > 0.50 }
+
+    /// Brightness of the body *as actually drawn*, i.e. after the Adaptive
+    /// scrim. Compositing black at alpha a over a colour scales its components
+    /// by (1 - a), so the scrim scales perceived brightness the same way — the
+    /// text polarity has to be decided against this, not the raw artwork,
+    /// otherwise a bright cover that gets darkened still gets dark text.
+    private var effectiveBodyBrightness: Double {
         if themeManager.themeID == .adaptive {
-            return extractedColours.dominant.isPerceivedLight
+            return extractedColours.dominant.perceivedBrightness * (1 - Self.adaptiveBodyDarkening)
         }
         let colours = theme.widgetBodyGradient
-        guard !colours.isEmpty else { return false }
-        let mean = colours.map(\.perceivedBrightness).reduce(0, +) / Double(colours.count)
-        return mean > 0.58
+        guard !colours.isEmpty else { return 0 }
+        return colours.map(\.perceivedBrightness).reduce(0, +) / Double(colours.count)
     }
 
     private var panelPrimary: Color {
@@ -264,19 +274,16 @@ struct VinylWidgetView: View {
         bodyIsLight ? Color.black.opacity(0.58) : Color.white.opacity(0.72)
     }
 
-    /// Nudges the blurred-art body slightly further toward its own perceived
-    /// polarity, so the light/dark text choice the Adaptive palette already
-    /// made stays correct, plus a little vertical depth.
+    /// How much the blurred artwork is knocked back before it becomes the
+    /// body. Uniform black at this alpha keeps the hue and relative shading of
+    /// the artwork intact while taking the edge off bright covers, so a
+    /// screaming-yellow album reads as a calmer yellow rather than glowing.
+    /// Deliberately flat rather than a gradient: an even body means one
+    /// well-defined brightness for the text-contrast decision above.
+    private static let adaptiveBodyDarkening: Double = 0.30
+
     private var adaptiveBodyScrim: some View {
-        let light = extractedColours.dominant.isPerceivedLight
-        return ZStack {
-            (light ? Color.white : Color.black).opacity(light ? 0.10 : 0.20)
-            LinearGradient(
-                colors: [.clear, (light ? Color.white : Color.black).opacity(0.22)],
-                startPoint: .center,
-                endPoint: .bottom
-            )
-        }
+        Color.black.opacity(Self.adaptiveBodyDarkening)
     }
 
     // MARK: - Body
@@ -1024,6 +1031,7 @@ struct VinylWidgetView: View {
                     : nil,
                 albumArtLabelGradient: theme.albumArtLabelGradient,
                 albumArtRingColor: theme.albumArtRingColor,
+                labelDiameter: 125,
                 onAngleSample: { angle in
                     animator.updateRenderedPlatterAngle(angle)
                 }
@@ -1423,6 +1431,10 @@ struct SpinningVinylView: View {
     var overrideAlbumArt: NSImage? = nil
     var albumArtLabelGradient: [Color] = [Color(hex: "9B5523"), Color(hex: "6C3E1A"), Color(hex: "3a1a06")]
     var albumArtRingColor: Color = Color(hex: "ffbe50").opacity(0.30)
+    /// Diameter of the album-art label at the disc centre. Defaults to the
+    /// original 96 so the horizontal vinyl widget (which shares this view) is
+    /// untouched; the v1 widget passes a larger value.
+    var labelDiameter: CGFloat = 96
     var onAngleSample: ((Double) -> Void)? = nil
 
     @State private var pausedAngle: Double = 0
@@ -1650,20 +1662,20 @@ struct SpinningVinylView: View {
                         colors: albumArtLabelGradient,
                         center: .center,
                         startRadius: 0,
-                        endRadius: 48
+                        endRadius: labelDiameter / 2
                     )
                 )
-                .frame(width: 96, height: 96)
+                .frame(width: labelDiameter, height: labelDiameter)
 
             if let art = overrideAlbumArt ?? albumArt {
                 Image(nsImage: art)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 96, height: 96)
+                    .frame(width: labelDiameter, height: labelDiameter)
                     .clipShape(Circle())
             }
         }
-        .frame(width: 96, height: 96)
+        .frame(width: labelDiameter, height: labelDiameter)
         .overlay(
             Circle()
                 .strokeBorder(albumArtRingColor, lineWidth: 2)
@@ -1832,16 +1844,16 @@ struct LiftedDiskView: View {
                             colors: [Color(hex: "9B5523"), Color(hex: "6C3E1A"), Color(hex: "3a1a06")],
                             center: .center,
                             startRadius: 0,
-                            endRadius: 48
+                            endRadius: 62.5
                         )
                     )
-                    .frame(width: 96, height: 96)
+                    .frame(width: 125, height: 125)
 
                 if let art = albumArt {
                     Image(nsImage: art)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: 96, height: 96)
+                        .frame(width: 125, height: 125)
                         .clipShape(Circle())
                 }
             }

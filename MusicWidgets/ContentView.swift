@@ -1106,11 +1106,11 @@ private struct VinylWidgetReplica: View {
             Circle()
                 .fill(
                     RadialGradient(colors: palette.albumArtLabelGradient,
-                                   center: .center, startRadius: 0, endRadius: 48)
+                                   center: .center, startRadius: 0, endRadius: 62.5)
                 )
-                .frame(width: 96, height: 96)
+                .frame(width: 125, height: 125)
         }
-        .frame(width: 96, height: 96)
+        .frame(width: 125, height: 125)
         .overlay(Circle().strokeBorder(palette.albumArtRingColor, lineWidth: 2))
         .shadow(color: .black.opacity(0.8), radius: 6)
     }
