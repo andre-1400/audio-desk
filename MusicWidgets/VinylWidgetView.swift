@@ -116,12 +116,6 @@ struct VinylWidgetView: View {
     @State private var bufferedIncomingAlbumArt: NSImage?
     @State private var lastObservedTrackIdentity: String = ""
     @State private var hasSeenInitialTrackIdentity: Bool = false
-    @State private var isTonearmSeeking = false
-    @State private var pendingSeekProgress: Double?
-    @State private var isTonearmGestureActive = false
-    @State private var tonearmPressBeganAt: Date?
-    @State private var tonearmGestureToken: UUID?
-    @State private var tonearmLastLocation: CGPoint?
     @State private var tonearmPlaybackTransition: TonearmPlaybackTransition?
     @State private var seekHandoffUntil: Date?
     @State private var trackProgressClampUntil: Date?
@@ -135,25 +129,9 @@ struct VinylWidgetView: View {
     private let tonearmStartAngle = -8.0
     private let tonearmEndAngle = 14.0
     private let tonearmMaxSeekProgress = 0.98
-    private let tonearmSeekHoldDuration: TimeInterval = 0.24
     private let tonearmPlaybackTransitionDuration: TimeInterval = 0.42
     private let seekHandoffSuppressionDuration = 0.45
     private let trackStartProgressClampDuration = 1.2
-    private let tonearmPivotInWidget = CGPoint(x: 330, y: 47)
-    private let tonearmNeedleLocalPoint = CGPoint(x: 28, y: 164)
-    private let tonearmPivotLocalPoint = CGPoint(x: 68, y: 16)
-    // Seek zone, in widget coordinates, placed directly over where the
-    // tonearm HEAD swings across the record — NOT over the whole arm. The
-    // previous 90x180 box was aligned to the arm's unrotated bounding frame
-    // (pivot area, upper-right), but as the song plays the head swings left
-    // over the disc, travelling roughly x 255->348 / y 181->199; for much of
-    // that arc the visible head sat left of the box, on draggable window
-    // background, so grabbing it dragged the whole widget. This box covers
-    // the head's full swing (plus margin for the chunky head graphic), so a
-    // grab anywhere on the head both seeks and — via the capture NSView's
-    // mouseDownCanMoveWindow=false — never drags the window.
-    private let tonearmTipZoneCenter = CGPoint(x: 298, y: 190)
-    private let tonearmTipZoneSize = CGSize(width: 154, height: 100)
 
     // MARK: - Computed Properties
     /// Map music source to string key for caching
@@ -191,10 +169,6 @@ struct VinylWidgetView: View {
 
         guard !displayedNowPlaying.trackName.isEmpty else {
             return tonearmRestAngle
-        }
-
-        if isTonearmSeeking, let pendingSeekProgress {
-            return tonearmAngle(forProgress: pendingSeekProgress)
         }
 
         // Scrub bar drags: the arm tracks the bar, read-only.
@@ -354,42 +328,23 @@ struct VinylWidgetView: View {
             }
 
             // === Tonearm ===
+            // Purely visual: its angle tracks playback progress (swings from
+            // the edge toward the centre as the song plays) via
+            // tonearmAngle(at:). No longer draggable/interactive — grabbing
+            // it always dragged the whole widget instead of seeking (the
+            // capture zone could never fully cover the head's swing without
+            // also covering draggable background around it), so the seek
+            // gesture was removed. Seeking is still available via the
+            // scrub bar in the track panel below.
             TimelineView(.animation) { context in
                 tonearmView
                     .rotationEffect(
                         .degrees(tonearmAngle(at: context.date)),
                         anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0)
                     )
-                    .scaleEffect(isTonearmSeeking ? 1.015 : 1.0, anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0))
-                    .shadow(color: .black.opacity(isTonearmSeeking ? 0.28 : 0), radius: isTonearmSeeking ? 8 : 0, x: 0, y: 5)
-                    .contentShape(Rectangle())
             }
             .animation(.spring(response: 1.2, dampingFraction: 0.7), value: animator.tonearmShouldRest)
-            .animation(.easeOut(duration: 0.16), value: isTonearmSeeking)
             .offset(x: 115, y: -137)
-
-            if canSeekWithTonearm {
-                DragCaptureView(
-                    onBegan: { point in
-                        beginTonearmGestureSessionIfNeeded(at: tipZoneWidgetLocation(fromLocal: point))
-                    },
-                    onMoved: { point in
-                        handleTonearmGestureMoved(to: tipZoneWidgetLocation(fromLocal: point))
-                    },
-                    onEnded: { point in
-                        handleTonearmGestureEnded(at: tipZoneWidgetLocation(fromLocal: point))
-                    },
-                    onCancelled: {
-                        endTonearmGestureSession()
-                    }
-                )
-                .frame(width: tonearmTipZoneSize.width, height: tonearmTipZoneSize.height)
-                // .position (a layout modifier), not .offset — places the
-                // capture box's centre at a known widget coordinate over the
-                // tonearm head's swing arc.
-                .position(x: tonearmTipZoneCenter.x, y: tonearmTipZoneCenter.y)
-            }
-
         }
         .frame(width: 384, height: 516)
         .coordinateSpace(name: "widget")
@@ -412,7 +367,6 @@ struct VinylWidgetView: View {
             }
         }
         .onDisappear {
-            endTonearmGestureSession()
             detector.stop()
             animator.cancelAndReset()
         }
@@ -486,83 +440,20 @@ struct VinylWidgetView: View {
         !displayedNowPlaying.trackName.isEmpty && (displayedNowPlaying.durationMillis ?? 0) > 0
     }
 
-    private var canSeekWithTonearm: Bool {
+    /// Enough info, and a permissible state, to seek — gates the scrub bar.
+    private var canSeek: Bool {
         !animator.isAnimating &&
             !displayedNowPlaying.trackName.isEmpty &&
             displayedNowPlaying.source != .none &&
             (displayedNowPlaying.durationMillis ?? 0) > 0
     }
 
-    /// Maps a point local to the tip-zone capture NSView (top-left origin, it's
-    /// isFlipped) into widget coordinates, which is what the seek math
-    /// (seekProgress, relative to tonearmPivotInWidget) expects.
-    private func tipZoneWidgetLocation(fromLocal point: CGPoint) -> CGPoint {
-        CGPoint(
-            x: tonearmTipZoneCenter.x - tonearmTipZoneSize.width / 2 + point.x,
-            y: tonearmTipZoneCenter.y - tonearmTipZoneSize.height / 2 + point.y
-        )
-    }
-
-    private func handleTonearmGestureMoved(to location: CGPoint) {
-        tonearmLastLocation = location
-        if isTonearmSeeking {
-            updateTonearmSeek(location: location)
-            return
-        }
-    }
-
-    private func handleTonearmGestureEnded(at location: CGPoint) {
-        defer { endTonearmGestureSession() }
-        guard isTonearmSeeking else { return }
-        updateTonearmSeek(location: location)
-        finishTonearmSeek(shouldCommit: true)
-    }
-
-    private func beginTonearmGestureSessionIfNeeded(at location: CGPoint) {
-        guard !isTonearmGestureActive else { return }
-        let token = UUID()
-        isTonearmGestureActive = true
-        tonearmPressBeganAt = Date()
-        tonearmGestureToken = token
-        tonearmLastLocation = location
-        setWidgetBackgroundDraggingEnabled(false)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + tonearmSeekHoldDuration) {
-            guard
-                isTonearmGestureActive,
-                tonearmGestureToken == token,
-                !isTonearmSeeking,
-                let location = tonearmLastLocation
-            else { return }
-            activateTonearmSeek(at: location)
-        }
-    }
-
-    private func activateTonearmSeek(at location: CGPoint) {
-        guard canSeekWithTonearm else { return }
-        if !isTonearmSeeking {
-            pendingSeekProgress = playbackProgress(at: Date()) ?? 0
-        }
-        isTonearmSeeking = true
-        updateTonearmSeek(location: location)
-    }
-
-    private func updateTonearmSeek(location: CGPoint) {
-        guard canSeekWithTonearm else { return }
-        pendingSeekProgress = seekProgress(for: location)
-    }
-
-    private func finishTonearmSeek(shouldCommit: Bool) {
-        guard shouldCommit, let pendingSeekProgress else { return }
-        commitSeek(toProgress: pendingSeekProgress)
-    }
-
-    /// Shared commit path for both seek gestures (tonearm drag and scrub bar):
-    /// optimistically move the displayed position so the UI doesn't snap back
-    /// while the player catches up, then tell the player.
+    /// Commits a scrub-bar drag: optimistically move the displayed position
+    /// so the UI doesn't snap back while the player catches up, then tell
+    /// the player.
     private func commitSeek(toProgress progress: Double) {
         guard
-            canSeekWithTonearm,
+            canSeek,
             let durationMillis = displayedNowPlaying.durationMillis
         else { return }
 
@@ -588,16 +479,6 @@ struct VinylWidgetView: View {
         detector.seek(toMillis: targetMillis)
     }
 
-    private func endTonearmGestureSession() {
-        isTonearmSeeking = false
-        pendingSeekProgress = nil
-        isTonearmGestureActive = false
-        tonearmPressBeganAt = nil
-        tonearmGestureToken = nil
-        tonearmLastLocation = nil
-        setWidgetBackgroundDraggingEnabled(true)
-    }
-
     /// Adaptive only, and only once per track — the blur itself is done off the
     /// main thread since it's a Core Image render, not a cheap sample.
     private func updateBlurredBodyArt(from art: NSImage) {
@@ -618,15 +499,13 @@ struct VinylWidgetView: View {
 
     // MARK: - Progress bar scrubbing
     //
-    // Deliberately keeps its OWN state rather than reusing the tonearm's
-    // isTonearmSeeking/pendingSeekProgress. Sharing them made the two
-    // gestures drive each other: a bar drag swung the tonearm, whose own
-    // handlers then fought the bar. The tonearm still *follows* a scrub
-    // visually (see tonearmAngle) — it just no longer shares the mutable
-    // seek session.
+    // The only remaining way to seek, now that tonearm dragging is gone —
+    // it always dragged the whole widget instead. The tonearm still
+    // visually *follows* a scrub (see tonearmAngle), it just isn't itself
+    // interactive.
 
     private func handleScrubDrag(fraction: Double) {
-        guard canSeekWithTonearm else { return }
+        guard canSeek else { return }
         if !isScrubbing {
             setWidgetBackgroundDraggingEnabled(false)
             isScrubbing = true
@@ -643,32 +522,6 @@ struct VinylWidgetView: View {
     private func endScrubSession() {
         isScrubbing = false
         setWidgetBackgroundDraggingEnabled(true)
-    }
-
-    private func seekProgress(for location: CGPoint) -> Double {
-        let pointerAngle = radiansToDegrees(atan2(
-            Double(location.y - tonearmPivotInWidget.y),
-            Double(location.x - tonearmPivotInWidget.x)
-        ))
-        let baseNeedleAngle = radiansToDegrees(atan2(
-            Double(tonearmNeedleLocalPoint.y - tonearmPivotLocalPoint.y),
-            Double(tonearmNeedleLocalPoint.x - tonearmPivotLocalPoint.x)
-        ))
-        let rawTonearmAngle = normalizedDegrees(pointerAngle - baseNeedleAngle)
-        let maxSeekAngle = tonearmAngle(forProgress: tonearmMaxSeekProgress)
-        let clampedAngle = min(maxSeekAngle, max(tonearmStartAngle, rawTonearmAngle))
-        return min(tonearmMaxSeekProgress, max(0.0, (clampedAngle - tonearmStartAngle) / (tonearmEndAngle - tonearmStartAngle)))
-    }
-
-    private func normalizedDegrees(_ degrees: Double) -> Double {
-        var value = degrees
-        while value > 180 { value -= 360 }
-        while value < -180 { value += 360 }
-        return value
-    }
-
-    private func radiansToDegrees(_ radians: Double) -> Double {
-        radians * 180 / .pi
     }
 
     private func updateDisplayedPlaybackState(from live: NowPlayingInfo) {
@@ -716,7 +569,7 @@ struct VinylWidgetView: View {
     }
 
     private func shouldAnimateTonearmPlaybackTransition(to info: NowPlayingInfo) -> Bool {
-        !isTonearmSeeking && !isScrubbing &&
+        !isScrubbing &&
             isSameTrack(displayedNowPlaying, info) &&
             displayedNowPlaying.isPlaying != info.isPlaying
     }
@@ -1298,9 +1151,9 @@ struct VinylWidgetView: View {
             .foregroundStyle(panelSecondary)
         }
         // Visible whenever the track has a duration. This deliberately does
-        // NOT use canSeekWithTonearm, which is false during a song-switch
-        // animation — that's what made the bar vanish mid-skip. Seeking is
-        // still gated on canSeekWithTonearm inside handleScrubDrag.
+        // NOT use canSeek, which is false during a song-switch animation —
+        // that's what made the bar vanish mid-skip. Seeking is still gated
+        // on canSeek inside handleScrubDrag.
         .opacity(hasProgressData ? 1 : 0)
     }
 
