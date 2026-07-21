@@ -119,13 +119,14 @@ enum ArtBlurrer {
         // pale pixels into the accent colour, the same dilution a naive
         // colour average suffers from. Measured against a real cover of this
         // shape (cream sleeve, small vivid accent): blur alone landed at
-        // #D2BAAB (sat 0.19, reads as near-white); +120% saturation landed at
+        // #D2BAAB (sat 0.19, reads as near-white); +80% saturation landed at
         // #E0B693 (sat 0.34), clearly colourful without inventing colour on
         // covers that are genuinely neutral (a near-grey cover moved from
-        // sat 0.01 to 0.03 under the same boost).
+        // sat 0.01 to ~0.02 under the same boost). 2.2 (sat 0.41) read as
+        // too intense.
         guard let colorControls = CIFilter(name: "CIColorControls") else { return nil }
         colorControls.setValue(blurred, forKey: kCIInputImageKey)
-        colorControls.setValue(2.2, forKey: kCIInputSaturationKey)
+        colorControls.setValue(1.8, forKey: kCIInputSaturationKey)
         guard let boosted = colorControls.outputImage?.cropped(to: scaled.extent) else { return nil }
 
         guard let rendered = context.createCGImage(boosted, from: scaled.extent)
