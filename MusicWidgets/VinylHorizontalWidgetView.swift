@@ -35,8 +35,13 @@ let horizontalBaseSize = CGSize(width: 400, height: 136)
 /// Everything here is derived from one factor so the disc and tonearm scale
 /// down together, uniformly, from their native size in the main widget
 /// (disc 272pt, tonearm frame 90x180pt) — never resized independently.
-private let hDiscScale: CGFloat = 0.36
-private let hDiscContainerSize: CGFloat = 118
+private let hDiscScale: CGFloat = 0.44
+private let hDiscContainerSize: CGFloat = 130
+/// Same resting angle the main widget uses when nothing is actively
+/// seeking (VinylWidgetView.tonearmRestAngle) — applied here as a fixed
+/// pose so the needle rests near the record's outer edge, like where you'd
+/// actually cue up a record, instead of swept toward the middle.
+private let hTonearmRestAngle: Double = -22.0
 
 // MARK: - Widget
 
@@ -175,7 +180,9 @@ struct VinylHorizontalWidgetView: View {
     // MARK: - Disc + tonearm (left side) — exact reuse, uniformly scaled
 
     private var discArea: some View {
-        ZStack {
+        let discSize = 272 * hDiscScale
+        let discRadius = discSize / 2
+        return ZStack {
             SpinningVinylView(
                 isPlaying: displayedInfo.isPlaying,
                 albumArt: displayedArt,
@@ -184,16 +191,16 @@ struct VinylHorizontalWidgetView: View {
                 albumArtRingColor: theme.albumArtRingColor
             )
             .scaleEffect(hDiscScale)
-            .frame(width: 272 * hDiscScale, height: 272 * hDiscScale)
+            .frame(width: discSize, height: discSize)
             .scaleEffect(discPulseScale)
 
             hTonearm
                 .scaleEffect(hDiscScale)
                 .frame(width: 90 * hDiscScale, height: 180 * hDiscScale)
-                // Same proportional placement as the main widget's tonearm
-                // relative to its disc (offset 115,-84 on a 272pt disc),
-                // just carried over at this scale rather than eyeballed fresh.
-                .offset(x: 272 * hDiscScale * 0.42, y: -272 * hDiscScale * 0.31)
+                // Pivot sits mostly outside the disc, up-right, with the
+                // needle landing near the outer edge (where you'd actually
+                // cue a record) rather than swept toward the centre.
+                .offset(x: discRadius * 1.08, y: -discRadius * 0.82)
         }
         .frame(width: hDiscContainerSize, height: hDiscContainerSize)
         .contentShape(Rectangle())
@@ -246,8 +253,33 @@ struct VinylHorizontalWidgetView: View {
                 .frame(width: 15, height: 15)
                 .overlay(Circle().strokeBorder(Color.black.opacity(0.28), lineWidth: 0.5))
                 .position(x: 68, y: 16)
+
+            // Headshell/needle mount at the far end of the rod — this was
+            // missing entirely before, which is why the tip looked bare.
+            RoundedRectangle(cornerRadius: 3)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "666666"), Color(hex: "222222")],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 18, height: 16)
+                .position(x: 24, y: 152)
+
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(hex: "bbbbbb"), Color(hex: "666666")],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 2, height: 8)
+                .position(x: 28, y: 164)
         }
         .frame(width: 90, height: 180)
+        .rotationEffect(.degrees(hTonearmRestAngle), anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0))
     }
 
     // MARK: - Track info + controls (right side)

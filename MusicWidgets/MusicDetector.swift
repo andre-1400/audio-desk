@@ -192,7 +192,7 @@ final class MusicDetector: ObservableObject {
         // Primary rule: if one source is playing and the other isn't, choose the playing source.
         if spotify.isPlaying && !apple.isPlaying { return .spotify }
         if apple.isPlaying && !spotify.isPlaying { return .appleMusic }
-
+ 
         // If both are actively playing, prefer the one whose player state changed most recently.
         if spotify.isPlaying && apple.isPlaying {
             if lastSpotifyStateChangeAt > lastAppleStateChangeAt { return .spotify }
