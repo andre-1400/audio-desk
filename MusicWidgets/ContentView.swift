@@ -865,7 +865,7 @@ struct VinylStylePreview: View {
     var animated: Bool = false
     var body: some View {
         GeometryReader { geo in
-            let base = CGSize(width: 384, height: 506)
+            let base = CGSize(width: 384, height: 516)
             let s = min(geo.size.width / base.width, geo.size.height / base.height)
             content
                 .frame(width: base.width, height: base.height)
@@ -892,7 +892,7 @@ private struct VinylWidgetReplica: View {
 
     var body: some View {
         ZStack {
-            // === Body shell (344×466) ===
+            // === Body shell (344×476) ===
             if palette.showBody {
                 ZStack {
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -920,7 +920,7 @@ private struct VinylWidgetReplica: View {
 
                     VinylBodyTexture(pattern: traits.pattern)
                 }
-                .frame(width: 344, height: 466)
+                .frame(width: 344, height: 476)
                 .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
 
@@ -950,9 +950,9 @@ private struct VinylWidgetReplica: View {
             // === Tonearm (cued onto the record) ===
             tonearmView
                 .rotationEffect(.degrees(-6), anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0))
-                .offset(x: 115, y: -132)
+                .offset(x: 115, y: -137)
         }
-        .frame(width: 384, height: 506)
+        .frame(width: 384, height: 516)
     }
 
     // MARK: Static retro transport buttons (visual only)
@@ -1020,7 +1020,7 @@ private struct VinylWidgetReplica: View {
                 pitchFader.position(x: 286, y: 372)
             }
         }
-        .frame(width: 384, height: 506)
+        .frame(width: 384, height: 516)
     }
 
     private var latch: some View {
@@ -1184,11 +1184,11 @@ private struct VinylWidgetReplica: View {
         VStack(spacing: 0) {
             RoundedRectangle(cornerRadius: 3)
                 .fill(palette.trackTitle.opacity(0.85))
-                .frame(width: 124, height: 11)
+                .frame(width: 132, height: 13)
             RoundedRectangle(cornerRadius: 2.5)
                 .fill(palette.trackArtist.opacity(0.7))
-                .frame(width: 82, height: 8)
-                .padding(.top, 6)
+                .frame(width: 96, height: 9)
+                .padding(.top, 8)
 
             HStack(spacing: 38) {
                 Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
@@ -1197,19 +1197,20 @@ private struct VinylWidgetReplica: View {
             }
             .foregroundStyle(palette.trackTitle)
             .frame(height: 37)
-            .padding(.top, 14)
+            .padding(.top, 12)
 
             HStack(spacing: 9) {
                 Text("0:00").frame(width: 34, alignment: .leading)
-                Capsule().fill(palette.trackArtist.opacity(0.28)).frame(height: 4)
+                Capsule().fill(palette.trackArtist.opacity(0.32)).frame(height: 4)
                 Text("-0:00").frame(width: 34, alignment: .trailing)
             }
             .font(.system(size: 10, weight: .medium).monospacedDigit())
             .foregroundStyle(palette.trackArtist.opacity(0.85))
             .frame(height: 22)
-            .padding(.top, 14)
+            .padding(.top, 12)
         }
         .frame(maxWidth: .infinity)
+        .frame(height: 140)
     }
 }
 

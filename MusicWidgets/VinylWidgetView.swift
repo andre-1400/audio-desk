@@ -240,7 +240,29 @@ struct VinylWidgetView: View {
     private var theme: WidgetThemePalette { themeManager.palette }
     private var traits: VinylModelTraits { themeManager.themeID.traits }
 
-    private let bodySize = CGSize(width: 344, height: 466)
+    private let bodySize = CGSize(width: 344, height: 476)
+
+    /// Perceived lightness of whatever the body actually is right now — the
+    /// blurred album art under Adaptive, otherwise the theme's body gradient.
+    /// Everything drawn on top keys off this so a near-white album can't leave
+    /// white text on a white body (or vice versa).
+    private var bodyIsLight: Bool {
+        if themeManager.themeID == .adaptive {
+            return extractedColours.dominant.isPerceivedLight
+        }
+        let colours = theme.widgetBodyGradient
+        guard !colours.isEmpty else { return false }
+        let mean = colours.map(\.perceivedBrightness).reduce(0, +) / Double(colours.count)
+        return mean > 0.58
+    }
+
+    private var panelPrimary: Color {
+        bodyIsLight ? Color.black.opacity(0.88) : .white
+    }
+
+    private var panelSecondary: Color {
+        bodyIsLight ? Color.black.opacity(0.58) : Color.white.opacity(0.72)
+    }
 
     /// Nudges the blurred-art body slightly further toward its own perceived
     /// polarity, so the light/dark text choice the Adaptive palette already
@@ -308,7 +330,7 @@ struct VinylWidgetView: View {
 
                     VinylBodyTexture(pattern: traits.pattern)
                 }
-                .frame(width: 344, height: 466)
+                .frame(width: 344, height: 476)
                 .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
 
@@ -352,7 +374,7 @@ struct VinylWidgetView: View {
             }
             .animation(.spring(response: 1.2, dampingFraction: 0.7), value: animator.tonearmShouldRest)
             .animation(.easeOut(duration: 0.16), value: isTonearmSeeking)
-            .offset(x: 115, y: -132)
+            .offset(x: 115, y: -137)
 
             if canSeekWithTonearm {
                 DragCaptureView(
@@ -370,11 +392,11 @@ struct VinylWidgetView: View {
                     }
                 )
                 .frame(width: 90, height: 180)
-                .offset(x: 115, y: -132)
+                .offset(x: 115, y: -137)
             }
 
         }
-        .frame(width: 384, height: 506)
+        .frame(width: 384, height: 516)
         .coordinateSpace(name: "widget")
         .overlay(alignment: widgetSettings.notesSide == .left ? .topLeading : .topTrailing) {
             if widgetSettings.notesEnabled {
@@ -454,6 +476,12 @@ struct VinylWidgetView: View {
     }
 
     // MARK: - Helper Methods
+
+    /// Enough info to draw a progress bar — independent of whether a seek
+    /// gesture is currently permitted.
+    private var hasProgressData: Bool {
+        !displayedNowPlaying.trackName.isEmpty && (displayedNowPlaying.durationMillis ?? 0) > 0
+    }
 
     private var canSeekWithTonearm: Bool {
         !animator.isAnimating &&
@@ -906,7 +934,7 @@ struct VinylWidgetView: View {
         // Calibrated anchor for the platter center so lifted disk/sleeves stay locked to the vinyl.
         // Was +8 when the body was 380 tall; the taller body (460) moved the
         // platter 44pt up in view space, which is +44 in screen (y-up) space.
-        return CGPoint(x: frame.midX, y: frame.midY + 56)
+        return CGPoint(x: frame.midX, y: frame.midY + 61)
     }
 
     // MARK: - Platter Area (no tonearm — that's outside the clip)
@@ -935,7 +963,7 @@ struct VinylWidgetView: View {
                 pitchFader.position(x: 286, y: 372)
             }
         }
-        .frame(width: 384, height: 506)
+        .frame(width: 384, height: 516)
     }
 
     private var latch: some View {
@@ -1163,23 +1191,34 @@ struct VinylWidgetView: View {
 
     private var modernTrackPanel: some View {
         VStack(spacing: 0) {
-            Text(displayedNowPlaying.trackName.isEmpty ? "Nothing Playing" : displayedNowPlaying.trackName)
-                .font(.system(size: 19, weight: .bold))
-                .foregroundStyle(theme.trackTitle)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .truncationMode(.tail)
+            VStack(spacing: 0) {
+                Text(displayedNowPlaying.trackName.isEmpty ? "Nothing Playing" : displayedNowPlaying.trackName)
+                    .font(.system(size: 20, weight: .bold))
+                    .tracking(0.2)
+                    .foregroundStyle(panelPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .truncationMode(.tail)
 
-            Text(displayedNowPlaying.trackName.isEmpty ? " " : displayedNowPlaying.artistName)
-                .font(.system(size: 14.5, weight: .medium))
-                .foregroundStyle(theme.trackArtist)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .truncationMode(.tail)
-                .padding(.top, 2)
+                Text(displayedNowPlaying.trackName.isEmpty ? " " : artistLine)
+                    .font(.system(size: 14.5, weight: .medium))
+                    .tracking(0.3)
+                    .foregroundStyle(panelSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .truncationMode(.tail)
+                    .padding(.top, 4)
 
-            transportRow
-                .padding(.top, 12)
+                transportRow
+                    .padding(.top, 12)
+            }
+            // The song-switch animator publishes its phase inside
+            // withAnimation, and the reveal that swaps the track text rides
+            // along in that same update — which cross-faded the title/artist
+            // and pointlessly animated the transport glyphs, which never
+            // actually change. Snap them, so the text flips at exactly the
+            // moment the body colour does.
+            .transaction { $0.animation = nil }
 
             scrubberRow
                 .padding(.top, 12)
@@ -1187,7 +1226,16 @@ struct VinylWidgetView: View {
         // Fixed height keeps the platter (and therefore the tonearm) at a
         // known position regardless of how the text metrics resolve.
         .frame(maxWidth: .infinity)
-        .frame(height: 130)
+        .frame(height: 140)
+    }
+
+    /// "Artist - Album", collapsing gracefully when either is missing.
+    private var artistLine: String {
+        let artist = displayedNowPlaying.artistName
+        let album = displayedNowPlaying.albumName
+        guard !album.isEmpty, album != artist else { return artist }
+        guard !artist.isEmpty else { return album }
+        return "\(artist) - \(album)"
     }
 
     // Bare SF Symbol glyphs, no button chrome — matches Apple's Now Playing.
@@ -1199,7 +1247,7 @@ struct VinylWidgetView: View {
             }
             glyphButton("forward.fill", size: 21) { detector.nextTrack() }
         }
-        .foregroundStyle(theme.trackTitle)
+        .foregroundStyle(panelPrimary)
     }
 
     private func glyphButton(_ icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
@@ -1229,9 +1277,13 @@ struct VinylWidgetView: View {
                     .frame(width: 34, alignment: .trailing)
             }
             .font(.system(size: 10, weight: .medium).monospacedDigit())
-            .foregroundStyle(theme.trackArtist.opacity(0.85))
+            .foregroundStyle(panelSecondary)
         }
-        .opacity(canSeekWithTonearm ? 1 : 0)
+        // Visible whenever the track has a duration. This deliberately does
+        // NOT use canSeekWithTonearm, which is false during a song-switch
+        // animation — that's what made the bar vanish mid-skip. Seeking is
+        // still gated on canSeekWithTonearm inside handleScrubDrag.
+        .opacity(hasProgressData ? 1 : 0)
     }
 
     private func scrubBar(fraction: Double) -> some View {
@@ -1239,13 +1291,13 @@ struct VinylWidgetView: View {
             let width = geo.size.width
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(theme.trackArtist.opacity(0.28))
+                    .fill(panelSecondary.opacity(0.32))
                     .frame(height: isScrubbing ? 6 : 4)
                 Capsule()
-                    .fill(theme.trackTitle.opacity(0.92))
+                    .fill(panelPrimary.opacity(0.92))
                     .frame(width: max(2, width * fraction), height: isScrubbing ? 6 : 4)
                 Circle()
-                    .fill(Color.white)
+                    .fill(panelPrimary)
                     .frame(width: 11, height: 11)
                     .shadow(color: .black.opacity(0.35), radius: 3, y: 1)
                     .offset(x: min(width - 11, max(0, width * fraction - 5.5)))

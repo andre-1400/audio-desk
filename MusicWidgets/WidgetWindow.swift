@@ -4,7 +4,7 @@ import Combine
 
 /// The base (1.0×) size of the widget content. The window and the scaled
 /// content are both derived from this so they always stay in sync.
-let baseWidgetSize = CGSize(width: 384, height: 506)
+let baseWidgetSize = CGSize(width: 384, height: 516)
 
 /// User-selectable widget sizes. Persisted so the choice becomes the default
 /// on every launch (set from Settings while the widget is visible).
