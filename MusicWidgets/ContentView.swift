@@ -816,51 +816,14 @@ struct VinylForm: Identifiable {
 
 extension VinylStyle {
     static let forms: [VinylForm] = [
-        VinylForm(id: "turntable", name: "Turntable", subtitle: "Classic record player", icon: "record.circle",
+        VinylForm(id: "vinyl", name: "Vinyl", subtitle: "Adaptive by default, a few colours if you want a fixed one",
+                  icon: "record.circle",
                   styles: [
+                    VinylStyle(themeID: .adaptive, name: "Adaptive", subtitle: "Matches the album art, live"),
                     VinylStyle(themeID: .default,  name: "Classic",  subtitle: "Warm wood & gold"),
                     VinylStyle(themeID: .obsidian, name: "Obsidian", subtitle: "Jet black & chrome"),
                     VinylStyle(themeID: .pearl,    name: "Pearl",    subtitle: "Cream & terracotta"),
-                    VinylStyle(themeID: .midnight, name: "Midnight", subtitle: "Navy & steel"),
-                    VinylStyle(themeID: .crimson,  name: "Crimson",  subtitle: "Burgundy & gold"),
-                    VinylStyle(themeID: .emerald,  name: "Emerald",  subtitle: "Forest green & brass"),
-                    VinylStyle(themeID: .carbon,   name: "Carbon",   subtitle: "Matte black & red"),
-                    VinylStyle(themeID: .copper,   name: "Copper",   subtitle: "Burnished bronze")
-                  ]),
-        VinylForm(id: "studio", name: "Studio", subtitle: "Pro decks with extra hardware", icon: "dial.high",
-                  styles: [
-                    VinylStyle(themeID: .slate,     name: "Slate",     subtitle: "Brushed studio deck"),
-                    VinylStyle(themeID: .walnut,    name: "Walnut",    subtitle: "Audiophile wood deck"),
-                    VinylStyle(themeID: .sandstone, name: "Suitcase",  subtitle: "Canvas travel case"),
-                    VinylStyle(themeID: .synthwave, name: "Synthwave", subtitle: "Neon night deck")
-                  ]),
-        VinylForm(id: "pop", name: "Pop", subtitle: "Soft pastel colourways", icon: "paintpalette",
-                  styles: [
-                    VinylStyle(themeID: .rosegold,  name: "Rose Gold", subtitle: "Blush & warm metal"),
-                    VinylStyle(themeID: .mint,      name: "Mint",      subtitle: "Fresh green cream"),
-                    VinylStyle(themeID: .bubblegum, name: "Bubblegum", subtitle: "Candy pink"),
-                    VinylStyle(themeID: .lavender,  name: "Lavender",  subtitle: "Soft violet"),
-                    VinylStyle(themeID: .glacier,   name: "Glacier",   subtitle: "Icy pale blue"),
-                    VinylStyle(themeID: .honey,     name: "Honey",     subtitle: "Golden cream")
-                  ]),
-        VinylForm(id: "minimal", name: "Minimal", subtitle: "Floating disc, no body", icon: "circle",
-                  styles: [
-                    VinylStyle(themeID: .modern,       name: "Mono",  subtitle: "Black label"),
-                    VinylStyle(themeID: .minimalIvory, name: "Ivory", subtitle: "Cream label"),
-                    VinylStyle(themeID: .minimalRose,  name: "Rose",  subtitle: "Blush label"),
-                    VinylStyle(themeID: .minimalSage,  name: "Sage",  subtitle: "Soft green label")
-                  ]),
-        VinylForm(id: "jukebox", name: "Jukebox", subtitle: "Retro consoles with buttons", icon: "radio",
-                  styles: [
-                    VinylStyle(themeID: .jukebox, name: "Cherry",  subtitle: "Cherry wood cabinet"),
-                    VinylStyle(themeID: .diner,   name: "Diner",   subtitle: "Teal diner console"),
-                    VinylStyle(themeID: .tweed,   name: "Tweed",   subtitle: "Tweed radiogram"),
-                    VinylStyle(themeID: .boombox, name: "Blaze",   subtitle: "Black & orange deck"),
-                    VinylStyle(themeID: .mustard, name: "Mustard", subtitle: "70s golden yellow")
-                  ]),
-        VinylForm(id: "adaptive", name: "Adaptive", subtitle: "Colour follows what's playing", icon: "paintpalette.fill",
-                  styles: [
-                    VinylStyle(themeID: .adaptive, name: "Adaptive", subtitle: "Matches the album art, live")
+                    VinylStyle(themeID: .midnight, name: "Midnight", subtitle: "Navy & steel")
                   ])
     ]
 

@@ -4,42 +4,16 @@ import Combine
 
 enum WidgetThemeID: String, CaseIterable {
     case `default` = "default"
-    case modern = "modern"
-    case minimalIvory = "minimalIvory"
-    case minimalRose = "minimalRose"
     case pearl = "pearl"
     case obsidian = "obsidian"
-    // New styles
-    case walnut = "walnut"
-    case rosegold = "rosegold"
-    case mint = "mint"
     case midnight = "midnight"
-    case crimson = "crimson"
-    case emerald = "emerald"
-    case sandstone = "sandstone"
-    case slate = "slate"
-    case bubblegum = "bubblegum"
-    // Retro models (with transport buttons)
-    case jukebox = "jukebox"
-    case diner = "diner"
-    case boombox = "boombox"
-    case tweed = "tweed"
-    case mustard = "mustard"
-    // Second wave
-    case synthwave = "synthwave"
-    case glacier = "glacier"
-    case carbon = "carbon"
-    case honey = "honey"
-    case lavender = "lavender"
-    case copper = "copper"
-    case minimalSage = "minimalSage"
     // Live — colours track whatever's currently playing instead of a fixed palette
     case adaptive = "adaptive"
 
     static func fromPersisted(_ value: String?) -> WidgetThemeID {
         guard let value,
               let parsed = WidgetThemeID(rawValue: value.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            return .default
+            return .adaptive
         }
         return parsed
     }
@@ -216,102 +190,6 @@ extension WidgetThemeID {
                 sleevePlaceholderLetter: Color(hex: "909090")
             )
 
-        // MARK: Modern (floating disc, no body)
-        case .modern:
-            return WidgetThemePalette(
-                showBody: false,
-                showBodyTexture: false,
-                widgetBodyGradient: [.clear, .clear, .clear, .clear],
-                widgetBorder: .clear,
-                widgetTopSheen: .clear,
-                albumArtLabelGradient: [Color(hex: "1a1a1a"), Color(hex: "0d0d0d"), Color(hex: "080808")],
-                albumArtRingColor: Color.white.opacity(0.18),
-                trackPlayingDot: Color(hex: "ffffff"),
-                trackPausedDot: Color(hex: "888888"),
-                trackTitle: Color(hex: "ffffff"),
-                trackArtist: Color(hex: "aaaaaa"),
-                trackIdle: Color(hex: "666666"),
-                screwGradient: [.clear, .clear, .clear],
-                shelfButtonBackground: .clear,
-                shelfButtonRing: .clear,
-                shelfButtonIcon: .clear,
-                shelfPanelGradient: [.clear, .clear, .clear],
-                shelfOutline: .clear,
-                queueBarText: Color(hex: "ffffff"),
-                queueBarBackground: Color(hex: "111111"),
-                queueBarBorder: Color(hex: "ffffff").opacity(0.1),
-                connectOverlayIcon: Color(hex: "888888"),
-                connectOverlayTitle: Color(hex: "ffffff"),
-                connectOverlaySubtitle: Color(hex: "aaaaaa"),
-                connectOverlayBackground: Color(hex: "111111"),
-                connectOverlayBorder: Color(hex: "ffffff").opacity(0.1),
-                sleeveCardGradient: [Color(hex: "222222"), Color(hex: "111111"), Color(hex: "0a0a0a")],
-                sleeveCardBorder: Color(hex: "ffffff").opacity(0.10),
-                sleeveNowText: Color(hex: "ffffff"),
-                sleeveNowBackground: Color(hex: "111111"),
-                sleevePlaceholderOuter: Color(hex: "222222"),
-                sleevePlaceholderMiddle: Color(hex: "111111"),
-                sleevePlaceholderInner: Color(hex: "1a1a1a"),
-                sleevePlaceholderLetter: Color(hex: "aaaaaa")
-            )
-
-        // MARK: Minimal floating-disc colour variants (no body)
-        case .minimalIvory:
-            return makeVinylPalette(
-                texture: false,
-                body: ["000000", "000000", "000000", "000000"],
-                border: "ffffff", borderOpacity: 0, sheen: "ffffff", sheenOpacity: 0,
-                label: ["f2ead6", "ddcfae", "b89c78"], ring: "f4e8cc",
-                accent: "ffffff", paused: "999999",
-                title: "ffffff", artist: "cfcfcf", idle: "808080",
-                screw: ["000000", "000000", "000000"], dark: true, showBody: false
-            )
-
-        case .minimalRose:
-            return makeVinylPalette(
-                texture: false,
-                body: ["000000", "000000", "000000", "000000"],
-                border: "ffffff", borderOpacity: 0, sheen: "ffffff", sheenOpacity: 0,
-                label: ["e8aebb", "c87f90", "9a5868"], ring: "f3c8d2",
-                accent: "ffffff", paused: "999999",
-                title: "ffffff", artist: "cfcfcf", idle: "808080",
-                screw: ["000000", "000000", "000000"], dark: true, showBody: false
-            )
-
-        // MARK: New styles (built via factory for consistency)
-        case .walnut:
-            return makeVinylPalette(
-                texture: true,
-                body: ["3d2817", "2a1a0e", "1f130a", "2a1a0e"],
-                border: "c9a24b", borderOpacity: 0.18, sheen: "e8c878", sheenOpacity: 0.12,
-                label: ["8a5a2a", "5c3a18", "2e1c0a"], ring: "d4a85a",
-                accent: "e0a84a", paused: "a88a55",
-                title: "f0d8a0", artist: "b89a68", idle: "7a6040",
-                screw: ["d8bc78", "9a7838", "4a3015"], dark: true
-            )
-
-        case .rosegold:
-            return makeVinylPalette(
-                texture: false,
-                body: ["f5e0e0", "f0d5d5", "e8c8c8", "f0d5d5"],
-                border: "d8a8a0", borderOpacity: 0.40, sheen: "ffffff", sheenOpacity: 0.50,
-                label: ["c08878", "9a6458", "6a4038"], ring: "d89888",
-                accent: "d4887a", paused: "c0a098",
-                title: "5a3530", artist: "8a6058", idle: "c0a8a0",
-                screw: ["e8c0b0", "d09888", "a87868"], dark: false
-            )
-
-        case .mint:
-            return makeVinylPalette(
-                texture: false,
-                body: ["d8ede0", "c8e5d5", "b8ddc8", "c8e5d5"],
-                border: "8ab89a", borderOpacity: 0.40, sheen: "ffffff", sheenOpacity: 0.50,
-                label: ["5a8a6a", "3e6a4a", "244530"], ring: "6aa87a",
-                accent: "4aa86a", paused: "8ab09a",
-                title: "20402e", artist: "508060", idle: "90b8a0",
-                screw: ["c0d8c8", "90b89a", "6a9070"], dark: false
-            )
-
         case .midnight:
             return makeVinylPalette(
                 texture: true,
@@ -323,203 +201,13 @@ extension WidgetThemeID {
                 screw: ["c0c8d8", "7888a0", "303a4a"], dark: true
             )
 
-        case .crimson:
-            return makeVinylPalette(
-                texture: true,
-                body: ["3a0e12", "2a080c", "1e0608", "2a080c"],
-                border: "d0a050", borderOpacity: 0.20, sheen: "f0c860", sheenOpacity: 0.10,
-                label: ["7a2a2a", "5a1818", "3a0e0e"], ring: "d0a85a",
-                accent: "e0b04a", paused: "a07858",
-                title: "f0d8a0", artist: "c09878", idle: "8a5a4a",
-                screw: ["e0c078", "a07838", "4a2818"], dark: true
-            )
-
-        case .emerald:
-            return makeVinylPalette(
-                texture: true,
-                body: ["0e3020", "082418", "051a10", "082418"],
-                border: "d0b060", borderOpacity: 0.22, sheen: "f0d878", sheenOpacity: 0.10,
-                label: ["1a5a3a", "0e3a24", "082414"], ring: "d0b85a",
-                accent: "e0c050", paused: "8aa080",
-                title: "f0e8c0", artist: "a0c0a0", idle: "608060",
-                screw: ["e0d088", "a08840", "4a4018"], dark: true
-            )
-
-        case .sandstone:
-            return makeVinylPalette(
-                texture: false,
-                body: ["e8dcc4", "e0d2b4", "d8c8a4", "e0d2b4"],
-                border: "b09868", borderOpacity: 0.40, sheen: "ffffff", sheenOpacity: 0.45,
-                label: ["a07840", "705228", "443014"], ring: "b89060",
-                accent: "c08840", paused: "b0a080",
-                title: "4a3818", artist: "806840", idle: "b8a880",
-                screw: ["d8c498", "b09858", "8a7038"], dark: false
-            )
-
-        case .slate:
-            return makeVinylPalette(
-                texture: true,
-                body: ["3a3e44", "2c3034", "222528", "2c3034"],
-                border: "9098a0", borderOpacity: 0.22, sheen: "ffffff", sheenOpacity: 0.08,
-                label: ["48505a", "343a42", "24282e"], ring: "a0a8b0",
-                accent: "90a0b0", paused: "6a727a",
-                title: "e8ecf0", artist: "9aa2aa", idle: "555a60",
-                screw: ["c8ccd0", "888e96", "3a3e44"], dark: true
-            )
-
-        case .bubblegum:
-            return makeVinylPalette(
-                texture: false,
-                body: ["fdd8e8", "fcc8de", "fab8d4", "fcc8de"],
-                border: "e89ab8", borderOpacity: 0.40, sheen: "ffffff", sheenOpacity: 0.55,
-                label: ["d8688a", "b84868", "902c48"], ring: "e87aa0",
-                accent: "f060a0", paused: "d8a0b8",
-                title: "7a2848", artist: "b05878", idle: "e0a8c0",
-                screw: ["fcc8de", "f090b0", "d86890"], dark: false
-            )
-
-        // MARK: Retro models (warm vintage, chrome/brass hardware + buttons)
-        case .jukebox:
-            return makeVinylPalette(
-                texture: false,
-                body: ["6e1a18", "521210", "3e0e0c", "521210"],
-                border: "d8d8d8", borderOpacity: 0.25, sheen: "ffffff", sheenOpacity: 0.10,
-                label: ["d8c8a0", "b09060", "8a6840"], ring: "e8d8b0",
-                accent: "f0d070", paused: "b09878",
-                title: "f5e6c0", artist: "d0b890", idle: "9a7858",
-                screw: ["ececec", "a8a8a8", "585858"], dark: true
-            )
-
-        case .diner:
-            return makeVinylPalette(
-                texture: false,
-                body: ["1f6e6a", "145450", "0e3e3c", "145450"],
-                border: "d8d8d8", borderOpacity: 0.25, sheen: "ffffff", sheenOpacity: 0.12,
-                label: ["e0d8c0", "b8a888", "8a7858"], ring: "f0e8d0",
-                accent: "f0c050", paused: "90b0a8",
-                title: "eef5ee", artist: "b8d0c8", idle: "6a9088",
-                screw: ["ececec", "a8a8a8", "585858"], dark: true
-            )
-
-        case .boombox:
-            return makeVinylPalette(
-                texture: false,
-                body: ["2c2c30", "202024", "18181a", "202024"],
-                border: "ff8a3a", borderOpacity: 0.30, sheen: "ffffff", sheenOpacity: 0.08,
-                label: ["3a3a3e", "262628", "18181a"], ring: "ff8a3a",
-                accent: "ff8a3a", paused: "808088",
-                title: "f0f0f2", artist: "b0b0b8", idle: "606068",
-                screw: ["d0d0d4", "8a8a90", "3a3a40"], dark: true
-            )
-
-        case .tweed:
-            return makeVinylPalette(
-                texture: false,
-                body: ["5a4630", "463420", "342614", "463420"],
-                border: "c8a24b", borderOpacity: 0.25, sheen: "e8c878", sheenOpacity: 0.10,
-                label: ["c8a868", "9a7840", "6a5028"], ring: "d4b070",
-                accent: "e0b050", paused: "b09870",
-                title: "f0dca8", artist: "c8b088", idle: "8a7048",
-                screw: ["e0c078", "a88838", "52401a"], dark: true
-            )
-
-        case .mustard:
-            return makeVinylPalette(
-                texture: false,
-                body: ["c89030", "a8741e", "8a5e14", "a8741e"],
-                border: "5a3e18", borderOpacity: 0.40, sheen: "ffffff", sheenOpacity: 0.22,
-                label: ["7a5020", "5a3a14", "3e280c"], ring: "8a6028",
-                accent: "8a4e18", paused: "b09850",
-                title: "3e2810", artist: "6a4e20", idle: "b09040",
-                screw: ["e0c068", "b89038", "7a5a20"], dark: false
-            )
-
-        // MARK: Second wave
-
-        case .synthwave:
-            return makeVinylPalette(
-                texture: true,
-                body: ["1a1030", "120a24", "0c061a", "120a24"],
-                border: "ff4fd8", borderOpacity: 0.28, sheen: "9a6bff", sheenOpacity: 0.12,
-                label: ["ff4fd8", "b025a8", "5c1470"], ring: "5df0ff",
-                accent: "5df0ff", paused: "8a6aa8",
-                title: "f0e0ff", artist: "b090d8", idle: "584878",
-                screw: ["d0b0ff", "8a5fd0", "3a2060"], dark: true
-            )
-
-        case .glacier:
-            return makeVinylPalette(
-                texture: false,
-                body: ["e8f2f8", "dcebf4", "cee0ec", "dcebf4"],
-                border: "8ab4cc", borderOpacity: 0.40, sheen: "ffffff", sheenOpacity: 0.55,
-                label: ["5a8aa8", "3a6a88", "224a62"], ring: "6aa8c8",
-                accent: "3a9ad8", paused: "90b0c4",
-                title: "1e3a4e", artist: "50788e", idle: "a0c0d0",
-                screw: ["d0e4ee", "9ec0d4", "6a94ac"], dark: false
-            )
-
-        case .carbon:
-            return makeVinylPalette(
-                texture: true,
-                body: ["232326", "18181b", "0f0f11", "18181b"],
-                border: "e03a3a", borderOpacity: 0.30, sheen: "ffffff", sheenOpacity: 0.06,
-                label: ["3a3a3e", "242428", "141416"], ring: "e03a3a",
-                accent: "ff4545", paused: "78787e",
-                title: "f2f2f4", artist: "a8a8b0", idle: "58585e",
-                screw: ["c8c8cc", "808086", "323236"], dark: true
-            )
-
-        case .honey:
-            return makeVinylPalette(
-                texture: false,
-                body: ["f4e4c0", "eed8a8", "e4c890", "eed8a8"],
-                border: "b8862a", borderOpacity: 0.40, sheen: "ffffff", sheenOpacity: 0.50,
-                label: ["c89030", "9a6a1e", "6a4410"], ring: "c89838",
-                accent: "d89a28", paused: "b8a070",
-                title: "4a3410", artist: "846018", idle: "c0a86a",
-                screw: ["e8d098", "c0983f", "8a6a24"], dark: false
-            )
-
-        case .lavender:
-            return makeVinylPalette(
-                texture: false,
-                body: ["e6dcf4", "dccef0", "cebce6", "dccef0"],
-                border: "9a7cc8", borderOpacity: 0.40, sheen: "ffffff", sheenOpacity: 0.52,
-                label: ["8a68b8", "664a92", "44306a"], ring: "9a78cc",
-                accent: "8a5ad8", paused: "a898c0",
-                title: "3a2858", artist: "6a548e", idle: "b0a0cc",
-                screw: ["dcd0f0", "b09cd8", "8068a8"], dark: false
-            )
-
-        case .copper:
-            return makeVinylPalette(
-                texture: true,
-                body: ["4a2a18", "38200f", "2a160a", "38200f"],
-                border: "e8945a", borderOpacity: 0.24, sheen: "ffb87a", sheenOpacity: 0.12,
-                label: ["b06a35", "84481e", "542c10"], ring: "e89a5e",
-                accent: "ff9a50", paused: "b08868",
-                title: "ffd8b8", artist: "cc9a74", idle: "84603f",
-                screw: ["f0c090", "c07a40", "6a3c1a"], dark: true
-            )
-
-        case .minimalSage:
-            return makeVinylPalette(
-                texture: false,
-                body: ["000000", "000000", "000000", "000000"],
-                border: "ffffff", borderOpacity: 0, sheen: "ffffff", sheenOpacity: 0,
-                label: ["b8ccae", "94ac88", "68805e"], ring: "c4d8ba",
-                accent: "ffffff", paused: "999999",
-                title: "ffffff", artist: "cfcfcf", idle: "808080",
-                screw: ["000000", "000000", "000000"], dark: true, showBody: false
-            )
-
         // MARK: Adaptive — body colour tracks the currently playing album's
         // art instead of a fixed palette. This static branch (fallback
         // colours) only fires for contexts with no live data, e.g. the
         // gallery preview card; the live widget gets its colours from
         // WidgetThemeID.adaptivePalette(from:) via WidgetThemeManager instead.
         case .adaptive:
-            return WidgetThemeID.adaptivePalette(from: .fallback)
+            return WidgetThemeID.adaptivePalette(from: .adaptivePreviewPlaceholder)
 
         }
     }

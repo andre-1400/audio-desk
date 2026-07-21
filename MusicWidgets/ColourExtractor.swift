@@ -9,6 +9,16 @@ struct ExtractedColours: Equatable {
         dominant: Color(hex: "9B5523"),
         secondary: Color(hex: "3a1a06")
     )
+
+    /// Neutral grey/white — used only for Adaptive's gallery preview and its
+    /// initial pre-playback state, so it doesn't read as "this style is
+    /// brown," which .fallback (used for genuine extraction failures
+    /// elsewhere) would suggest. Signals "this becomes whatever's playing"
+    /// instead of implying a fixed colour.
+    static let adaptivePreviewPlaceholder = ExtractedColours(
+        dominant: Color(hex: "e4e4e6"),
+        secondary: Color(hex: "9a9a9e")
+    )
 }
 
 extension Color {

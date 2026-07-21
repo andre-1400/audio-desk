@@ -24,10 +24,10 @@ struct VinylHorizontalModel: Identifiable {
     let themeID: WidgetThemeID
 
     static let all: [VinylHorizontalModel] = [
+        VinylHorizontalModel(id: "hbar-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", themeID: .adaptive),
         VinylHorizontalModel(id: "hbar-classic", name: "Classic", subtitle: "Warm wood & gold", themeID: .default),
         VinylHorizontalModel(id: "hbar-obsidian", name: "Obsidian", subtitle: "Jet black & chrome", themeID: .obsidian),
-        VinylHorizontalModel(id: "hbar-walnut", name: "Walnut", subtitle: "Audiophile wood deck", themeID: .walnut),
-        VinylHorizontalModel(id: "hbar-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", themeID: .adaptive)
+        VinylHorizontalModel(id: "hbar-pearl", name: "Pearl", subtitle: "Cream & terracotta", themeID: .pearl)
     ]
 }
 
@@ -53,7 +53,11 @@ struct VinylHorizontalWidgetView: View {
     @State private var lastObservedTrackIdentity: String = ""
     @State private var hasSeenInitialTrackIdentity = false
     @State private var discPulseScale: Double = 1.0
-    @State private var extractedColours: ExtractedColours = .fallback
+    // Only ever read for the Adaptive model (see `theme` below), so this
+    // initial value only matters for Adaptive: neutral grey/white rather
+    // than the generic extraction-failure fallback, so the gallery/initial
+    // look reads as "becomes whatever's playing," not "this one is brown."
+    @State private var extractedColours: ExtractedColours = .adaptivePreviewPlaceholder
 
     private var theme: WidgetThemePalette {
         model.themeID == .adaptive ? WidgetThemeID.adaptivePalette(from: extractedColours) : model.themeID.palette

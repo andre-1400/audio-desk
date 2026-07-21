@@ -572,7 +572,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Launch vinyl widget
 
-    func launchVinylWidget(themeID: WidgetThemeID = .default) {
+    func launchVinylWidget(themeID: WidgetThemeID = .adaptive) {
         closeCDWidget()
         closeAlbumArtWidget()
         closeVinylHorizontalWidget()

@@ -289,33 +289,11 @@ struct VinylModelTraits {
 }
 
 extension WidgetThemeID {
+    // Every remaining style (Adaptive/Classic/Obsidian/Pearl/Midnight) uses
+    // the plain default traits — the retro/studio-specific trait combos were
+    // only used by the styles removed in the big style-list trim.
     var traits: VinylModelTraits {
-        switch self {
-        case .jukebox:   // Retro — cherry wood cabinet
-            return VinylModelTraits(hasTransportControls: true, spindle: .retro45, pattern: .wood)
-        case .diner:     // Retro — teal diner console
-            return VinylModelTraits(hasTransportControls: true, spindle: .retro45, pattern: .none)
-        case .tweed:     // Retro — tweed-covered radiogram
-            return VinylModelTraits(hasTransportControls: true, spindle: .retro45, pattern: .fabric)
-        case .boombox:   // Retro — black & orange street deck
-            return VinylModelTraits(hasTransportControls: true, spindle: .retro45, pattern: .brushed)
-        case .mustard:   // Retro — 70s mustard console
-            return VinylModelTraits(hasTransportControls: true, spindle: .retro45, pattern: .none)
-        case .slate:     // Studio deck — brushed metal
-            return VinylModelTraits(spindle: .retro45, hasPitchSlider: true, hasPowerLED: true, pattern: .brushed)
-        case .walnut:    // Audiophile — walnut grain
-            return VinylModelTraits(spindle: .retro45, hasCounterweight: true, hasPlatterRing: true, pattern: .wood)
-        case .sandstone: // Suitcase — canvas weave
-            return VinylModelTraits(hasPowerLED: true, caseBorder: true, pattern: .fabric)
-        case .synthwave: // Studio deck — neon night build
-            return VinylModelTraits(spindle: .retro45, hasPitchSlider: true, hasPowerLED: true, pattern: .brushed)
-        case .carbon:    // Track-day build — brushed black metal
-            return VinylModelTraits(pattern: .brushed)
-        case .copper:    // Heirloom — warm grain
-            return VinylModelTraits(spindle: .retro45, hasCounterweight: true, pattern: .wood)
-        default:
-            return VinylModelTraits()
-        }
+        VinylModelTraits()
     }
 }
 

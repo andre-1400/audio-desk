@@ -362,7 +362,7 @@ extension CDMaterial {
     /// rendered — CDWidgetView swaps to `.adaptive(from:)` whenever
     /// `model.isAdaptive` is true. This exists only for gallery previews /
     /// contexts with no live playback data.
-    static let adaptivePlaceholder = adaptive(from: .fallback)
+    static let adaptivePlaceholder = adaptive(from: .adaptivePreviewPlaceholder)
 
     static func adaptive(from colours: ExtractedColours) -> CDMaterial {
         let dominant = colours.dominant
@@ -466,7 +466,10 @@ struct CDWidgetView: View {
     @State private var incomingArt: NSImage? = nil
     @State private var lastTrackKey: String = ""
     @State private var optimisticPlaying: Bool? = nil
-    @State private var extractedColours: ExtractedColours = .fallback
+    // Only ever read when model.isAdaptive; neutral grey/white rather than
+    // the generic extraction-failure fallback so it reads as "will become
+    // whatever's playing," not a fixed brown.
+    @State private var extractedColours: ExtractedColours = .adaptivePreviewPlaceholder
 
     @ObservedObject private var settings = WidgetSettings.shared
 
