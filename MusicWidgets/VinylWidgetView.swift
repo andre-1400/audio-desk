@@ -881,14 +881,7 @@ struct VinylWidgetView: View {
     private var spindleView: some View {
         switch traits.spindle {
         case .standard:
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color(hex: "cccccc"), Color(hex: "666666")],
-                        center: .center, startRadius: 0, endRadius: 5
-                    )
-                )
-                .frame(width: 10, height: 10)
+            EmptyView()
         case .retro45:
             ZStack {
                 // Chrome 45-rpm adapter ring
@@ -1471,17 +1464,6 @@ struct SpinningVinylView: View {
                     .frame(width: 96, height: 96)
                     .clipShape(Circle())
             }
-
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color(hex: "cccccc"), Color(hex: "666666")],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 5
-                    )
-                )
-                .frame(width: 10, height: 10)
         }
         .frame(width: 96, height: 96)
         .overlay(
@@ -1654,17 +1636,6 @@ struct LiftedDiskView: View {
                         .frame(width: 96, height: 96)
                         .clipShape(Circle())
                 }
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color(hex: "cccccc"), Color(hex: "666666")],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 5
-                        )
-                    )
-                    .frame(width: 10, height: 10)
             }
             .overlay(
                 Circle()
