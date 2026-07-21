@@ -41,23 +41,25 @@ enum AdaptiveBody {
     /// internal shading while taking the edge off bright covers. Flat rather
     /// than a gradient on purpose — an evenly lit body gives one well-defined
     /// brightness for the contrast decision below.
-    static let darkening: Double = 0.30
+    static let darkening: Double = 0.40
 
     /// Slight zoom so the body shows the middle of the cover rather than its
     /// full frame — keeps the softest part of the blur in view.
     static let zoom: CGFloat = 1.18
 
-    /// 0.50, not the 0.58 of Color.isPerceivedLight: checked against WCAG
-    /// contrast ratios across a spread of cover colours, 0.50 picks whichever
-    /// of white/black actually has the better contrast on every one of them,
-    /// while 0.58 gets mid-light covers (e.g. pale pink) wrong.
+    /// 0.48, not the 0.58 of Color.isPerceivedLight: checked against WCAG
+    /// contrast ratios across a spread of cover colours (re-checked after
+    /// darkening moved 0.30 -> 0.40, which shifted the safe threshold down
+    /// slightly), 0.48 picks whichever of white/black actually has the better
+    /// contrast on every one of them, while 0.58 gets mid-light covers (e.g.
+    /// pale pink) wrong.
     ///
     /// Note this measures the body *as drawn* — compositing black at alpha a
     /// scales the components by (1 - a), so the scrim scales perceived
     /// brightness the same way. Deciding against the raw artwork instead would
     /// leave dark text on covers that the scrim has already darkened.
     static func isLight(_ dominant: Color) -> Bool {
-        dominant.perceivedBrightness * (1 - darkening) > 0.50
+        dominant.perceivedBrightness * (1 - darkening) > 0.48
     }
 
     static func primary(_ dominant: Color) -> Color {
