@@ -271,7 +271,7 @@ struct CDWidgetView: View {
 
     @ObservedObject private var settings = WidgetSettings.shared
 
-    private let maxSpinSpeed: Double = 10800   // near-blur speed — art reads as almost one colour
+    private let maxSpinSpeed: Double = 4200   // fast, but stays under the 60fps strobing threshold
 
     private var mat: CDMaterial { model.isAdaptive ? .adaptive(from: extractedColours) : model.material }
     private var np: NowPlayingInfo { detector.nowPlaying }
@@ -571,8 +571,14 @@ struct CDDeck: View {
             }
         }()
         let lifted = [.liftOff, .eject, .gap, .insert].contains(phase)
+        // Rotation alone doesn't read as motion blur at 60fps — past a
+        // certain angular speed each frame just lands on a disjointed
+        // angle (looks like a glitch/jump-cut, not a spin). A real blur
+        // that scales with speed sells the "spinning fast" look instead.
+        let blurRadius = min(diameter * 0.035, CGFloat(spinSpeed) / 700)
         return CDDiscView(albumArt: art, accent: material.accent, diameter: diameter)
             .rotationEffect(.degrees(angle))
+            .blur(radius: blurRadius)
             .scaleEffect(scale)
             .offset(y: offsetY)
             .shadow(color: .black.opacity(lifted ? 0.5 : 0.0), radius: lifted ? 16 : 0, y: lifted ? 14 : 0)
