@@ -1003,10 +1003,14 @@ struct CDModelPreview: View {
     }
 
     @ViewBuilder private var content: some View {
+        // Colour/blur only for the Adaptive model — every other CD style
+        // has its own fixed material and must not pick up the live art's
+        // colour or blurred housing (was leaking into all of them).
         let view = CDWidgetView(
             model: model, isPreview: true, previewSpinning: animated,
             previewInfo: live.info, previewArt: live.art,
-            previewColours: live.colours, previewBlurredArt: live.blurredArt
+            previewColours: model.isAdaptive ? live.colours : nil,
+            previewBlurredArt: model.isAdaptive ? live.blurredArt : nil
         )
         if animated {
             view                       // live spin — don't flatten (drawingGroup re-rasterizes each frame)

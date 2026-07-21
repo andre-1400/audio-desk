@@ -18,6 +18,11 @@ struct CDMaterial {
     var subtitle: Color
     var isLight: Bool
     var translucent: Bool = false
+    /// Overrides `accent` for the transport buttons' centre (primary) cap
+    /// colour only. nil means "use accent" — every fixed-colour style keeps
+    /// its existing look. Adaptive sets this to a neutral colour so its
+    /// centre button doesn't take on the album's dominant hue.
+    var buttonAccent: Color? = nil
 }
 
 // MARK: - Archetype (device body)
@@ -181,7 +186,8 @@ extension CDMaterial {
             lcdBg: [darkest, darkest.adjustBrightness(-0.06)],
             lcd: dominant,
             subtitle: AdaptiveBody.secondary(dominant),
-            isLight: isLight
+            isLight: isLight,
+            buttonAccent: Color(hex: "eef1f6")
         )
     }
 }
@@ -747,8 +753,9 @@ struct CDPhysicalButton: View {
     // Glossy domed button (used by the special devices for now)
     private var digitalButton: some View {
         let d: CGFloat = primary ? 42 : 33
+        let primaryCap = material.buttonAccent ?? material.accent
         let capColors: [Color] = primary
-            ? [material.accent.adjustBrightness(0.18), material.accent, material.accent.adjustBrightness(-0.22)]
+            ? [primaryCap.adjustBrightness(0.18), primaryCap, primaryCap.adjustBrightness(-0.22)]
             : (material.isLight ? [Color(hex: "ffffff"), Color(hex: "e2e7ef"), Color(hex: "b6bfcc")]
                                 : [Color(hex: "4a525d"), Color(hex: "333a43"), Color(hex: "1a1e24")])
         let iconColor: Color = primary ? Color(hex: "07171c") : (material.isLight ? Color(hex: "3a414b") : Color(hex: "eef3f8"))
@@ -776,8 +783,9 @@ struct CDPhysicalButton: View {
         let w: CGFloat = primary ? 42 : 34
         let h: CGFloat = (primary ? 42 : 34) * 0.82
         let r: CGFloat = w * 0.30
+        let primaryCap = material.buttonAccent ?? material.accent
         let capColors: [Color] = primary
-            ? [material.accent.adjustBrightness(0.06), material.accent.adjustBrightness(-0.16)]
+            ? [primaryCap.adjustBrightness(0.06), primaryCap.adjustBrightness(-0.16)]
             : (material.isLight ? [Color(hex: "eef1f6"), Color(hex: "c4ccd7")]
                                 : [Color(hex: "464d57"), Color(hex: "262b32")])
         let iconColor: Color = primary

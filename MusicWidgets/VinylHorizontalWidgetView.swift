@@ -446,10 +446,14 @@ struct VinylHorizontalModelPreview: View {
     var body: some View {
         GeometryReader { geo in
             let s = min(geo.size.width / horizontalBaseSize.width, geo.size.height / horizontalBaseSize.height)
+            // Colour/blur only for the Adaptive model — every other style
+            // has its own fixed palette and must not pick up the live
+            // art's colour or blurred body.
             VinylHorizontalWidgetView(
                 model: model, isPreview: true,
                 previewInfo: live.info, previewArt: live.art,
-                previewColours: live.colours, previewBlurredArt: live.blurredArt
+                previewColours: model.themeID == .adaptive ? live.colours : nil,
+                previewBlurredArt: model.themeID == .adaptive ? live.blurredArt : nil
             )
                 .frame(width: horizontalBaseSize.width, height: horizontalBaseSize.height)
                 .scaleEffect(s)
