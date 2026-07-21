@@ -686,17 +686,61 @@ struct VinylWidgetView: View {
         }
 
         guard live.isPlaying else {
-            displayedNowPlaying = live
+            // Don't commit to "paused" yet. Spotify can report a track's new
+            // metadata a beat before its playback state catches up during a
+            // genuine auto-advance (verified by polling through several real
+            // track transitions — no paused/stopped tick ever showed there,
+            // so this is about our own read racing the state settling, not
+            // a state Spotify actually holds for long). Recheck shortly
+            // before showing anything, so a real skip-to-next-while-playing
+            // isn't shown stuck on the outgoing track's "paused" info.
+            let previousInfo = displayedNowPlaying
+            let previousArt = displayedAlbumArt
+            recheckPlaybackAfterTrackChange(
+                expectedIdentity: newValue,
+                fallbackInfo: live,
+                previousInfo: previousInfo,
+                previousArt: previousArt
+            )
             return
         }
 
+        beginSongSwitchTransition(from: displayedNowPlaying, fromArt: displayedAlbumArt, to: live)
+    }
+
+    /// Gives a possibly-stale "not playing" read a moment to settle before
+    /// treating a just-changed track as genuinely paused. If it turns out
+    /// to really be playing, runs the normal transition (using the track/art
+    /// that was on screen before this all started, not whatever's on screen
+    /// by the time this fires). If it's still not playing, commits to the
+    /// paused display then, not before.
+    private func recheckPlaybackAfterTrackChange(
+        expectedIdentity: String,
+        fallbackInfo: NowPlayingInfo,
+        previousInfo: NowPlayingInfo,
+        previousArt: NSImage?
+    ) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            // If the track identity has already moved on again, whatever
+            // handled that change owns the display now — don't clobber it.
+            guard trackIdentityKey == expectedIdentity else { return }
+            let recheck = detector.nowPlaying
+            if recheck.isPlaying {
+                beginSongSwitchTransition(from: previousInfo, fromArt: previousArt, to: recheck)
+            } else {
+                displayedNowPlaying = fallbackInfo
+            }
+        }
+    }
+
+    private func beginSongSwitchTransition(from previousInfo: NowPlayingInfo, fromArt: NSImage?, to live: NowPlayingInfo) {
         let resolvedIncomingArt = bufferedIncomingAlbumArt ?? artFetcher.albumArt
 
         let outgoingSnapshot = SongSwitchAnimator.TrackSnapshot(
-            trackName: displayedNowPlaying.trackName,
-            artistName: displayedNowPlaying.artistName,
-            albumName: displayedNowPlaying.albumName,
-            albumArt: displayedAlbumArt
+            trackName: previousInfo.trackName,
+            artistName: previousInfo.artistName,
+            albumName: previousInfo.albumName,
+            albumArt: fromArt
         )
 
         let incomingSnapshot = SongSwitchAnimator.TrackSnapshot(
