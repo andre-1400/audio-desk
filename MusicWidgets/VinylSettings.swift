@@ -36,6 +36,13 @@ final class WidgetSettings: ObservableObject {
     @Published var hideWhenPaused: Bool {
         didSet { UserDefaults.standard.set(hideWhenPaused, forKey: "widget.hideWhenPaused") }
     }
+    /// The vinyl widget's disc-lift/sleeve-eject track-change animation. When
+    /// off, the vinyl widget snaps straight to the next track and its
+    /// Adaptive colour, the same way the Vinyl Horizontal widget already
+    /// does (it has no sleeve mechanism to begin with).
+    @Published var vinylTransitionAnimationEnabled: Bool {
+        didSet { UserDefaults.standard.set(vinylTransitionAnimationEnabled, forKey: "widget.vinylTransitionAnimation") }
+    }
 
     private init() {
         notesEnabled = UserDefaults.standard.bool(forKey: "widget.notes.enabled")
@@ -45,6 +52,7 @@ final class WidgetSettings: ObservableObject {
         alwaysOnTop = UserDefaults.standard.bool(forKey: "widget.alwaysOnTop")
         clickThrough = UserDefaults.standard.bool(forKey: "widget.clickThrough")
         hideWhenPaused = UserDefaults.standard.bool(forKey: "widget.hideWhenPaused")
+        vinylTransitionAnimationEnabled = UserDefaults.standard.object(forKey: "widget.vinylTransitionAnimation") as? Bool ?? true
     }
 }
 

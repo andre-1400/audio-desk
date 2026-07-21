@@ -71,7 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // Live-update the active widget when size or notes settings change.
-        WidgetSizeManager.shared.$size
+        WidgetSizeManager.shared.$scale
             .receive(on: DispatchQueue.main).dropFirst()
             .sink { [weak self] _ in self?.relayoutActiveWidget() }
             .store(in: &globalCancellables)

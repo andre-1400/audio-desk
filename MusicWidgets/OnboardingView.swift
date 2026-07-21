@@ -409,7 +409,7 @@ struct OnboardingView: View {
 
     private func create() {
         // Sensible default; size & musical notes are adjustable later in Settings.
-        WidgetSizeManager.shared.size = .medium
+        WidgetSizeManager.shared.scale = WidgetSizeManager.defaultScale
         if type == .vinyl {
             AppDelegate.shared?.launchVinylWidget(themeID: vinylStyle)
         } else {

@@ -333,11 +333,8 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 16) {
 
                         // Appearance
-                        block(title: "Widget Size", subtitle: "How big the widget appears") {
-                            NeuSegmented(options: WidgetSize.allCases.map { $0.title },
-                                         selected: WidgetSize.allCases.firstIndex(of: sizeM.size) ?? 1) { i in
-                                sizeM.size = WidgetSize.allCases[i]
-                            }
+                        block(title: "Widget Size", subtitle: "Anywhere from icon-sized to over half the screen") {
+                            WidgetSizeSlider(scale: $sizeM.scale)
                         }
 
                         block(title: "Opacity", subtitle: "Let the widget blend into your wallpaper") {
@@ -368,6 +365,10 @@ struct SettingsView: View {
                                 toggleRow(icon: "moon.zzz", title: "Hide when paused",
                                           subtitle: "Fade out when nothing is playing",
                                           isOn: $settings.hideWhenPaused)
+                                divider
+                                toggleRow(icon: "record.circle", title: "Track-change animation",
+                                          subtitle: "Off: the vinyl widget snaps to the next song instantly",
+                                          isOn: $settings.vinylTransitionAnimationEnabled)
                             }
                         }
 
@@ -475,6 +476,24 @@ struct NeuSegmented: View {
     }
 }
 
+/// Continuous replacement for the old small/medium/large segmented control —
+/// a small glyph and a large glyph bookend the slider, same visual language
+/// as the opacity slider elsewhere in Settings.
+struct WidgetSizeSlider: View {
+    @Binding var scale: CGFloat
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "app").font(.system(size: 11))
+                .foregroundStyle(Neu.subtext)
+            Slider(value: $scale, in: WidgetSizeManager.minScale...WidgetSizeManager.maxScale)
+                .tint(AMTheme.accent)
+            Image(systemName: "app.fill").font(.system(size: 20))
+                .foregroundStyle(Neu.subtext)
+        }
+    }
+}
+
 // MARK: - Detail pane (grid + now playing)
 
 private struct GalleryDetail: View {
@@ -517,11 +536,8 @@ private struct GalleryDetail: View {
                     Text("SIZE")
                         .font(.system(size: 9.5, weight: .bold)).tracking(1.4)
                         .foregroundStyle(Neu.subtext.opacity(0.8))
-                    NeuSegmented(options: WidgetSize.allCases.map { $0.title },
-                                 selected: WidgetSize.allCases.firstIndex(of: sizeM.size) ?? 1) { i in
-                        sizeM.size = WidgetSize.allCases[i]
-                    }
-                    .frame(width: 230)
+                    WidgetSizeSlider(scale: $sizeM.scale)
+                        .frame(width: 190)
                 }
             }
             .padding(.horizontal, 34)

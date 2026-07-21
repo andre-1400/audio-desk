@@ -6,49 +6,55 @@ import Combine
 /// content are both derived from this so they always stay in sync.
 let baseWidgetSize = CGSize(width: 384, height: 516)
 
-/// User-selectable widget sizes. Persisted so the choice becomes the default
-/// on every launch (set from Settings while the widget is visible).
-enum WidgetSize: String, CaseIterable, Identifiable {
-    case small
-    case medium
-    case large
-
-    var id: String { rawValue }
-
-    var scale: CGFloat {
-        switch self {
-        case .small: return 0.82
-        case .medium: return 1.0
-        case .large: return 1.22
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .small: return "Small"
-        case .medium: return "Medium"
-        case .large: return "Large"
-        }
-    }
-}
-
+/// Continuous widget scale, replacing the old small/medium/large presets with
+/// a slider so the size can be dialled anywhere between "desktop icon" and
+/// "over half the screen." Persisted so it becomes the default on every launch.
 final class WidgetSizeManager: ObservableObject {
-    private let storageKey = "widget.size"
+    private let storageKey = "widget.scale"
+    private let legacyKey = "widget.size"   // old small/medium/large string
 
-    @Published var size: WidgetSize {
+    /// baseWidgetSize (384x516, vinyl's own base) at minScale is ~85x114 —
+    /// about the footprint of a Finder desktop icon + label. Every other
+    /// widget family's own base size scales by the same factor, so a wider
+    /// family (e.g. CD Hi-Fi at 560pt) reads larger still at the same
+    /// slider position, which is expected — the slider dials relative size,
+    /// not an absolute pixel target shared across every widget shape.
+    static let minScale: CGFloat = 0.22
+    /// At maxScale, vinyl (384pt base) is ~999pt wide — comfortably over
+    /// half the width of any common display — and CD Hi-Fi (560pt base)
+    /// reaches ~1456pt, well past it.
+    static let maxScale: CGFloat = 2.6
+    static let defaultScale: CGFloat = 1.0
+
+    @Published var scale: CGFloat {
         didSet {
-            guard oldValue != size else { return }
-            UserDefaults.standard.set(size.rawValue, forKey: storageKey)
+            guard oldValue != scale else { return }
+            UserDefaults.standard.set(Double(scale), forKey: storageKey)
         }
     }
-
-    var scale: CGFloat { size.scale }
 
     static let shared = WidgetSizeManager()
 
     init() {
-        let raw = UserDefaults.standard.string(forKey: "widget.size")
-        self.size = WidgetSize(rawValue: raw ?? "") ?? .medium
+        if UserDefaults.standard.object(forKey: storageKey) != nil {
+            let stored = CGFloat(UserDefaults.standard.double(forKey: storageKey))
+            self.scale = min(Self.maxScale, max(Self.minScale, stored))
+        } else if let legacy = UserDefaults.standard.string(forKey: legacyKey) {
+            // One-time migration from the old discrete small/medium/large
+            // setting, matching its previous fixed scale values, then drop
+            // the legacy key so this branch never runs again.
+            let migrated: CGFloat
+            switch legacy {
+            case "small": migrated = 0.82
+            case "large": migrated = 1.22
+            default: migrated = 1.0
+            }
+            self.scale = migrated
+            UserDefaults.standard.set(Double(migrated), forKey: storageKey)
+            UserDefaults.standard.removeObject(forKey: legacyKey)
+        } else {
+            self.scale = Self.defaultScale
+        }
     }
 }
 

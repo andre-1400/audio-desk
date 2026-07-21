@@ -832,6 +832,24 @@ struct VinylWidgetView: View {
     private func beginSongSwitchTransition(from previousInfo: NowPlayingInfo, fromArt: NSImage?, to live: NowPlayingInfo) {
         let resolvedIncomingArt = bufferedIncomingAlbumArt ?? artFetcher.albumArt
 
+        guard widgetSettings.vinylTransitionAnimationEnabled else {
+            // Animations off: snap straight to the next track instead of the
+            // disc-lift/sleeve-eject choreography — the same instant swap the
+            // Vinyl Horizontal widget already does (it has no sleeve
+            // mechanism to animate in the first place). Set the buffered art
+            // immediately so the body/colour update this instant rather than
+            // waiting on the fetch below, which still runs to catch cases
+            // where nothing was buffered yet.
+            displayedNowPlaying = live
+            displayedAlbumArt = resolvedIncomingArt
+            if let art = displayedAlbumArt {
+                themeManager.adaptiveColours = ColourExtractor.extract(from: art)
+                updateBlurredBodyArt(from: art)
+            }
+            refreshAlbumArt(forceRefresh: true, updateDisplayedArt: true)
+            return
+        }
+
         let outgoingSnapshot = SongSwitchAnimator.TrackSnapshot(
             trackName: previousInfo.trackName,
             artistName: previousInfo.artistName,
