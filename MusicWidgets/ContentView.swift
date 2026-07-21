@@ -919,8 +919,6 @@ private struct VinylWidgetReplica: View {
                         )
 
                     VinylBodyTexture(pattern: traits.pattern)
-
-                    cornerScrews
                 }
                 .frame(width: 320, height: 380)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -1180,45 +1178,46 @@ private struct VinylWidgetReplica: View {
         .frame(width: 90, height: 180)
     }
 
-    // MARK: Track info placeholder (status dot + title/artist bars)
+    // MARK: Track info placeholder (modern liquid-glass card, matching the live widget)
 
     private var trackInfoPlaceholder: some View {
-        VStack(spacing: 7) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(palette.trackPlayingDot)
-                    .frame(width: 6, height: 6)
+        VStack(spacing: 12) {
+            VStack(spacing: 5) {
                 RoundedRectangle(cornerRadius: 3)
                     .fill(palette.trackTitle.opacity(0.85))
                     .frame(width: 120, height: 9)
+                RoundedRectangle(cornerRadius: 2.5)
+                    .fill(palette.trackArtist.opacity(0.7))
+                    .frame(width: 78, height: 7)
             }
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(palette.trackArtist.opacity(0.7))
-                .frame(width: 78, height: 7)
+            HStack(spacing: 22) {
+                placeholderButton(size: 30)
+                placeholderButton(size: 38, prominent: true)
+                placeholderButton(size: 30)
+            }
         }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 18)
         .frame(maxWidth: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(colors: [.white.opacity(0.5), .white.opacity(0.05)],
+                                           startPoint: .topLeading, endPoint: .bottomTrailing),
+                            lineWidth: 1
+                        )
+                )
+        )
     }
 
-    // MARK: Corner screws
-
-    private var cornerScrews: some View {
-        GeometryReader { geo in
-            let inset: CGFloat = 13
-            screwDot.position(x: inset, y: inset)
-            screwDot.position(x: geo.size.width - inset, y: inset)
-            screwDot.position(x: inset, y: geo.size.height - inset)
-            screwDot.position(x: geo.size.width - inset, y: geo.size.height - inset)
-        }
-    }
-
-    private var screwDot: some View {
+    private func placeholderButton(size: CGFloat, prominent: Bool = false) -> some View {
         Circle()
-            .fill(
-                RadialGradient(colors: palette.screwGradient,
-                               center: UnitPoint(x: 0.35, y: 0.3), startRadius: 0, endRadius: 4.5)
-            )
-            .frame(width: 9, height: 9)
-            .shadow(color: .black.opacity(0.6), radius: 1.5, x: 0, y: 1)
+            .fill(prominent ? Color.white.opacity(0.94) : Color.white.opacity(0.14))
+            .overlay(Circle().strokeBorder(Color.white.opacity(prominent ? 0 : 0.22), lineWidth: 1))
+            .frame(width: size, height: size)
     }
 }
 

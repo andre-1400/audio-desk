@@ -269,8 +269,6 @@ struct VinylWidgetView: View {
                         )
 
                     VinylBodyTexture(pattern: traits.pattern)
-
-                    cornerScrews
                 }
                 .frame(width: 320, height: 380)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -296,7 +294,7 @@ struct VinylWidgetView: View {
                     .padding(.horizontal, 24)
                     .padding(.bottom, 14)
                 } else {
-                    trackInfo
+                    modernTrackPanel
                         .padding(.top, 16)
                         .padding(.horizontal, 24)
                         .padding(.bottom, 24)
@@ -528,6 +526,23 @@ struct VinylWidgetView: View {
     private func setWidgetBackgroundDraggingEnabled(_ enabled: Bool) {
         guard let window = NSApp.windows.first(where: { $0 is WidgetWindow }) else { return }
         window.isMovableByWindowBackground = enabled
+    }
+
+    // MARK: - Progress bar scrubbing (shares the tonearm's seek state so the
+    // tonearm visually follows a drag on the bar too).
+
+    private func handleProgressBarDrag(fraction: Double) {
+        guard canSeekWithTonearm else { return }
+        if !isTonearmSeeking {
+            setWidgetBackgroundDraggingEnabled(false)
+            isTonearmSeeking = true
+        }
+        pendingSeekProgress = min(tonearmMaxSeekProgress, max(0, fraction))
+    }
+
+    private func endProgressBarSeek() {
+        finishTonearmSeek(shouldCommit: true)
+        endTonearmGestureSession()
     }
 
     private func seekProgress(for location: CGPoint) -> Double {
@@ -1068,114 +1083,116 @@ struct VinylWidgetView: View {
         .frame(width: 90, height: 180)
     }
 
-    // MARK: - Track Info
+    // MARK: - Track Info (modern, liquid-glass panel)
 
-    private var trackInfo: some View {
-        VStack(spacing: 4) {
-            if !displayedNowPlaying.trackName.isEmpty {
-                HStack(spacing: 6) {
-                    PlayingPulseDot(
-                        isPlaying: displayedNowPlaying.isPlaying,
-                        positionMillis: displayedNowPlaying.positionMillis,
-                        progressSampledAt: displayedNowPlaying.progressSampledAt,
-                        playingColor: theme.trackPlayingDot,
-                        pausedColor: theme.trackPausedDot
-                    )
+    private var modernTrackPanel: some View {
+        VStack(spacing: 12) {
+            VStack(spacing: 2) {
+                Text(displayedNowPlaying.trackName.isEmpty ? "Nothing Playing" : displayedNowPlaying.trackName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(theme.trackTitle)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 
-                    Text(displayedNowPlaying.trackName)
-                        .font(.custom("Georgia", size: 13))
-                        .fontWeight(.bold)
-                        .foregroundColor(theme.trackTitle)
+                if !displayedNowPlaying.trackName.isEmpty {
+                    Text(displayedNowPlaying.artistName)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(theme.trackArtist)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
+            }
 
-                Text(displayedNowPlaying.artistName.uppercased())
-                    .font(.system(size: 10, weight: .regular))
-                    .foregroundColor(theme.trackArtist)
-                    .tracking(1)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            } else {
-                Text("NOTHING PLAYING")
-                    .font(.system(size: 10, weight: .regular))
-                    .foregroundColor(theme.trackIdle)
-                    .tracking(2)
+            if !displayedNowPlaying.trackName.isEmpty {
+                if canSeekWithTonearm {
+                    liquidProgressBar
+                }
+                liquidTransportControls
             }
         }
+        .padding(.vertical, 14)
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity)
+        .background(liquidGlassBackground)
     }
 
-    private struct PlayingPulseDot: View {
-        let isPlaying: Bool
-        let positionMillis: Int?
-        let progressSampledAt: Date?
-        let playingColor: Color
-        let pausedColor: Color
-
-        private let beatsPerSecond = 1.85
-
-        var body: some View {
-            TimelineView(.animation(paused: !isPlaying)) { context in
-                let intensity = pulseIntensity(at: context.date)
-                let baseOpacity = isPlaying ? 0.82 : 0.78
-                let pulseOpacity = isPlaying ? (0.10 * intensity) : 0
-                let highlightOpacity = isPlaying ? (0.24 * intensity) : 0
-
-                Circle()
-                    .fill(isPlaying ? playingColor : pausedColor)
-                    .frame(width: 6, height: 6)
-                    .opacity(baseOpacity + pulseOpacity)
-                    .overlay {
-                        Circle()
-                            .fill(Color.white)
-                            .opacity(highlightOpacity)
-                    }
-            }
-        }
-
-        private func pulseIntensity(at date: Date) -> Double {
-            guard isPlaying else { return 0 }
-
-            let sampledPosition = Double(positionMillis ?? 0) / 1000
-            let elapsed = progressSampledAt.map { max(0, date.timeIntervalSince($0)) } ?? 0
-            let estimatedPositionSeconds = sampledPosition + elapsed
-
-            let beatPhase = estimatedPositionSeconds * beatsPerSecond
-            let cycle = beatPhase - floor(beatPhase)
-
-            let primary = exp(-30 * cycle)
-            let secondaryDistance = abs(cycle - 0.44)
-            let secondary = exp(-85 * secondaryDistance)
-
-            return min(1.0, primary + (secondary * 0.24))
-        }
-    }
-
-    // MARK: - Corner Screws
-
-    private var cornerScrews: some View {
-        GeometryReader { geo in
-            let inset: CGFloat = 13
-            screwDot.position(x: inset, y: inset)
-            screwDot.position(x: geo.size.width - inset, y: inset)
-            screwDot.position(x: inset, y: geo.size.height - inset)
-            screwDot.position(x: geo.size.width - inset, y: geo.size.height - inset)
-        }
-    }
-
-    private var screwDot: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: theme.screwGradient,
-                    center: UnitPoint(x: 0.35, y: 0.3),
-                    startRadius: 0,
-                    endRadius: 4.5
-                )
+    private var liquidGlassBackground: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(colors: [.white.opacity(0.5), .white.opacity(0.05)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing),
+                        lineWidth: 1
+                    )
             )
-            .frame(width: 9, height: 9)
-            .shadow(color: .black.opacity(0.6), radius: 1.5, x: 0, y: 1)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(
+                        LinearGradient(colors: [Color.white.opacity(0.10), .clear],
+                                       startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.6))
+                    )
+            )
+            .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
     }
+
+    private var liquidProgressBar: some View {
+        TimelineView(.periodic(from: .now, by: 0.25)) { context in
+            let fraction = isTonearmSeeking ? (pendingSeekProgress ?? 0) : (playbackProgress(at: context.date) ?? 0)
+            GeometryReader { geo in
+                let width = geo.size.width
+                let knobX = min(width - 5, max(5, width * fraction))
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.22)).frame(height: 4)
+                    Capsule().fill(theme.trackPlayingDot).frame(width: max(4, width * fraction), height: 4)
+                    Circle().fill(Color.white)
+                        .frame(width: 10, height: 10)
+                        .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                        .position(x: knobX, y: 8)
+                }
+                .frame(height: 16)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            handleProgressBarDrag(fraction: value.location.x / width)
+                        }
+                        .onEnded { _ in
+                            endProgressBarSeek()
+                        }
+                )
+            }
+            .frame(height: 16)
+        }
+    }
+
+    private var liquidTransportControls: some View {
+        HStack(spacing: 22) {
+            liquidButton(icon: "backward.fill", size: 14) { detector.previousTrack() }
+            liquidButton(icon: displayedNowPlaying.isPlaying ? "pause.fill" : "play.fill", size: 16, prominent: true) {
+                detector.togglePlayback()
+            }
+            liquidButton(icon: "forward.fill", size: 14) { detector.nextTrack() }
+        }
+    }
+
+    private func liquidButton(icon: String, size: CGFloat, prominent: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(prominent ? Color.white.opacity(0.94) : Color.white.opacity(0.14))
+                    .overlay(Circle().strokeBorder(Color.white.opacity(prominent ? 0 : 0.22), lineWidth: 1))
+                    .frame(width: prominent ? 38 : 30, height: prominent ? 38 : 30)
+                    .shadow(color: .black.opacity(prominent ? 0.28 : 0), radius: 4, y: 2)
+                Image(systemName: icon)
+                    .font(.system(size: size, weight: .semibold))
+                    .foregroundStyle(prominent ? Color.black.opacity(0.85) : theme.trackTitle)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
 }
 
 private struct TonearmInteractionCaptureView: NSViewRepresentable {
