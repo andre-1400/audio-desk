@@ -26,7 +26,8 @@ struct VinylHorizontalModel: Identifiable {
     static let all: [VinylHorizontalModel] = [
         VinylHorizontalModel(id: "hbar-classic", name: "Classic", subtitle: "Warm wood & gold", themeID: .default),
         VinylHorizontalModel(id: "hbar-obsidian", name: "Obsidian", subtitle: "Jet black & chrome", themeID: .obsidian),
-        VinylHorizontalModel(id: "hbar-walnut", name: "Walnut", subtitle: "Audiophile wood deck", themeID: .walnut)
+        VinylHorizontalModel(id: "hbar-walnut", name: "Walnut", subtitle: "Audiophile wood deck", themeID: .walnut),
+        VinylHorizontalModel(id: "hbar-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", themeID: .adaptive)
     ]
 }
 
@@ -52,8 +53,11 @@ struct VinylHorizontalWidgetView: View {
     @State private var lastObservedTrackIdentity: String = ""
     @State private var hasSeenInitialTrackIdentity = false
     @State private var discPulseScale: Double = 1.0
+    @State private var extractedColours: ExtractedColours = .fallback
 
-    private var theme: WidgetThemePalette { model.themeID.palette }
+    private var theme: WidgetThemePalette {
+        model.themeID == .adaptive ? WidgetThemeID.adaptivePalette(from: extractedColours) : model.themeID.palette
+    }
     private var np: NowPlayingInfo { displayedInfo }
 
     private var trackIdentityKey: String {
@@ -163,6 +167,9 @@ struct VinylHorizontalWidgetView: View {
             guard let image else { return }
             withAnimation(.easeInOut(duration: 0.3)) {
                 displayedArt = image
+            }
+            if model.themeID == .adaptive {
+                extractedColours = ColourExtractor.extract(from: image)
             }
         }
     }

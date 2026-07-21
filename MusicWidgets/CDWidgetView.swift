@@ -49,6 +49,9 @@ struct CDModel: Identifiable {
     let subtitle: String
     let archetype: CDArchetype
     let material: CDMaterial
+    /// When true, CDWidgetView ignores `material` and derives colours live
+    /// from the currently playing album's art instead.
+    var isAdaptive: Bool = false
 
     static let all: [CDModel] = [
         // ===== Discman (portable) — 10 colours =====
@@ -81,7 +84,11 @@ struct CDModel: Identifiable {
         CDModel(id: "boombox-teal",       name: "Teal",      subtitle: "Retro teal",          archetype: .boombox,     material: .teal),
         CDModel(id: "boombox-skyblue",    name: "Sky Blue",  subtitle: "Powder blue",         archetype: .boombox,     material: .skyblue),
         CDModel(id: "boombox-plum",       name: "Plum",      subtitle: "Deep purple",         archetype: .boombox,     material: .plum),
-        CDModel(id: "boombox-sunset",     name: "Sunset",    subtitle: "Coral & cream",       archetype: .boombox,     material: .sunset)
+        CDModel(id: "boombox-sunset",     name: "Sunset",    subtitle: "Coral & cream",       archetype: .boombox,     material: .sunset),
+
+        // ===== Adaptive — colour follows whatever's playing =====
+        CDModel(id: "discman-adaptive", name: "Adaptive", subtitle: "Matches the album art, live",
+                archetype: .discman, material: .adaptivePlaceholder, isAdaptive: true)
     ]
 }
 
@@ -98,11 +105,13 @@ struct CDForm: Identifiable {
 extension CDModel {
     static let forms: [CDForm] = [
         CDForm(id: "discman", name: "Discman", subtitle: "Portable pocket player", icon: "opticaldisc",
-               models: all.filter { $0.archetype == .discman || $0.archetype == .translucent }),
+               models: all.filter { ($0.archetype == .discman || $0.archetype == .translucent) && !$0.isAdaptive }),
         CDForm(id: "hifi", name: "Hi-Fi Deck", subtitle: "Component shelf unit", icon: "hifispeaker",
                models: all.filter { $0.archetype == .hifi }),
         CDForm(id: "boombox", name: "Boombox", subtitle: "Twin-speaker portable", icon: "radio",
-               models: all.filter { $0.archetype == .boombox })
+               models: all.filter { $0.archetype == .boombox }),
+        CDForm(id: "adaptive", name: "Adaptive", subtitle: "Colour follows what's playing", icon: "paintpalette.fill",
+               models: all.filter { $0.isAdaptive })
     ]
 }
 
@@ -344,6 +353,36 @@ extension CDMaterial {
         panel: [Color(hex: "e0824e"), Color(hex: "c05e2c")],
         lcdBg: [Color(hex: "3a1608"), Color(hex: "260e04")], lcd: Color(hex: "ffcf9a"),
         subtitle: Color(hex: "ffe2c8"), isLight: false)
+
+    // MARK: Adaptive — colour tracks the currently playing album's art.
+    // Neutral chrome ring, same as every other material (a real CD's clamp
+    // ring doesn't change colour with the disc), everything else derived.
+
+    /// Static stand-in the model needs a `material` value for; never actually
+    /// rendered — CDWidgetView swaps to `.adaptive(from:)` whenever
+    /// `model.isAdaptive` is true. This exists only for gallery previews /
+    /// contexts with no live playback data.
+    static let adaptivePlaceholder = adaptive(from: .fallback)
+
+    static func adaptive(from colours: ExtractedColours) -> CDMaterial {
+        let dominant = colours.dominant
+        let secondary = colours.secondary
+        let darkest = secondary.adjustBrightness(-0.12)
+        let isLight = dominant.isPerceivedLight
+        return CDMaterial(
+            housing: [dominant, secondary, darkest],
+            ring: [Color(hex: "f0f2f6"), Color(hex: "b0b6c0"), Color(hex: "5a606a"), Color(hex: "d6dce4")],
+            accent: dominant,
+            lidTint: darkest,
+            lidOpacity: 0.28,
+            well: [darkest, darkest.adjustBrightness(-0.08)],
+            panel: [secondary, darkest],
+            lcdBg: [darkest, darkest.adjustBrightness(-0.06)],
+            lcd: dominant,
+            subtitle: isLight ? secondary : dominant.adjustBrightness(0.28),
+            isLight: isLight
+        )
+    }
 }
 
 // MARK: - Phase machine
@@ -427,12 +466,13 @@ struct CDWidgetView: View {
     @State private var incomingArt: NSImage? = nil
     @State private var lastTrackKey: String = ""
     @State private var optimisticPlaying: Bool? = nil
+    @State private var extractedColours: ExtractedColours = .fallback
 
     @ObservedObject private var settings = WidgetSettings.shared
 
     private let maxSpinSpeed: Double = 2200   // real CDs spin fast — art blurs
 
-    private var mat: CDMaterial { model.material }
+    private var mat: CDMaterial { model.isAdaptive ? .adaptive(from: extractedColours) : model.material }
     private var np: NowPlayingInfo { detector.nowPlaying }
     private var playing: Bool { optimisticPlaying ?? np.isPlaying }
     private var trackKey: String { "\(np.trackName)|\(np.artistName)|\(np.albumName)" }
@@ -795,18 +835,27 @@ struct CDWidgetView: View {
             artFetcher.fetchArt(from: url, trackKey: newKey, forceRefresh: true) { image in self.incomingArt = image }
         } else { incomingArt = nil }
         if displayedArt != nil || !np.trackName.isEmpty {
-            transition.onReveal = { self.displayedArt = self.incomingArt }
-            transition.onComplete = { self.displayedArt = self.incomingArt ?? self.displayedArt }
+            transition.onReveal = { self.displayedArt = self.incomingArt; self.updateAdaptiveColoursIfNeeded() }
+            transition.onComplete = { self.displayedArt = self.incomingArt ?? self.displayedArt; self.updateAdaptiveColoursIfNeeded() }
             transition.start()
-        } else { displayedArt = incomingArt }
+        } else { displayedArt = incomingArt; updateAdaptiveColoursIfNeeded() }
     }
 
     private func fetchArt(_ url: String?, commitImmediately: Bool = false) {
         guard let url, !url.isEmpty else { return }
         artFetcher.fetchArt(from: url, trackKey: trackKey, forceRefresh: false) { image in
-            if commitImmediately || !transition.isAnimating { self.displayedArt = image }
-            else { self.incomingArt = image }
+            if commitImmediately || !transition.isAnimating {
+                self.displayedArt = image
+                self.updateAdaptiveColoursIfNeeded()
+            } else { self.incomingArt = image }
         }
+    }
+
+    /// Adaptive material: derive live colours whenever the resting disc's
+    /// art changes. No-op unless model.isAdaptive.
+    private func updateAdaptiveColoursIfNeeded() {
+        guard model.isAdaptive, let art = displayedArt else { return }
+        extractedColours = ColourExtractor.extract(from: art)
     }
 }
 

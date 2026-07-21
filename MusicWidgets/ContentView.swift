@@ -851,6 +851,10 @@ extension VinylStyle {
                     VinylStyle(themeID: .tweed,   name: "Tweed",   subtitle: "Tweed radiogram"),
                     VinylStyle(themeID: .boombox, name: "Blaze",   subtitle: "Black & orange deck"),
                     VinylStyle(themeID: .mustard, name: "Mustard", subtitle: "70s golden yellow")
+                  ]),
+        VinylForm(id: "adaptive", name: "Adaptive", subtitle: "Colour follows what's playing", icon: "paintpalette.fill",
+                  styles: [
+                    VinylStyle(themeID: .adaptive, name: "Adaptive", subtitle: "Matches the album art, live")
                   ])
     ]
 

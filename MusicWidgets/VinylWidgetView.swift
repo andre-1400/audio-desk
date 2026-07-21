@@ -366,6 +366,11 @@ struct VinylWidgetView: View {
         .onChange(of: trackIdentityKey) { oldValue, newValue in
             handleTrackIdentityChange(oldValue: oldValue, newValue: newValue)
         }
+        // Adaptive theme: keep the manager's live colour in sync whenever the
+        // extracted palette changes. Harmless no-op unless themeID == .adaptive.
+        .onChange(of: extractedColours) { _, newValue in
+            themeManager.adaptiveColours = newValue
+        }
         .onChange(of: detector.nowPlaying) { _, live in
             updateDisplayedPlaybackState(from: live)
         }

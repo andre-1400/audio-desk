@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-struct ExtractedColours {
+struct ExtractedColours: Equatable {
     let dominant: Color
     let secondary: Color
 
@@ -9,6 +9,16 @@ struct ExtractedColours {
         dominant: Color(hex: "9B5523"),
         secondary: Color(hex: "3a1a06")
     )
+}
+
+extension Color {
+    /// Perceived (luma) brightness 0...1, used to pick readable text colour
+    /// against a colour we don't control (e.g. Adaptive mode's album-art tint).
+    var perceivedBrightness: Double {
+        let ns = NSColor(self).usingColorSpace(.deviceRGB) ?? NSColor(self)
+        return Double(ns.redComponent) * 0.299 + Double(ns.greenComponent) * 0.587 + Double(ns.blueComponent) * 0.114
+    }
+    var isPerceivedLight: Bool { perceivedBrightness > 0.58 }
 }
 
 enum ColourExtractor {

@@ -33,6 +33,8 @@ enum WidgetThemeID: String, CaseIterable {
     case lavender = "lavender"
     case copper = "copper"
     case minimalSage = "minimalSage"
+    // Live — colours track whatever's currently playing instead of a fixed palette
+    case adaptive = "adaptive"
 
     static func fromPersisted(_ value: String?) -> WidgetThemeID {
         guard let value,
@@ -511,7 +513,70 @@ extension WidgetThemeID {
                 screw: ["000000", "000000", "000000"], dark: true, showBody: false
             )
 
+        // MARK: Adaptive — body colour tracks the currently playing album's
+        // art instead of a fixed palette. This static branch (fallback
+        // colours) only fires for contexts with no live data, e.g. the
+        // gallery preview card; the live widget gets its colours from
+        // WidgetThemeID.adaptivePalette(from:) via WidgetThemeManager instead.
+        case .adaptive:
+            return WidgetThemeID.adaptivePalette(from: .fallback)
+
         }
+    }
+}
+
+// MARK: - Adaptive palette (live, built from the playing album's colours)
+
+extension WidgetThemeID {
+    static func adaptivePalette(from colours: ExtractedColours) -> WidgetThemePalette {
+        let dominant = colours.dominant
+        let secondary = colours.secondary
+        let darkest = secondary.adjustBrightness(-0.12)
+        let isLight = dominant.isPerceivedLight
+
+        let title: Color = isLight ? Color.black.opacity(0.86) : .white
+        let artist: Color = isLight ? Color.black.opacity(0.58) : Color.white.opacity(0.7)
+        let idle: Color = isLight ? Color.black.opacity(0.38) : Color.white.opacity(0.45)
+
+        let bodyColors = [dominant, secondary, darkest, secondary]
+        let labelColors = [dominant, secondary, darkest]
+
+        return WidgetThemePalette(
+            showBody: true,
+            showBodyTexture: false,
+            widgetBodyGradient: bodyColors,
+            widgetBorder: dominant.opacity(0.20),
+            widgetTopSheen: dominant.opacity(0.13),
+            albumArtLabelGradient: labelColors,
+            albumArtRingColor: dominant.opacity(0.34),
+            trackPlayingDot: dominant,
+            trackPausedDot: secondary,
+            trackTitle: title,
+            trackArtist: artist,
+            trackIdle: idle,
+            screwGradient: [dominant.opacity(0.9), secondary, darkest],
+            shelfButtonBackground: darkest,
+            shelfButtonRing: dominant,
+            shelfButtonIcon: dominant,
+            shelfPanelGradient: [dominant, secondary, darkest],
+            shelfOutline: dominant.opacity(0.11),
+            queueBarText: title,
+            queueBarBackground: darkest,
+            queueBarBorder: dominant.opacity(0.09),
+            connectOverlayIcon: secondary,
+            connectOverlayTitle: title,
+            connectOverlaySubtitle: artist,
+            connectOverlayBackground: secondary,
+            connectOverlayBorder: dominant.opacity(0.11),
+            sleeveCardGradient: [dominant, secondary, darkest],
+            sleeveCardBorder: dominant.opacity(0.11),
+            sleeveNowText: title,
+            sleeveNowBackground: darkest,
+            sleevePlaceholderOuter: secondary,
+            sleevePlaceholderMiddle: darkest,
+            sleevePlaceholderInner: dominant,
+            sleevePlaceholderLetter: artist
+        )
     }
 }
 
@@ -578,8 +643,14 @@ final class WidgetThemeManager: ObservableObject {
     @Published private(set) var themeID: WidgetThemeID
     @Published private(set) var customTheme: WidgetThemePalette?
     @Published private(set) var customThemeName: String?
+    /// Pushed live by VinylWidgetView whenever the displayed album art
+    /// changes; only consulted when themeID == .adaptive.
+    @Published var adaptiveColours: ExtractedColours = .fallback
 
-    var palette: WidgetThemePalette { customTheme ?? themeID.palette }
+    var palette: WidgetThemePalette {
+        if themeID == .adaptive { return WidgetThemeID.adaptivePalette(from: adaptiveColours) }
+        return customTheme ?? themeID.palette
+    }
     var isUsingCustomTheme: Bool { customTheme != nil }
 
     init(initialThemeID: String? = UserDefaults.standard.string(forKey: "onboarding.theme")) {
