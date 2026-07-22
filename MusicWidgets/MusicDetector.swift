@@ -447,18 +447,21 @@ final class MusicDetector: ObservableObject {
       set artistName to artist of current track
       set albumName to album of current track
       set artworkURL to artwork url of current track
+      -- Spotify's own scripting dictionary is asymmetric: "player position"
+      -- is a real number of SECONDS (needs *1000), but "duration" is already
+      -- an integer of MILLISECONDS. A previous version guessed at this with
+      -- a magnitude heuristic (durationValue > 86400) instead of just
+      -- trusting the dictionary — which silently multiplied by 1000 a
+      -- second time for any track under ~86 seconds, producing an
+      -- absurd remaining-time readout (e.g. a 33-second track showing
+      -- "-555:36" remaining). Duration needs no conversion at all.
       set positionMillis to ""
       try
         set positionMillis to ((((player position) as real) * 1000) as integer) as text
       end try
       set durationMillis to ""
       try
-        set durationValue to duration of current track
-        if durationValue > 86400 then
-          set durationMillis to (durationValue as integer) as text
-        else
-          set durationMillis to ((((durationValue as real) * 1000) as integer) as text)
-        end if
+        set durationMillis to (duration of current track) as integer as text
       end try
       if player state is playing then
         return trackName & "|" & artistName & "|" & albumName & "|" & artworkURL & "|playing|" & positionMillis & "|" & durationMillis

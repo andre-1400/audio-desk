@@ -45,6 +45,9 @@ private let hDiscContainerSize: CGFloat = 130
 struct VinylHorizontalWidgetView: View {
     let model: VinylHorizontalModel
     var isPreview: Bool = false
+    // Gallery hover state (only meaningful when isPreview) — spins the disc
+    // for a preview the same way every other vinyl style does.
+    var animated: Bool = false
     // Real playing-track data for the gallery preview, threaded down from
     // GalleryLiveTrack. Only ever read when isPreview.
     var previewInfo: NowPlayingInfo? = nil
@@ -60,6 +63,14 @@ struct VinylHorizontalWidgetView: View {
     @State private var lastObservedTrackIdentity: String = ""
     @State private var hasSeenInitialTrackIdentity = false
     @State private var discPulseScale: Double = 1.0
+
+    // MARK: - Progress-bar scrubbing (mirrors VinylWidgetView's own scheme,
+    // duplicated rather than shared per this file's existing convention of
+    // keeping this widget self-contained).
+    @State private var isScrubbing = false
+    @State private var scrubProgress: Double = 0
+    @State private var seekHandoffUntil: Date?
+    private let seekHandoffSuppressionDuration = 0.45
     // Only ever read for the Adaptive model (see `theme` below), so this
     // initial value only matters for Adaptive: neutral grey/white rather
     // than the generic extraction-failure fallback, so the gallery/initial
@@ -152,6 +163,7 @@ struct VinylHorizontalWidgetView: View {
         }
         .onChange(of: detector.nowPlaying) { _, live in
             guard !isPreview else { return }
+            guard !shouldSuppressSeekHandoffUpdate(from: live) else { return }
             displayedInfo = live
         }
         .onChange(of: detector.nowPlaying.albumArtURL) { _, newURL in
@@ -176,6 +188,7 @@ struct VinylHorizontalWidgetView: View {
         }
         if oldValue == newValue || lastObservedTrackIdentity == newValue { return }
         lastObservedTrackIdentity = newValue
+        seekHandoffUntil = nil
 
         let live = detector.nowPlaying
         guard !live.trackName.isEmpty else {
@@ -235,15 +248,21 @@ struct VinylHorizontalWidgetView: View {
         let discRadius = discSize / 2
         return ZStack {
             SpinningVinylView(
-                // Preview cards never spin the disc — no hover-spin gate
-                // exists for this widget type, so if a real track happens
-                // to be playing this would otherwise animate every visible
-                // card continuously, all at once.
-                isPlaying: isPreview ? false : displayedInfo.isPlaying,
+                // Preview cards spin on hover, exactly like every other
+                // vinyl style's gallery card (animated == hovered, threaded
+                // in from GalleryCard); the live desktop widget spins from
+                // actual playback state instead.
+                isPlaying: isPreview ? animated : displayedInfo.isPlaying,
                 albumArt: effectiveArt,
                 vinylTint: theme.albumArtLabelGradient.first ?? Color(hex: "9B5523"),
                 albumArtLabelGradient: theme.albumArtLabelGradient,
-                albumArtRingColor: theme.albumArtRingColor
+                albumArtRingColor: theme.albumArtRingColor,
+                // Bigger album-art label than SpinningVinylView's 96pt
+                // default — matches the main vertical widget's own 125pt
+                // (same proportion of the 272pt disc, scaled down together
+                // with everything else via hDiscScale below), so the art is
+                // actually visible instead of a small dot at disc-centre.
+                labelDiameter: 125
             )
             .scaleEffect(hDiscScale)
             .frame(width: discSize, height: discSize)
@@ -390,25 +409,140 @@ struct VinylHorizontalWidgetView: View {
 
     private var progressRow: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { context in
-            let fraction = progressFraction(at: context.date)
+            let duration = np.durationMillis ?? 0
+            let fraction = isScrubbing ? scrubProgress : progressFraction(at: context.date)
+            let elapsed = isScrubbing ? Int(scrubProgress * Double(duration)) : elapsedMillis(at: context.date)
+            let remaining = max(0, duration - elapsed)
             HStack(spacing: 8) {
-                Text(formatTime(elapsedMillis(at: context.date)))
+                Text(formatTime(elapsed))
                     .font(.system(size: 9.5, weight: .medium, design: .monospaced))
                     .foregroundStyle(fgSecondary)
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(fgSecondary.opacity(0.25))
-                        Capsule().fill(fgPrimary)
-                            .frame(width: geo.size.width * fraction)
-                    }
-                }
-                .frame(height: 3)
-                Text("-" + formatTime(remainingMillis(at: context.date)))
+                scrubBar(fraction: fraction)
+                Text("-" + formatTime(remaining))
                     .font(.system(size: 9.5, weight: .medium, design: .monospaced))
                     .foregroundStyle(fgSecondary)
             }
         }
         .frame(maxWidth: .infinity)
+        .opacity(hasProgressData ? 1 : 0)
+    }
+
+    /// A thicker invisible hit-area than the visible bar (18pt vs 3pt),
+    /// same proportions as VinylWidgetView's own scrub bar, so it's
+    /// actually easy to grab. An NSView capture, not a SwiftUI DragGesture:
+    /// the widget window is movable-by-background, and AppKit decides that
+    /// at mouse-down — too early for a gesture callback to veto, which is
+    /// the exact bug already fixed once for the main vinyl widget's own bar.
+    private func scrubBar(fraction: Double) -> some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            ZStack(alignment: .leading) {
+                Capsule().fill(fgSecondary.opacity(0.25)).frame(height: isScrubbing ? 5 : 3)
+                Capsule().fill(fgPrimary).frame(width: max(2, width * fraction), height: isScrubbing ? 5 : 3)
+                Circle()
+                    .fill(fgPrimary)
+                    .frame(width: 9, height: 9)
+                    .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                    .offset(x: min(width - 9, max(0, width * fraction - 4.5)))
+                    .opacity(isScrubbing ? 1 : 0)
+            }
+            .frame(height: 18)
+            .overlay(
+                HScrubDragCaptureView(
+                    onBegan: { handleScrubDrag(fraction: $0.x / width) },
+                    onMoved: { handleScrubDrag(fraction: $0.x / width) },
+                    onEnded: {
+                        handleScrubDrag(fraction: $0.x / width)
+                        commitScrub()
+                    },
+                    onCancelled: { endScrubSession() }
+                )
+            )
+        }
+        .frame(height: 18)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
+    }
+
+    /// Enough info to draw the bar, independent of whether seeking is
+    /// currently permitted (mirrors VinylWidgetView's hasProgressData).
+    private var hasProgressData: Bool {
+        !np.trackName.isEmpty && (np.durationMillis ?? 0) > 0
+    }
+
+    /// Enough info, and a permissible state, to actually seek.
+    private var canSeek: Bool {
+        !isPreview &&
+            !displayedInfo.trackName.isEmpty &&
+            displayedInfo.source != .none &&
+            (displayedInfo.durationMillis ?? 0) > 0
+    }
+
+    private func handleScrubDrag(fraction: Double) {
+        guard canSeek else { return }
+        if !isScrubbing {
+            setWidgetBackgroundDraggingEnabled(false)
+            isScrubbing = true
+        }
+        scrubProgress = min(1, max(0, fraction))
+    }
+
+    private func commitScrub() {
+        defer { endScrubSession() }
+        guard isScrubbing else { return }
+        commitSeek(toProgress: scrubProgress)
+    }
+
+    private func endScrubSession() {
+        isScrubbing = false
+        setWidgetBackgroundDraggingEnabled(true)
+    }
+
+    private func setWidgetBackgroundDraggingEnabled(_ enabled: Bool) {
+        guard let window = NSApp.windows.first(where: { $0 is WidgetWindow }) else { return }
+        window.isMovableByWindowBackground = enabled
+    }
+
+    /// Optimistically move the displayed position so the UI doesn't snap
+    /// back while the player catches up, then tell the player.
+    private func commitSeek(toProgress progress: Double) {
+        guard canSeek, let durationMillis = displayedInfo.durationMillis else { return }
+
+        let targetMillis = Int((progress * Double(durationMillis)).rounded())
+        let sampledAt = displayedInfo.isPlaying ? Date() : nil
+        seekHandoffUntil = Date().addingTimeInterval(seekHandoffSuppressionDuration)
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            displayedInfo = NowPlayingInfo(
+                trackName: displayedInfo.trackName,
+                artistName: displayedInfo.artistName,
+                albumName: displayedInfo.albumName,
+                albumArtURL: displayedInfo.albumArtURL,
+                isPlaying: displayedInfo.isPlaying,
+                source: displayedInfo.source,
+                positionMillis: targetMillis,
+                durationMillis: displayedInfo.durationMillis,
+                progressSampledAt: sampledAt
+            )
+        }
+        detector.seek(toMillis: targetMillis)
+    }
+
+    /// Suppresses exactly one stale post-seek poll from snapping the
+    /// optimistic position back down before the player's own seek lands.
+    private func shouldSuppressSeekHandoffUpdate(from live: NowPlayingInfo) -> Bool {
+        guard let seekHandoffUntil else { return false }
+        let now = Date()
+        guard now < seekHandoffUntil else {
+            self.seekHandoffUntil = nil
+            return false
+        }
+        if live.isPlaying != displayedInfo.isPlaying {
+            self.seekHandoffUntil = nil
+            return false
+        }
+        return true
     }
 
     private func elapsedMillis(at date: Date) -> Int {
@@ -437,6 +571,80 @@ struct VinylHorizontalWidgetView: View {
     }
 }
 
+/// Raw AppKit drag surface backing the scrub bar — duplicated from
+/// VinylWidgetView's own (private, file-scoped) DragCaptureView rather than
+/// shared, per this file's existing convention of keeping this widget
+/// self-contained.
+private struct HScrubDragCaptureView: NSViewRepresentable {
+    var onBegan: (CGPoint) -> Void
+    var onMoved: (CGPoint) -> Void
+    var onEnded: (CGPoint) -> Void
+    var onCancelled: () -> Void
+
+    func makeNSView(context: Context) -> CaptureView {
+        let view = CaptureView()
+        view.onBegan = onBegan
+        view.onMoved = onMoved
+        view.onEnded = onEnded
+        view.onCancelled = onCancelled
+        return view
+    }
+
+    func updateNSView(_ nsView: CaptureView, context: Context) {
+        nsView.onBegan = onBegan
+        nsView.onMoved = onMoved
+        nsView.onEnded = onEnded
+        nsView.onCancelled = onCancelled
+    }
+
+    final class CaptureView: NSView {
+        var onBegan: ((CGPoint) -> Void)?
+        var onMoved: ((CGPoint) -> Void)?
+        var onEnded: ((CGPoint) -> Void)?
+        var onCancelled: (() -> Void)?
+
+        private var isTrackingPress = false
+
+        override var isFlipped: Bool { true }
+        override var mouseDownCanMoveWindow: Bool { false }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            bounds.contains(point) ? self : nil
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            isTrackingPress = true
+            window?.isMovableByWindowBackground = false
+            onBegan?(localPoint(from: event))
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard isTrackingPress else { return }
+            onMoved?(localPoint(from: event))
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            guard isTrackingPress else { return }
+            isTrackingPress = false
+            onEnded?(localPoint(from: event))
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            if newWindow == nil, isTrackingPress {
+                isTrackingPress = false
+                onCancelled?()
+            }
+            super.viewWillMove(toWindow: newWindow)
+        }
+
+        private func localPoint(from event: NSEvent) -> CGPoint {
+            convert(event.locationInWindow, from: nil)
+        }
+    }
+}
+
 // MARK: - Sized root (applies the global small/medium/large scale)
 
 struct VinylHorizontalSizedRoot: View {
@@ -455,6 +663,7 @@ struct VinylHorizontalSizedRoot: View {
 
 struct VinylHorizontalModelPreview: View {
     let model: VinylHorizontalModel
+    var animated: Bool = false
     @ObservedObject var live: GalleryLiveTrack = GalleryLiveTrack()
 
     var body: some View {
@@ -464,7 +673,7 @@ struct VinylHorizontalModelPreview: View {
             // has its own fixed palette and must not pick up the live
             // art's colour or blurred body.
             VinylHorizontalWidgetView(
-                model: model, isPreview: true,
+                model: model, isPreview: true, animated: animated,
                 previewInfo: live.info, previewArt: live.art,
                 previewColours: model.themeID == .adaptive ? live.colours : nil,
                 previewBlurredArt: model.themeID == .adaptive ? live.blurredArt : nil

@@ -664,8 +664,8 @@ private struct GalleryDetail: View {
                                             } else {
                                                 AppDelegate.shared?.launchVinylHorizontalWidget(model: model)
                                             }
-                                        }) { _ in
-                                VinylHorizontalModelPreview(model: model, live: liveTrack)
+                                        }) { animated in
+                                VinylHorizontalModelPreview(model: model, animated: animated, live: liveTrack)
                             }
                         }
                     } else if category == .cd {
@@ -1438,7 +1438,12 @@ private struct VinylWidgetReplica: View {
             }
 
             TimelineView(.animation(paused: !spinning)) { ctx in
-                let a = spinning ? (ctx.date.timeIntervalSinceReferenceDate * 132).truncatingRemainder(dividingBy: 360) : 0
+                // 30°/s = 5 RPM — must match SpinningVinylView's own
+                // degreesPerSecond exactly. This replica draws its own
+                // rotation independently (doesn't share that view), and a
+                // stale hardcoded 132°/s here (4.4x too fast) was left
+                // behind after the real widget's spin speed was tuned down.
+                let a = spinning ? (ctx.date.timeIntervalSinceReferenceDate * 30).truncatingRemainder(dividingBy: 360) : 0
                 ZStack {
                     vinylDisc
                     albumArtLabel
