@@ -989,6 +989,7 @@ private struct CustomColorSheetView: View {
     }
 
     private func place() {
+        customColors.recordPlaced(binding.wrappedValue)
         switch target {
         case .vinyl:
             AppDelegate.shared?.launchVinylWidget(themeID: .custom)

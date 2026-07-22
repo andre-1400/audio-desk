@@ -117,18 +117,51 @@ struct HSVColorPickerView: View {
 /// elsewhere in Settings/the gallery.
 struct LabeledColorPicker: View {
     @Binding var value: HSVColor
+    // Every colour actually placed on the desktop before, across every
+    // family — tapping one jumps straight back to it instead of re-mixing
+    // it from scratch.
+    @ObservedObject private var customColors = CustomColorManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                pickerRow(title: "Tone", subtitle: "Saturation & brightness — drag anywhere in the square")
-                Spacer()
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Tone").font(.system(size: 13, weight: .semibold)).foregroundStyle(Neu.text)
+                    if !customColors.recentColors.isEmpty {
+                        recentSwatches
+                    }
+                }
+                Spacer(minLength: 8)
                 Circle().fill(value.color).frame(width: 30, height: 30)
                     .overlay(Circle().strokeBorder(Neu.hairline, lineWidth: 1))
             }
             HSVColorPickerView(value: $value)
 
             pickerRow(title: "Intensity", subtitle: "How strongly the colour reads versus neutral grey")
+        }
+    }
+
+    /// Small tappable circles for every colour previously placed on the
+    /// desktop, most recent first. Selecting one loads it straight into the
+    /// live picker (still live-bound, so it saves/applies immediately, same
+    /// as any other drag).
+    private var recentSwatches: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                ForEach(customColors.recentColors, id: \.self) { swatch in
+                    Button {
+                        value = swatch
+                    } label: {
+                        Circle().fill(swatch.color).frame(width: 18, height: 18)
+                            .overlay(
+                                Circle().strokeBorder(swatch == value ? Color.white : Neu.hairline,
+                                                       lineWidth: swatch == value ? 2 : 1)
+                            )
+                            .shadow(color: .black.opacity(swatch == value ? 0.25 : 0), radius: 2, y: 1)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 

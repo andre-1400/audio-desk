@@ -4,7 +4,7 @@ import AppKit
 /// A user-picked colour, expressed as HSV (matching the picker UI) plus an
 /// "intensity" knob that blends toward neutral grey — this is what feeds the
 /// Custom style, the same way ExtractedColours feeds Adaptive.
-struct HSVColor: Equatable, Codable {
+struct HSVColor: Equatable, Hashable, Codable {
     /// 0...1, maps to 0...360° around the hue wheel.
     var hue: Double = 0.58
     /// 0...1. 0 = grey, 1 = fully saturated.
@@ -66,11 +66,34 @@ final class CustomColorManager: ObservableObject {
     @Published var cdDiscman: HSVColor { didSet { Self.save(cdDiscman, key: "customColor.cdDiscman") } }
     @Published var cdHifi: HSVColor { didSet { Self.save(cdHifi, key: "customColor.cdHifi") } }
 
+    /// Every colour actually placed on the desktop (any family), most
+    /// recent first, shown as swatches in the picker so past builds stay
+    /// one tap away instead of needing to be re-mixed from scratch. Shared
+    /// across families on purpose — a colour you liked for the CD is just
+    /// as likely to look good on the Vinyl.
+    @Published private(set) var recentColors: [HSVColor] = [] {
+        didSet { Self.saveList(recentColors, key: "customColor.recents") }
+    }
+    private let recentColorsLimit = 10
+
     private init() {
         vinyl = Self.load("customColor.vinyl")
         vinylHorizontal = Self.load("customColor.vinylHorizontal")
         cdDiscman = Self.load("customColor.cdDiscman")
         cdHifi = Self.load("customColor.cdHifi")
+        recentColors = Self.loadList("customColor.recents")
+    }
+
+    /// Records a colour as "deployed" — call this when the widget is
+    /// actually placed, not on every drag. Moves an existing match to the
+    /// front (no duplicate entries) and caps the list at recentColorsLimit,
+    /// dropping the oldest.
+    func recordPlaced(_ color: HSVColor) {
+        var list = recentColors
+        list.removeAll { $0 == color }
+        list.insert(color, at: 0)
+        if list.count > recentColorsLimit { list.removeLast(list.count - recentColorsLimit) }
+        recentColors = list
     }
 
     private static func save(_ value: HSVColor, key: String) {
@@ -82,6 +105,18 @@ final class CustomColorManager: ObservableObject {
         guard let data = UserDefaults.standard.data(forKey: key),
               let value = try? JSONDecoder().decode(HSVColor.self, from: data)
         else { return .default }
+        return value
+    }
+
+    private static func saveList(_ value: [HSVColor], key: String) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    private static func loadList(_ key: String) -> [HSVColor] {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let value = try? JSONDecoder().decode([HSVColor].self, from: data)
+        else { return [] }
         return value
     }
 }
