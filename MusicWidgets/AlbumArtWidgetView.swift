@@ -257,16 +257,16 @@ struct AlbumArtWidgetView: View {
         .shadow(color: .black.opacity(0.4), radius: 24, x: 0, y: 14)
     }
 
+    // Bare glyphs, no button-cap background — matches Apple Music's own
+    // mini-player exactly: play/pause reads bigger and fully opaque white,
+    // skip buttons smaller and muted.
     private func transportButton(_ symbol: String, size: CGFloat, prominent: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Circle()
-                .fill(prominent ? Color.white.opacity(0.94) : Color.white.opacity(0.14))
+            Image(systemName: symbol)
+                .font(.system(size: size, weight: .semibold))
+                .foregroundStyle(prominent ? Color.white : Color.white.opacity(0.65))
                 .frame(width: prominent ? 46 : 36, height: prominent ? 46 : 36)
-                .overlay(
-                    Image(systemName: symbol)
-                        .font(.system(size: size, weight: .semibold))
-                        .foregroundStyle(prominent ? Color.black : Color.white.opacity(0.9))
-                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(isPreview)

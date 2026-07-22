@@ -364,21 +364,23 @@ struct VinylHorizontalWidgetView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // Play/pause reads bigger and fully opaque (fgPrimary), skip buttons
+    // smaller and muted (fgSecondary) — matches Apple Music's own sizing.
     private var transportRow: some View {
         // Preview cards show these purely for looks — cosmetic only, never
         // wired to real transport commands.
         HStack(spacing: 18) {
-            transportButton("backward.fill", size: 13) { if !isPreview { detector.previousTrack() } }
-            transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15) { togglePlayback() }
-            transportButton("forward.fill", size: 13) { if !isPreview { detector.nextTrack() } }
+            transportButton("backward.fill", size: 13, color: fgSecondary) { if !isPreview { detector.previousTrack() } }
+            transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15, color: fgPrimary) { togglePlayback() }
+            transportButton("forward.fill", size: 13, color: fgSecondary) { if !isPreview { detector.nextTrack() } }
         }
     }
 
-    private func transportButton(_ symbol: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+    private func transportButton(_ symbol: String, size: CGFloat, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(fgPrimary)
+                .foregroundStyle(color)
                 .frame(width: 24, height: 24)
                 .contentShape(Rectangle())
         }

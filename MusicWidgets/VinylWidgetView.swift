@@ -1109,21 +1109,23 @@ struct VinylWidgetView: View {
         return "\(artist) - \(album)"
     }
 
-    // Bare SF Symbol glyphs, no button chrome — matches Apple's Now Playing.
+    // Bare SF Symbol glyphs, no button chrome — matches Apple's Now Playing:
+    // the play/pause glyph reads bigger and fully opaque (panelPrimary),
+    // skip glyphs smaller and muted (panelSecondary), not all three uniform.
     private var transportRow: some View {
         HStack(spacing: 38) {
-            glyphButton("backward.fill", size: 21) { detector.previousTrack() }
-            glyphButton(displayedNowPlaying.isPlaying ? "pause.fill" : "play.fill", size: 27) {
+            glyphButton("backward.fill", size: 21, color: panelSecondary) { detector.previousTrack() }
+            glyphButton(displayedNowPlaying.isPlaying ? "pause.fill" : "play.fill", size: 27, color: panelPrimary) {
                 detector.togglePlayback()
             }
-            glyphButton("forward.fill", size: 21) { detector.nextTrack() }
+            glyphButton("forward.fill", size: 21, color: panelSecondary) { detector.nextTrack() }
         }
-        .foregroundStyle(panelPrimary)
     }
 
-    private func glyphButton(_ icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+    private func glyphButton(_ icon: String, size: CGFloat, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
+                .foregroundStyle(color)
                 .font(.system(size: size, weight: .medium))
                 .frame(width: size + 10, height: size + 10)
                 .contentShape(Rectangle())

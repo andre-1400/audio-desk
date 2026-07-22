@@ -1659,10 +1659,12 @@ private struct VinylWidgetReplica: View {
 
                 HStack(spacing: 38) {
                     Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
+                        .foregroundStyle(palette.trackArtist)
                     Image(systemName: "play.fill").font(.system(size: 27, weight: .medium))
+                        .foregroundStyle(palette.trackTitle)
                     Image(systemName: "forward.fill").font(.system(size: 21, weight: .medium))
+                        .foregroundStyle(palette.trackArtist)
                 }
-                .foregroundStyle(palette.trackTitle)
                 .frame(height: 37)
                 .padding(.top, 12)
 
@@ -1695,10 +1697,12 @@ private struct VinylWidgetReplica: View {
 
             HStack(spacing: 38) {
                 Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
+                    .foregroundStyle(palette.trackArtist)
                 Image(systemName: "play.fill").font(.system(size: 27, weight: .medium))
+                    .foregroundStyle(palette.trackTitle)
                 Image(systemName: "forward.fill").font(.system(size: 21, weight: .medium))
+                    .foregroundStyle(palette.trackArtist)
             }
-            .foregroundStyle(palette.trackTitle)
             .frame(height: 37)
             .padding(.top, 12)
 
