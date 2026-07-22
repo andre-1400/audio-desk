@@ -1166,20 +1166,24 @@ private struct NowPlayingBar: View {
         .onChange(of: np.albumArtURL) { _, url in loadArt(url) }
     }
 
+    // Sized/coloured to match Apple Music's own mini-player exactly: the
+    // play/pause glyph reads much larger and fully opaque (primary), the
+    // skip buttons smaller and muted (secondary) — not three same-size,
+    // same-weight icons.
     private var transportControls: some View {
-        HStack(spacing: 16) {
-            transportButton("backward.fill", size: 13) { detector.previousTrack() }
-            transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15) { detector.togglePlayback() }
-            transportButton("forward.fill", size: 13) { detector.nextTrack() }
+        HStack(spacing: 18) {
+            transportButton("backward.fill", size: 14, color: Neu.subtext) { detector.previousTrack() }
+            transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 22, color: Neu.text) { detector.togglePlayback() }
+            transportButton("forward.fill", size: 14, color: Neu.subtext) { detector.nextTrack() }
         }
     }
 
-    private func transportButton(_ icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+    private func transportButton(_ icon: String, size: CGFloat, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(Neu.text)
-                .frame(width: 26, height: 26)
+                .foregroundStyle(color)
+                .frame(width: 30, height: 30)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
