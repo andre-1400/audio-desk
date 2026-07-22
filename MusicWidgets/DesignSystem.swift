@@ -85,35 +85,6 @@ extension View {
     }
 }
 
-// MARK: - Buttons
-
-/// A tactile, native-feeling control surface: a subtle material chip with
-/// continuous corners, a hover highlight, and a springy press. Replaces the
-/// neumorphic `NeuTileStyle` on chrome buttons (close buttons, small actions).
-struct GlassButtonStyle: ButtonStyle {
-    var corner: CGFloat = 10
-    @State private var hovered = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .fill(.regularMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: corner, style: .continuous)
-                            .fill(Color.primary.opacity(hovered ? 0.06 : 0))
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .strokeBorder(.white.opacity(0.06), lineWidth: 1)
-            )
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.spring(response: 0.28, dampingFraction: 0.7), value: configuration.isPressed)
-            .onHover { hovered = $0 }
-    }
-}
-
 // MARK: - Typography ramp
 //
 // A small subset of Apple's HIG type ramp so chrome text uses consistent,

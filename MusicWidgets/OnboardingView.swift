@@ -50,18 +50,12 @@ struct WelcomeTipsCard: View {
                 }
                 .padding(.horizontal, 6)
 
-                Button(action: onDismiss) {
-                    Text("Got it")
-                        .font(.system(size: 14.5, weight: .semibold))
-                        .foregroundStyle(AMTheme.onAccent)
-                        .frame(maxWidth: .infinity).frame(height: 44)
-                        .background(
-                            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                                .fill(AMTheme.gradient)
-                                .shadow(color: AMTheme.accent.opacity(0.35), radius: 8, y: 4)
-                        )
-                }
-                .buttonStyle(.plain)
+                Button("Got it") { onDismiss() }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.borderedProminent)
+                    .tint(AMTheme.accent)
+                    .controlSize(.large)
+                    .buttonBorderShape(.capsule)
             }
             .padding(30)
             .frame(width: 420)
@@ -367,27 +361,20 @@ struct OnboardingView: View {
             HStack(spacing: 12) {
                 if step > 0 {
                     Button(action: back) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "chevron.left").font(.system(size: 13, weight: .semibold))
-                            Text("Back").font(.system(size: 14, weight: .medium))
-                        }
-                        .foregroundStyle(Neu.subtext)
-                        .padding(.horizontal, 20).frame(height: 46)
+                        Label("Back", systemImage: "chevron.left")
                     }
-                    .buttonStyle(NeuTileStyle(corner: 14))
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .buttonBorderShape(.capsule)
                 }
                 Button(action: primary) {
                     Text(step == lastStep ? "Create my widget" : "Continue")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(AMTheme.onAccent)
-                        .frame(maxWidth: .infinity).frame(height: 46)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(AMTheme.gradient)
-                                .shadow(color: accent.opacity(0.35), radius: 8, y: 4)
-                        )
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .tint(accent)
+                .controlSize(.large)
+                .buttonBorderShape(.capsule)
             }
             Button(action: onFinish) {
                 Text("Skip setup").font(.system(size: 12, weight: .medium)).foregroundStyle(Neu.subtext.opacity(0.85))

@@ -70,7 +70,10 @@ extension View {
     }
 }
 
-/// Retained name; now a native glass button surface (see GlassButtonStyle).
+/// Retained name; a native-feeling material tile surface, used for the
+/// onboarding choice tiles (type/form/style pickers) — a selectable-tile
+/// grid, not a regular action button, so it stays distinct from the
+/// `.bordered`/`.borderedProminent` styles used on real buttons elsewhere.
 struct NeuTileStyle: ButtonStyle {
     var corner: CGFloat = 20
     @State private var hovered = false
@@ -265,10 +268,12 @@ struct SettingsView: View {
                 Text("Settings").font(.appTitle).foregroundStyle(Neu.text)
                 Spacer()
                 Button(action: onClose) {
-                    Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(Neu.subtext).frame(width: 28, height: 28)
+                    Image(systemName: "xmark.circle.fill")
+                        .symbolRenderingMode(.hierarchical)
+                        .font(.system(size: 20))
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(GlassButtonStyle(corner: 9))
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 20)
             .padding(.top, 18)
@@ -282,7 +287,18 @@ struct SettingsView: View {
                         Text("Widget Size").font(.appBody).foregroundStyle(Neu.text)
                         Text("Anywhere from icon-sized to over half the screen")
                             .font(.appCaption).foregroundStyle(Neu.subtext)
-                        WidgetSizeSlider(scale: $sizeM.scale)
+                        // A real native Slider — safe here (unlike the gallery
+                        // header's copy) because this sheet isn't
+                        // isMovableByWindowBackground, so there's no window-
+                        // drag conflict to guard against.
+                        HStack(spacing: 12) {
+                            Image(systemName: "app").font(.system(size: 11))
+                                .foregroundStyle(Neu.subtext)
+                            Slider(value: $sizeM.scale, in: WidgetSizeManager.minScale...WidgetSizeManager.maxScale)
+                                .tint(accent)
+                            Image(systemName: "app.fill").font(.system(size: 16))
+                                .foregroundStyle(Neu.subtext)
+                        }
                     }
                     .padding(.vertical, 4)
 
@@ -859,10 +875,12 @@ private struct CustomColorSheetView: View {
                 }
                 Spacer()
                 Button(action: onClose) {
-                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Neu.subtext).frame(width: 28, height: 28)
+                    Image(systemName: "xmark.circle.fill")
+                        .symbolRenderingMode(.hierarchical)
+                        .font(.system(size: 20))
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(GlassButtonStyle(corner: 9))
+                .buttonStyle(.plain)
             }
 
             preview
@@ -874,21 +892,20 @@ private struct CustomColorSheetView: View {
 
             HStack(spacing: 12) {
                 Button("Close") { onClose() }
-                    .buttonStyle(GlassButtonStyle(corner: 12))
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                    .buttonBorderShape(.capsule)
                     .frame(maxWidth: .infinity)
                 Button {
                     place()
                 } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.up.forward.square.fill").font(.system(size: 12, weight: .bold))
-                        Text("Place on Desktop").font(.system(size: 13, weight: .semibold))
-                    }
-                    .foregroundStyle(AMTheme.onAccent)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(Capsule().fill(accent))
+                    Label("Place on Desktop", systemImage: "arrow.up.forward.square.fill")
+                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .tint(accent)
+                .controlSize(.large)
+                .buttonBorderShape(.capsule)
                 .frame(maxWidth: .infinity)
             }
         }
