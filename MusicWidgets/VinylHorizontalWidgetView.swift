@@ -447,17 +447,26 @@ struct VinylHorizontalWidgetView: View {
                     .opacity(isScrubbing ? 1 : 0)
             }
             .frame(height: 18)
-            .overlay(
-                HScrubDragCaptureView(
-                    onBegan: { handleScrubDrag(fraction: $0.x / width) },
-                    onMoved: { handleScrubDrag(fraction: $0.x / width) },
-                    onEnded: {
-                        handleScrubDrag(fraction: $0.x / width)
-                        commitScrub()
-                    },
-                    onCancelled: { endScrubSession() }
-                )
-            )
+            // Preview cards can never seek anyway (canSeek requires
+            // !isPreview) — and this preview sits nested inside
+            // GalleryCard's own outer Button, where an always-present raw
+            // NSView here was rendering a stray "operation not permitted"
+            // badge over the bar (conflicting hit-testing/cursor-rect claims
+            // between the two). Only attach the capture view when it can
+            // actually do something.
+            .overlay {
+                if !isPreview {
+                    HScrubDragCaptureView(
+                        onBegan: { handleScrubDrag(fraction: $0.x / width) },
+                        onMoved: { handleScrubDrag(fraction: $0.x / width) },
+                        onEnded: {
+                            handleScrubDrag(fraction: $0.x / width)
+                            commitScrub()
+                        },
+                        onCancelled: { endScrubSession() }
+                    )
+                }
+            }
         }
         .frame(height: 18)
         .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
