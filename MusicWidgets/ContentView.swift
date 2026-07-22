@@ -202,7 +202,10 @@ private struct GallerySidebar: View {
             .padding(.bottom, 14)
 
             // Native sidebar list — system selection highlight, hover, row
-            // metrics, exactly like Finder/Music.
+            // metrics, exactly like Finder/Music. Tint is pinned to the
+            // brand accent (not left to the user's system accent colour) —
+            // the same way Music/Podcasts/News hard-brand their own sidebar
+            // selection regardless of System Settings.
             List(selection: Binding(
                 get: { category },
                 set: { new in
@@ -211,22 +214,15 @@ private struct GallerySidebar: View {
             )) {
                 Section("Library") {
                     ForEach(WidgetCategory.allCases) { cat in
-                        Label {
-                            Text(cat.title)
-                            Spacer()
-                            Text("\(cat.widgetCount)")
-                                .foregroundStyle(.secondary)
-                                .font(.callout)
-                        } icon: {
-                            Image(systemName: cat.icon)
-                        }
-                        .tag(cat)
+                        Label(cat.title, systemImage: cat.icon)
+                            .tag(cat)
                     }
                 }
             }
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 30)
+            .tint(AMTheme.accent)
 
             // Settings + version footer, matching sidebar row language.
             VStack(alignment: .leading, spacing: 2) {
@@ -737,7 +733,7 @@ private struct GalleryDetail: View {
 
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
-                Text(name).font(.system(size: 16, weight: .bold, design: .rounded)).foregroundStyle(Neu.text)
+                Text(name).font(.system(size: 16, weight: .bold)).foregroundStyle(Neu.text)
                 Text("·").foregroundStyle(Neu.subtext.opacity(0.6))
                 Text(subtitle).font(.system(size: 12)).foregroundStyle(Neu.subtext)
                 Spacer()
@@ -1016,7 +1012,7 @@ private struct GalleryCard<P: View>: View {
                         }
                         .foregroundStyle(AMTheme.onAccent)
                         .padding(.horizontal, 9).padding(.vertical, 5)
-                        .background(Capsule().fill(accent).shadow(color: accent.opacity(0.5), radius: 5, y: 2))
+                        .background(Capsule().fill(accent))
                         .padding(12)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
@@ -1028,7 +1024,7 @@ private struct GalleryCard<P: View>: View {
                         }
                         .foregroundStyle(AMTheme.onAccent)
                         .padding(.horizontal, 11).padding(.vertical, 6)
-                        .background(Capsule().fill(accent).shadow(color: accent.opacity(0.5), radius: 6, y: 2))
+                        .background(Capsule().fill(accent))
                         .padding(12)
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
@@ -1059,19 +1055,19 @@ private struct GalleryCard<P: View>: View {
         }
         .buttonStyle(.plain)
         // Native material card surface; hover deepens the shadow (elevation).
+        // Special cards get a thin, restrained accent hairline — not a
+        // glowing gradient border — the same quiet cue Apple's own
+        // "featured" cards use (App Store, Music) rather than a neon ring.
         .appCard(corner: 20, elevated: hovered)
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(
                     special
-                        ? LinearGradient(colors: [accent.opacity(hovered ? 0.9 : 0.6), accent.opacity(hovered ? 0.55 : 0.28)],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing)
-                        : LinearGradient(colors: [hovered ? accent.opacity(0.5) : (active ? accent.opacity(0.32) : .clear)],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing),
-                    lineWidth: special ? 2 : 1.5
+                        ? accent.opacity(hovered ? 0.55 : 0.32)
+                        : accent.opacity(hovered ? 0.4 : (active ? 0.28 : 0)),
+                    lineWidth: 1
                 )
         )
-        .shadow(color: special ? accent.opacity(hovered ? 0.26 : 0.14) : .clear, radius: hovered ? 16 : 10, y: 4)
         .scaleEffect(hovered ? 1.012 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.72), value: hovered)
         .animation(.easeOut(duration: 0.2), value: active)
