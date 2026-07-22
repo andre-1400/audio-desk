@@ -82,325 +82,72 @@ struct WelcomeTipsCard: View {
     }
 }
 
-// First-run setup flow: craft your first widget (type → form → colour → size/notes).
+/// First-run-only welcome screen — Apple's own "Hello" greeting-rotation
+/// pattern (macOS/iOS Setup Assistant) instead of a multi-step widget-setup
+/// quiz. Picking a widget is exactly as fast from the gallery grid itself,
+/// so there's nothing to front-load here; this is purely a one-time,
+/// one-tap-to-dismiss welcome. Brand switching moved to Settings ("App
+/// Style"), since that was previously only reachable from here.
 struct OnboardingView: View {
     let onFinish: () -> Void
 
-    @State private var step = 0
-    @State private var type: WidgetCategory = .vinyl
-    @State private var vinylFormID: String = VinylStyle.forms[0].id
-    @State private var cdFormID: String = CDModel.forms[0].id
-    @State private var vinylStyle: WidgetThemeID = VinylStyle.forms[0].styles[0].themeID
-    @State private var cdModel: CDModel = CDModel.forms[0].models[0]
-    @ObservedObject private var brandM = BrandManager.shared
+    private static let greetings = ["Hello", "Привет", "Hola", "你好", "مرحباً"]
+    @State private var greetingIndex = 0
 
-    private let lastStep = 3
-    private var accent: Color { AMTheme.accent }
-
-    private var selectedVinylForm: VinylForm { VinylStyle.forms.first { $0.id == vinylFormID } ?? VinylStyle.forms[0] }
-    private var selectedCDForm: CDForm { CDModel.forms.first { $0.id == cdFormID } ?? CDModel.forms[0] }
+    private let timer = Timer.publish(every: 2.2, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        VStack(spacing: 0) {
-            // progress
-            HStack(spacing: 7) {
-                ForEach(0...lastStep, id: \.self) { i in
-                    Capsule()
-                        .fill(i == step ? accent : Neu.subtext.opacity(0.3))
-                        .frame(width: i == step ? 22 : 7, height: 7)
-                }
-            }
-            .padding(.top, 26)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: step)
+        ZStack {
+            // No opaque fill of our own — this sits directly over
+            // ContentView's own window vibrancy, plus a soft ambient glow
+            // for atmosphere; that's the closest this app can get to
+            // Apple's own blurred "Hello" backdrop without a bespoke image.
+            RadialGradient(colors: [AMTheme.accent.opacity(0.16), .clear],
+                           center: .center, startRadius: 40, endRadius: 440)
+                .ignoresSafeArea()
 
-            Group {
-                switch step {
-                case 0: intro
-                case 1: typeStep
-                case 2: formStep
-                default: colorStep
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            bottomBar
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.spring(response: 0.4, dampingFraction: 0.86), value: step)
-    }
-
-    // MARK: Step 0 — intro
-
-    private var intro: some View {
-        VStack(spacing: 20) {
-            HStack {
-                brandToggle
+            VStack(spacing: 28) {
                 Spacer()
-            }
-            .padding(.horizontal, 10)
-            .padding(.top, 4)
 
-            Spacer()
-            ZStack {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(AMTheme.gradient)
-                    .frame(width: 120, height: 120)
-                    .shadow(color: accent.opacity(0.4), radius: 14, y: 6)
-                Image(systemName: "music.note")
-                    .font(.system(size: 52, weight: .semibold))
-                    .foregroundStyle(AMTheme.onAccent)
-            }
-            VStack(spacing: 9) {
-                Text("Let's set up your player")
-                    .font(.system(size: 27, weight: .bold))
+                ZStack {
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .fill(AMTheme.gradient)
+                        .frame(width: 104, height: 104)
+                        .shadow(color: AMTheme.accent.opacity(0.4), radius: 16, y: 8)
+                    Image(systemName: "music.note")
+                        .font(.system(size: 44, weight: .semibold))
+                        .foregroundStyle(AMTheme.onAccent)
+                }
+
+                // Rotating greeting — `.id` on the changing string forces a
+                // fresh view identity each time, so the transition below
+                // actually plays as a cross-fade instead of the text just
+                // jumping to the next word.
+                Text(Self.greetings[greetingIndex])
+                    .font(.system(size: 58, weight: .semibold))
                     .foregroundStyle(Neu.text)
-                Text("A few quick taps to put your first widget on the desktop.")
-                    .font(.system(size: 14))
+                    .id(greetingIndex)
+                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
+                    .frame(height: 70)
+
+                Text("Welcome to MusicWidgets")
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Neu.subtext)
-                    .multilineTextAlignment(.center)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 50)
-    }
 
-    // Brand chooser (top-left of the welcome screen). Defaults to Apple Music.
-    private var brandToggle: some View {
-        HStack(spacing: 8) {
-            brandButton(.appleMusic, label: "Apple Music", fill: .white, ink: Color(hex: "fa233b"))
-            brandButton(.spotify, label: "Spotify", fill: Color(hex: "191414"), ink: Color(hex: "1ed760"))
-        }
-    }
+                Spacer()
 
-    private func brandButton(_ b: Brand, label: String, fill: Color, ink: Color) -> some View {
-        let selected = brandM.brand == b
-        return Button {
-            withAnimation(.easeInOut(duration: 0.3)) { brandM.brand = b }
-        } label: {
-            HStack(spacing: 6) {
-                Circle().fill(ink).frame(width: 8, height: 8)
-                Text(label).font(.system(size: 12.5, weight: .semibold))
-            }
-            .foregroundStyle(ink)
-            .padding(.horizontal, 13).frame(height: 32)
-            .background(Capsule().fill(fill))
-            .overlay(Capsule().strokeBorder(ink, lineWidth: selected ? 2 : 0))
-            .overlay(Capsule().strokeBorder(Color.black.opacity(0.12), lineWidth: selected ? 0 : 1))
-            .opacity(selected ? 1 : 0.6)
-            .shadow(color: .black.opacity(selected ? 0.18 : 0), radius: 5, y: 2)
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: Step 1 — type
-
-    private var typeStep: some View {
-        VStack(spacing: 24) {
-            title("Vinyl or CD?", "Pick the kind of player.")
-            HStack(spacing: 22) {
-                typeCard(.vinyl)
-                typeCard(.cd)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 50)
-        .padding(.top, 22)
-    }
-
-    private func typeCard(_ cat: WidgetCategory) -> some View {
-        let isSel = type == cat
-        return Button { type = cat } label: {
-            VStack(spacing: 16) {
-                ZStack {
-                    Circle().fill(Neu.well).frame(width: 92, height: 92).neuInset(46)
-                    Image(systemName: cat.icon)
-                        .font(.system(size: 38, weight: .ultraLight))
-                        .foregroundStyle(cat.accentColor)
-                }
-                Text(cat.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Neu.text)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 190)
-            .overlay(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(isSel ? accent : .clear, lineWidth: 2)
-                    .padding(1)
-            )
-        }
-        .buttonStyle(NeuTileStyle(corner: 22))
-    }
-
-    // MARK: Step 2 — form
-
-    private var formStep: some View {
-        VStack(spacing: 22) {
-            title("Which \(type.title.lowercased()) player?",
-                  "Choose a body — colours come next.")
-            HStack(spacing: 18) {
-                if type == .vinyl {
-                    ForEach(VinylStyle.forms) { form in
-                        // Custom needs the full picker sheet (main gallery
-                        // only) to be useful, so it's left out of onboarding
-                        // entirely — the count badge and colour step below
-                        // both exclude it too.
-                        formCard(icon: form.icon, name: form.name, subtitle: form.subtitle,
-                                 count: form.styles.filter { $0.themeID != .custom }.count, selected: vinylFormID == form.id) {
-                            vinylFormID = form.id
-                            vinylStyle = form.styles[0].themeID
-                        }
-                    }
-                } else {
-                    ForEach(CDModel.forms) { form in
-                        formCard(icon: form.icon, name: form.name, subtitle: form.subtitle,
-                                 count: form.models.filter { !$0.isCustom }.count, selected: cdFormID == form.id) {
-                            cdFormID = form.id
-                            cdModel = form.models[0]
-                        }
-                    }
-                }
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 44)
-        .padding(.top, 22)
-    }
-
-    private func formCard(icon: String, name: String, subtitle: String, count: Int,
-                          selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 13) {
-                ZStack {
-                    Circle().fill(Neu.well).frame(width: 70, height: 70).neuInset(35)
-                    Image(systemName: icon)
-                        .font(.system(size: 28, weight: .ultraLight))
-                        .foregroundStyle(selected ? type.accentColor : Neu.text)
-                }
-                VStack(spacing: 3) {
-                    Text(name).font(.system(size: 15, weight: .semibold)).foregroundStyle(Neu.text)
-                    Text(subtitle).font(.system(size: 10.5)).foregroundStyle(Neu.subtext)
-                        .multilineTextAlignment(.center).lineLimit(2)
-                }
-                Text("\(count) colours")
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(selected ? type.accentColor : Neu.subtext)
-                    .padding(.horizontal, 10).padding(.vertical, 4)
-                    .background(Capsule().fill(Neu.well))
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 200)
-            .padding(.horizontal, 8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(selected ? accent : .clear, lineWidth: 2)
-                    .padding(1)
-            )
-        }
-        .buttonStyle(NeuTileStyle(corner: 20))
-    }
-
-    // MARK: Step 3 — colour
-
-    private var colorStep: some View {
-        VStack(spacing: 14) {
-            title(type == .vinyl ? "\(selectedVinylForm.name) colours" : "\(selectedCDForm.name) colours",
-                  "Tap a colour you like.")
-            ScrollView(.vertical, showsIndicators: false) {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
-                    if type == .vinyl {
-                        ForEach(selectedVinylForm.styles.filter { $0.themeID != .custom }) { s in
-                            styleTile(name: s.name, selected: vinylStyle == s.themeID) {
-                                VinylStylePreview(themeID: s.themeID)
-                            } action: { vinylStyle = s.themeID }
-                        }
-                    } else {
-                        ForEach(selectedCDForm.models.filter { !$0.isCustom }) { m in
-                            styleTile(name: m.name, selected: cdModel.id == m.id) {
-                                CDModelPreview(model: m)
-                            } action: { cdModel = m }
-                        }
-                    }
-                }
-                .padding(.horizontal, 44)
-                .padding(.bottom, 10)
-            }
-        }
-        .padding(.top, 18)
-    }
-
-    private func styleTile<P: View>(name: String, selected: Bool, @ViewBuilder preview: () -> P, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            VStack(spacing: 8) {
-                preview()
-                    .frame(height: 120)
-                    .frame(maxWidth: .infinity)
-                    .background(Neu.well)
-                    .neuInset(14)
-                Text(name).font(.system(size: 12, weight: .semibold)).foregroundStyle(Neu.text)
-            }
-            .padding(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(selected ? accent : .clear, lineWidth: 2)
-                    .padding(1)
-            )
-        }
-        .buttonStyle(NeuTileStyle(corner: 18))
-    }
-
-    // MARK: Bits
-
-    private func title(_ t: String, _ s: String) -> some View {
-        VStack(spacing: 5) {
-            Text(t).font(.system(size: 22, weight: .bold)).foregroundStyle(Neu.text)
-            Text(s).font(.system(size: 13)).foregroundStyle(Neu.subtext)
-        }
-    }
-
-    private var bottomBar: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                if step > 0 {
-                    Button(action: back) {
-                        Label("Back", systemImage: "chevron.left")
-                    }
-                    .buttonStyle(.bordered)
+                Button("Continue") { onFinish() }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AMTheme.accent)
                     .controlSize(.large)
                     .buttonBorderShape(.capsule)
-                }
-                Button(action: primary) {
-                    Text(step == lastStep ? "Create my widget" : "Continue")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(accent)
-                .controlSize(.large)
-                .buttonBorderShape(.capsule)
+                    .padding(.bottom, 54)
             }
-            Button(action: onFinish) {
-                Text("Skip setup").font(.system(size: 12, weight: .medium)).foregroundStyle(Neu.subtext.opacity(0.85))
+        }
+        .onReceive(timer) { _ in
+            withAnimation(.easeInOut(duration: 0.7)) {
+                greetingIndex = (greetingIndex + 1) % Self.greetings.count
             }
-            .buttonStyle(.plain)
         }
-        .padding(.horizontal, 50)
-        .padding(.bottom, 24)
-    }
-
-    // MARK: Actions
-
-    private func back() { if step > 0 { step -= 1 } }
-
-    private func primary() {
-        if step < lastStep { step += 1 } else { create() }
-    }
-
-    private func create() {
-        // Sensible default; size & musical notes are adjustable later in Settings.
-        WidgetSizeManager.shared.scale = WidgetSizeManager.defaultScale
-        if type == .vinyl {
-            AppDelegate.shared?.launchVinylWidget(themeID: vinylStyle)
-        } else {
-            AppDelegate.shared?.launchCDWidget(model: cdModel)
-        }
-        onFinish()
     }
 }

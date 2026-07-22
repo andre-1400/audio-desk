@@ -70,33 +70,6 @@ extension View {
     }
 }
 
-/// Retained name; a native-feeling material tile surface, used for the
-/// onboarding choice tiles (type/form/style pickers) — a selectable-tile
-/// grid, not a regular action button, so it stays distinct from the
-/// `.bordered`/`.borderedProminent` styles used on real buttons elsewhere.
-struct NeuTileStyle: ButtonStyle {
-    var corner: CGFloat = 20
-    @State private var hovered = false
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .fill(.regularMaterial)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: corner, style: .continuous)
-                            .fill(Color.primary.opacity(hovered ? 0.06 : 0))
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .strokeBorder(.white.opacity(0.06), lineWidth: 1)
-            )
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.spring(response: 0.28, dampingFraction: 0.7), value: configuration.isPressed)
-            .onHover { hovered = $0 }
-    }
-}
-
 // MARK: - Root (onboarding gate)
 
 enum OnboardingGate {
@@ -259,8 +232,13 @@ struct SettingsView: View {
     @ObservedObject private var sizeM = WidgetSizeManager.shared
     @ObservedObject private var settings = WidgetSettings.shared
     @StateObject private var startup = LaunchOnStartupManager()
+    // Observed (not a stored `let`) so switching brand right here, in an
+    // already-open sheet, live-updates every accent-tinted control below —
+    // this is now the only place to change brand since onboarding no
+    // longer asks (see OnboardingView's new welcome-screen-only flow).
+    @ObservedObject private var brandM = BrandManager.shared
 
-    private let accent = AMTheme.accent
+    private var accent: Color { AMTheme.accent }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -284,21 +262,39 @@ struct SettingsView: View {
             Form {
                 Section {
                     VStack(alignment: .leading, spacing: 10) {
+                        Text("App Style").font(.appBody).foregroundStyle(Neu.text)
+                        Text("Recolours the whole app to match")
+                            .font(.appCaption).foregroundStyle(Neu.subtext)
+                        NeuSegmented(options: ["Apple Music", "Spotify"],
+                                     selected: brandM.brand == .appleMusic ? 0 : 1) { i in
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                brandM.brand = i == 0 ? .appleMusic : .spotify
+                            }
+                        }
+                    }
+                    .padding(.vertical, 4)
+
+                    VStack(alignment: .leading, spacing: 10) {
                         Text("Widget Size").font(.appBody).foregroundStyle(Neu.text)
                         Text("Anywhere from icon-sized to over half the screen")
                             .font(.appCaption).foregroundStyle(Neu.subtext)
-                        // A real native Slider — safe here (unlike the gallery
-                        // header's copy) because this sheet isn't
+                        // A real native Slider with the system's own bookend-
+                        // icon layout (minimumValueLabel/maximumValueLabel) —
+                        // the same construct System Settings uses for
+                        // brightness/volume — instead of hand-placing icons
+                        // in an HStack next to it, which is what produced the
+                        // uneven gap this replaces. Safe here (unlike the
+                        // gallery header's copy) because this sheet isn't
                         // isMovableByWindowBackground, so there's no window-
                         // drag conflict to guard against.
-                        HStack(spacing: 12) {
-                            Image(systemName: "app").font(.system(size: 11))
-                                .foregroundStyle(Neu.subtext)
-                            Slider(value: $sizeM.scale, in: WidgetSizeManager.minScale...WidgetSizeManager.maxScale)
-                                .tint(accent)
-                            Image(systemName: "app.fill").font(.system(size: 16))
-                                .foregroundStyle(Neu.subtext)
+                        Slider(value: $sizeM.scale, in: WidgetSizeManager.minScale...WidgetSizeManager.maxScale) {
+                            EmptyView()
+                        } minimumValueLabel: {
+                            Image(systemName: "app").font(.system(size: 11)).foregroundStyle(Neu.subtext)
+                        } maximumValueLabel: {
+                            Image(systemName: "app.fill").font(.system(size: 16)).foregroundStyle(Neu.subtext)
                         }
+                        .tint(accent)
                     }
                     .padding(.vertical, 4)
 
@@ -307,11 +303,14 @@ struct SettingsView: View {
                         Text("Let the widget blend into your wallpaper")
                             .font(.appCaption).foregroundStyle(Neu.subtext)
                         HStack(spacing: 12) {
-                            Image(systemName: "circle.dotted").font(.system(size: 12))
-                                .foregroundStyle(Neu.subtext)
-                            Slider(value: $settings.widgetOpacity, in: 0.5...1.0).tint(accent)
-                            Image(systemName: "circle.fill").font(.system(size: 12))
-                                .foregroundStyle(Neu.subtext)
+                            Slider(value: $settings.widgetOpacity, in: 0.5...1.0) {
+                                EmptyView()
+                            } minimumValueLabel: {
+                                Image(systemName: "circle.dotted").font(.system(size: 12)).foregroundStyle(Neu.subtext)
+                            } maximumValueLabel: {
+                                Image(systemName: "circle.fill").font(.system(size: 12)).foregroundStyle(Neu.subtext)
+                            }
+                            .tint(accent)
                             Text("\(Int(settings.widgetOpacity * 100))%")
                                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(Neu.text)
