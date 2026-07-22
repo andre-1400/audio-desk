@@ -55,6 +55,10 @@ struct CDModel: Identifiable {
     /// When true, CDWidgetView ignores `material` and derives colours live
     /// from the currently playing album's art instead.
     var isAdaptive: Bool = false
+    /// When true, CDWidgetView ignores `material` and uses the user's own
+    /// picked colour (CustomColorManager) instead — fixed, not tied to
+    /// playback, unlike isAdaptive.
+    var isCustom: Bool = false
 
     static let all: [CDModel] = [
         // ===== Discman (portable) — Adaptive first, then a few basics =====
@@ -64,13 +68,17 @@ struct CDModel: Identifiable {
         CDModel(id: "discman-noir",   name: "Noir",   subtitle: "Stealth black",  archetype: .discman, material: .noir),
         CDModel(id: "discman-ruby",   name: "Ruby",   subtitle: "Glossy red",     archetype: .discman, material: .ruby),
         CDModel(id: "discman-ivory",  name: "Ivory",  subtitle: "Warm cream",     archetype: .discman, material: .ivory),
+        CDModel(id: "discman-custom", name: "Custom", subtitle: "Pick your own exact colour",
+                archetype: .discman, material: .adaptivePlaceholder, isCustom: true),
 
         // ===== Hi-Fi deck (component) — Adaptive first, then a few basics =====
         CDModel(id: "hifi-adaptive", name: "Adaptive", subtitle: "Matches the album art, live",
                 archetype: .hifi, material: .adaptivePlaceholder, isAdaptive: true),
         CDModel(id: "hifi-aluminum", name: "Aluminum", subtitle: "Brushed aluminum", archetype: .hifi, material: .aluminum),
         CDModel(id: "hifi-onyx",     name: "Onyx",     subtitle: "Matte black",     archetype: .hifi, material: .onyx),
-        CDModel(id: "hifi-navy",     name: "Navy",     subtitle: "Deep blue steel", archetype: .hifi, material: .navy)
+        CDModel(id: "hifi-navy",     name: "Navy",     subtitle: "Deep blue steel", archetype: .hifi, material: .navy),
+        CDModel(id: "hifi-custom",  name: "Custom",   subtitle: "Pick your own exact colour",
+                archetype: .hifi, material: .adaptivePlaceholder, isCustom: true)
     ]
 }
 
@@ -290,6 +298,9 @@ struct CDWidgetView: View {
     @State private var blurredBodyArt: NSImage?
 
     @ObservedObject private var settings = WidgetSettings.shared
+    // Observed so the gallery grid's Custom tile (and, if it happens to be
+    // open, this exact widget) update the moment a colour is picked/saved.
+    @ObservedObject private var customColors = CustomColorManager.shared
 
     private let maxSpinSpeed: Double = 4200   // fast, but stays under the 60fps strobing threshold
 
@@ -297,8 +308,18 @@ struct CDWidgetView: View {
         isPreview ? (previewColours ?? .adaptivePreviewPlaceholder) : extractedColours
     }
     private var effectiveDisplayedArt: NSImage? { isPreview ? previewArt : displayedArt }
-    private var effectiveBlurredBodyArt: NSImage? { isPreview ? previewBlurredArt : blurredBodyArt }
-    private var mat: CDMaterial { model.isAdaptive ? .adaptive(from: effectiveColours) : model.material }
+    // Custom never has album art to blur — always nil regardless of preview.
+    private var effectiveBlurredBodyArt: NSImage? {
+        model.isCustom ? nil : (isPreview ? previewBlurredArt : blurredBodyArt)
+    }
+    private var customColour: ExtractedColours {
+        (model.archetype == .discman ? customColors.cdDiscman : customColors.cdHifi).extractedColours
+    }
+    private var mat: CDMaterial {
+        if model.isAdaptive { return .adaptive(from: effectiveColours) }
+        if model.isCustom { return .adaptive(from: customColour) }
+        return model.material
+    }
     private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : detector.nowPlaying }
     private var playing: Bool { optimisticPlaying ?? np.isPlaying }
     private var trackKey: String { "\(np.trackName)|\(np.artistName)|\(np.albumName)" }

@@ -250,8 +250,12 @@ struct OnboardingView: View {
             HStack(spacing: 18) {
                 if type == .vinyl {
                     ForEach(VinylStyle.forms) { form in
+                        // Custom needs the full picker sheet (main gallery
+                        // only) to be useful, so it's left out of onboarding
+                        // entirely — the count badge and colour step below
+                        // both exclude it too.
                         formCard(icon: form.icon, name: form.name, subtitle: form.subtitle,
-                                 count: form.styles.count, selected: vinylFormID == form.id) {
+                                 count: form.styles.filter { $0.themeID != .custom }.count, selected: vinylFormID == form.id) {
                             vinylFormID = form.id
                             vinylStyle = form.styles[0].themeID
                         }
@@ -259,7 +263,7 @@ struct OnboardingView: View {
                 } else {
                     ForEach(CDModel.forms) { form in
                         formCard(icon: form.icon, name: form.name, subtitle: form.subtitle,
-                                 count: form.models.count, selected: cdFormID == form.id) {
+                                 count: form.models.filter { !$0.isCustom }.count, selected: cdFormID == form.id) {
                             cdFormID = form.id
                             cdModel = form.models[0]
                         }
@@ -314,13 +318,13 @@ struct OnboardingView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 16), GridItem(.flexible(), spacing: 16)], spacing: 16) {
                     if type == .vinyl {
-                        ForEach(selectedVinylForm.styles) { s in
+                        ForEach(selectedVinylForm.styles.filter { $0.themeID != .custom }) { s in
                             styleTile(name: s.name, selected: vinylStyle == s.themeID) {
                                 VinylStylePreview(themeID: s.themeID)
                             } action: { vinylStyle = s.themeID }
                         }
                     } else {
-                        ForEach(selectedCDForm.models) { m in
+                        ForEach(selectedCDForm.models.filter { !$0.isCustom }) { m in
                             styleTile(name: m.name, selected: cdModel.id == m.id) {
                                 CDModelPreview(model: m)
                             } action: { cdModel = m }

@@ -27,7 +27,8 @@ struct VinylHorizontalModel: Identifiable {
         VinylHorizontalModel(id: "hbar-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", themeID: .adaptive),
         VinylHorizontalModel(id: "hbar-classic", name: "Classic", subtitle: "Warm wood & gold", themeID: .default),
         VinylHorizontalModel(id: "hbar-obsidian", name: "Obsidian", subtitle: "Jet black & chrome", themeID: .obsidian),
-        VinylHorizontalModel(id: "hbar-pearl", name: "Pearl", subtitle: "Cream & terracotta", themeID: .pearl)
+        VinylHorizontalModel(id: "hbar-pearl", name: "Pearl", subtitle: "Cream & terracotta", themeID: .pearl),
+        VinylHorizontalModel(id: "hbar-custom", name: "Custom", subtitle: "Pick your own exact colour", themeID: .custom)
     ]
 }
 
@@ -68,23 +69,34 @@ struct VinylHorizontalWidgetView: View {
     /// Cached per track — never recomputed per frame.
     @State private var blurredBodyArt: NSImage?
 
+    // Observed so the gallery grid's Custom tile (and, if it happens to be
+    // open, this exact widget) update the moment a colour is picked/saved —
+    // see CustomColorManager's own doc comment.
+    @ObservedObject private var customColors = CustomColorManager.shared
+
+    private var isAdaptive: Bool { model.themeID == .adaptive }
+    private var isCustom: Bool { model.themeID == .custom }
+
     private var effectiveColours: ExtractedColours {
-        isPreview ? (previewColours ?? .adaptivePreviewPlaceholder) : extractedColours
+        if isCustom { return customColors.vinylHorizontal.extractedColours }
+        return isPreview ? (previewColours ?? .adaptivePreviewPlaceholder) : extractedColours
     }
     private var effectiveArt: NSImage? { isPreview ? previewArt : displayedArt }
-    private var effectiveBlurredBodyArt: NSImage? { isPreview ? previewBlurredArt : blurredBodyArt }
+    // Custom never has album art to blur — always nil regardless of preview.
+    private var effectiveBlurredBodyArt: NSImage? {
+        isCustom ? nil : (isPreview ? previewBlurredArt : blurredBodyArt)
+    }
 
     private var theme: WidgetThemePalette {
-        model.themeID == .adaptive ? WidgetThemeID.adaptivePalette(from: effectiveColours) : model.themeID.palette
+        (isAdaptive || isCustom) ? WidgetThemeID.adaptivePalette(from: effectiveColours) : model.themeID.palette
     }
 
     /// Foreground colours picked for contrast against the body as drawn.
-    private var isAdaptive: Bool { model.themeID == .adaptive }
     private var fgPrimary: Color {
-        isAdaptive ? AdaptiveBody.primary(effectiveColours.dominant) : theme.trackTitle
+        (isAdaptive || isCustom) ? AdaptiveBody.primary(effectiveColours.dominant) : theme.trackTitle
     }
     private var fgSecondary: Color {
-        isAdaptive ? AdaptiveBody.secondary(effectiveColours.dominant) : theme.trackArtist
+        (isAdaptive || isCustom) ? AdaptiveBody.secondary(effectiveColours.dominant) : theme.trackArtist
     }
     private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
 

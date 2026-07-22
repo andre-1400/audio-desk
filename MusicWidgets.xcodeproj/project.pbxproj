@@ -16,6 +16,8 @@
 		AA000103 /* MusicDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000113 /* MusicDetector.swift */; };
 		AA000104 /* AlbumArtFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000114 /* AlbumArtFetcher.swift */; };
 		AA000105 /* ColourExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000115 /* ColourExtractor.swift */; };
+		AA000700 /* CustomColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000701 /* CustomColor.swift */; };
+		AA000702 /* HSVColorPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000703 /* HSVColorPickerView.swift */; };
 		AA000106 /* WidgetWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000116 /* WidgetWindow.swift */; };
 		AA000107 /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000117 /* WidgetTheme.swift */; };
 		AA000108 /* SongSwitchAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000118 /* SongSwitchAnimator.swift */; };
@@ -46,6 +48,8 @@
 		AA000113 /* MusicDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicDetector.swift; sourceTree = "<group>"; };
 		AA000114 /* AlbumArtFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumArtFetcher.swift; sourceTree = "<group>"; };
 		AA000115 /* ColourExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColourExtractor.swift; sourceTree = "<group>"; };
+		AA000701 /* CustomColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomColor.swift; sourceTree = "<group>"; };
+		AA000703 /* HSVColorPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HSVColorPickerView.swift; sourceTree = "<group>"; };
 		AA000116 /* WidgetWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetWindow.swift; sourceTree = "<group>"; };
 		AA000117 /* WidgetTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTheme.swift; sourceTree = "<group>"; };
 		AA000118 /* SongSwitchAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongSwitchAnimator.swift; sourceTree = "<group>"; };
@@ -85,6 +89,8 @@
 				AA000113 /* MusicDetector.swift */,
 				AA000114 /* AlbumArtFetcher.swift */,
 				AA000115 /* ColourExtractor.swift */,
+				AA000701 /* CustomColor.swift */,
+				AA000703 /* HSVColorPickerView.swift */,
 				AA000116 /* WidgetWindow.swift */,
 				AA000117 /* WidgetTheme.swift */,
 				AA000118 /* SongSwitchAnimator.swift */,
@@ -201,6 +207,8 @@
 				AA000103 /* MusicDetector.swift in Sources */,
 				AA000104 /* AlbumArtFetcher.swift in Sources */,
 				AA000105 /* ColourExtractor.swift in Sources */,
+				AA000700 /* CustomColor.swift in Sources */,
+				AA000702 /* HSVColorPickerView.swift in Sources */,
 				AA000106 /* WidgetWindow.swift in Sources */,
 				AA000107 /* WidgetTheme.swift in Sources */,
 				AA000108 /* SongSwitchAnimator.swift in Sources */,

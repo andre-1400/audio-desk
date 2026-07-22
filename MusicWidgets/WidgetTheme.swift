@@ -9,6 +9,9 @@ enum WidgetThemeID: String, CaseIterable {
     case midnight = "midnight"
     // Live — colours track whatever's currently playing instead of a fixed palette
     case adaptive = "adaptive"
+    // Fixed — colour picked once by the user via HSVColorPickerView, not tied
+    // to any playback state.
+    case custom = "custom"
 
     static func fromPersisted(_ value: String?) -> WidgetThemeID {
         guard let value,
@@ -209,6 +212,14 @@ extension WidgetThemeID {
         case .adaptive:
             return WidgetThemeID.adaptivePalette(from: .adaptivePreviewPlaceholder)
 
+        // MARK: Custom — body colour is whatever the user picked in
+        // HSVColorPickerView. This static branch is only the gallery's
+        // pre-selection placeholder; the live widget and the selected
+        // preview card read WidgetThemeManager.palette / CustomColorManager
+        // directly (see below), same split as Adaptive.
+        case .custom:
+            return WidgetThemeID.adaptivePalette(from: CustomColorManager.shared.vinyl.extractedColours)
+
         }
     }
 }
@@ -339,6 +350,7 @@ final class WidgetThemeManager: ObservableObject {
 
     var palette: WidgetThemePalette {
         if themeID == .adaptive { return WidgetThemeID.adaptivePalette(from: adaptiveColours) }
+        if themeID == .custom { return WidgetThemeID.adaptivePalette(from: CustomColorManager.shared.vinyl.extractedColours) }
         return customTheme ?? themeID.palette
     }
     var isUsingCustomTheme: Bool { customTheme != nil }

@@ -646,6 +646,7 @@ private struct GalleryDetail: View {
     @StateObject private var liveTrack = GalleryLiveTrack()
     @State private var hoveredID: String? = nil
     @State private var contentWidth: CGFloat = 0
+    @State private var customColorTarget: CustomColorTarget? = nil
 
     // Eager column count derived from the measured width (replaces LazyVGrid,
     // whose lazy re-measuring of off-screen rows caused the scroll to jump).
@@ -692,8 +693,16 @@ private struct GalleryDetail: View {
                                             accent: category.accentColor,
                                             hovered: hoveredID == style.id,
                                             active: activeWidget.entry == "vinyl:\(style.themeID.rawValue)",
+                                            placeLabel: style.themeID == .custom ? "Customize" : "Place",
+                                            placeIcon: style.themeID == .custom ? "eyedropper" : "arrow.up.forward.square.fill",
                                             onHover: { setHover(style.id, $0) },
-                                            action: { AppDelegate.shared?.launchVinylWidget(themeID: style.themeID) }) { animated in
+                                            action: {
+                                                if style.themeID == .custom {
+                                                    customColorTarget = .vinyl
+                                                } else {
+                                                    AppDelegate.shared?.launchVinylWidget(themeID: style.themeID)
+                                                }
+                                            }) { animated in
                                     VinylStylePreview(themeID: style.themeID, animated: animated, live: liveTrack)
                                 }
                             }
@@ -704,8 +713,16 @@ private struct GalleryDetail: View {
                                         accent: category.accentColor,
                                         hovered: hoveredID == model.id,
                                         active: activeWidget.entry == "vinylh:\(model.id)",
+                                        placeLabel: model.themeID == .custom ? "Customize" : "Place",
+                                        placeIcon: model.themeID == .custom ? "eyedropper" : "arrow.up.forward.square.fill",
                                         onHover: { setHover(model.id, $0) },
-                                        action: { AppDelegate.shared?.launchVinylHorizontalWidget(model: model) }) { _ in
+                                        action: {
+                                            if model.themeID == .custom {
+                                                customColorTarget = .vinylHorizontal(model)
+                                            } else {
+                                                AppDelegate.shared?.launchVinylHorizontalWidget(model: model)
+                                            }
+                                        }) { _ in
                                 VinylHorizontalModelPreview(model: model, live: liveTrack)
                             }
                         }
@@ -717,8 +734,16 @@ private struct GalleryDetail: View {
                                             accent: category.accentColor,
                                             hovered: hoveredID == model.id,
                                             active: activeWidget.entry == "cd:\(model.id)",
+                                            placeLabel: model.isCustom ? "Customize" : "Place",
+                                            placeIcon: model.isCustom ? "eyedropper" : "arrow.up.forward.square.fill",
                                             onHover: { setHover(model.id, $0) },
-                                            action: { AppDelegate.shared?.launchCDWidget(model: model) }) { animated in
+                                            action: {
+                                                if model.isCustom {
+                                                    customColorTarget = .cd(model)
+                                                } else {
+                                                    AppDelegate.shared?.launchCDWidget(model: model)
+                                                }
+                                            }) { animated in
                                     CDModelPreview(model: model, animated: animated, live: liveTrack)
                                 }
                             }
@@ -757,6 +782,11 @@ private struct GalleryDetail: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { liveTrack.start(observing: detector) }
+        .sheet(item: $customColorTarget) { target in
+            CustomColorSheetView(target: target, live: liveTrack) {
+                customColorTarget = nil
+            }
+        }
     }
 
     @ViewBuilder
@@ -804,6 +834,132 @@ private struct GalleryDetail: View {
     }
 }
 
+// MARK: - Custom colour picker sheet
+
+/// Identifies which family's "Custom" card was clicked, carrying whatever
+/// that family needs to actually place the widget once a colour is picked.
+private enum CustomColorTarget: Identifiable {
+    case vinyl
+    case vinylHorizontal(VinylHorizontalModel)
+    case cd(CDModel)
+
+    var id: String {
+        switch self {
+        case .vinyl: return "vinyl"
+        case .vinylHorizontal(let model): return model.id
+        case .cd(let model): return model.id
+        }
+    }
+}
+
+/// The picker sheet opened by any "Custom" gallery card. Binds directly to
+/// CustomColorManager (no separate draft/commit step) so every drag updates
+/// the colour live everywhere at once: this sheet's own preview, the grid
+/// card behind it, and — if one happens to already be on the desktop — that
+/// widget too. "Place on Desktop" just launches; the colour is already saved
+/// by the time you'd click it.
+private struct CustomColorSheetView: View {
+    let target: CustomColorTarget
+    let live: GalleryLiveTrack
+    let onClose: () -> Void
+
+    @ObservedObject private var customColors = CustomColorManager.shared
+
+    private var binding: Binding<HSVColor> {
+        switch target {
+        case .vinyl:
+            return Binding(get: { customColors.vinyl }, set: { customColors.vinyl = $0 })
+        case .vinylHorizontal:
+            return Binding(get: { customColors.vinylHorizontal }, set: { customColors.vinylHorizontal = $0 })
+        case .cd(let model):
+            if model.archetype == .discman {
+                return Binding(get: { customColors.cdDiscman }, set: { customColors.cdDiscman = $0 })
+            } else {
+                return Binding(get: { customColors.cdHifi }, set: { customColors.cdHifi = $0 })
+            }
+        }
+    }
+
+    private var accent: Color {
+        switch target {
+        case .vinyl, .vinylHorizontal: return WidgetCategory.vinyl.accentColor
+        case .cd: return WidgetCategory.cd.accentColor
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Custom Colour").font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(Neu.text)
+                    Text("Full control — pick the exact colour this widget's body should be")
+                        .font(.system(size: 11.5)).foregroundStyle(Neu.subtext)
+                }
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark").font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Neu.subtext).frame(width: 30, height: 30)
+                }
+                .buttonStyle(NeuTileStyle(corner: 9))
+            }
+
+            preview
+                .frame(height: 220)
+                .frame(maxWidth: .infinity)
+                .background(RadialGradient(colors: [Neu.raised, Neu.well], center: .center, startRadius: 4, endRadius: 220))
+                .neuInset(16)
+
+            LabeledColorPicker(value: binding)
+
+            HStack(spacing: 12) {
+                Button("Close") { onClose() }
+                    .buttonStyle(NeuTileStyle(corner: 12))
+                    .frame(maxWidth: .infinity)
+                Button {
+                    place()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.up.forward.square.fill").font(.system(size: 12, weight: .bold))
+                        Text("Place on Desktop").font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(AMTheme.onAccent)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Capsule().fill(accent))
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(26)
+        .frame(width: 440)
+        .background(Neu.bg)
+    }
+
+    @ViewBuilder private var preview: some View {
+        switch target {
+        case .vinyl:
+            VinylStylePreview(themeID: .custom, animated: true, live: live)
+        case .vinylHorizontal(let model):
+            VinylHorizontalModelPreview(model: model, live: live)
+        case .cd(let model):
+            CDModelPreview(model: model, animated: true, live: live)
+        }
+    }
+
+    private func place() {
+        switch target {
+        case .vinyl:
+            AppDelegate.shared?.launchVinylWidget(themeID: .custom)
+        case .vinylHorizontal(let model):
+            AppDelegate.shared?.launchVinylHorizontalWidget(model: model)
+        case .cd(let model):
+            AppDelegate.shared?.launchCDWidget(model: model)
+        }
+        onClose()
+    }
+}
+
 // MARK: - Gallery card (spacious, hover-to-animate)
 
 private struct GalleryCard<P: View>: View {
@@ -812,6 +968,11 @@ private struct GalleryCard<P: View>: View {
     let accent: Color
     let hovered: Bool
     var active: Bool = false
+    // "Place" implies immediate placement, which is what every card does
+    // except Custom — that one opens the colour picker first, so its cards
+    // pass "Customize" instead.
+    var placeLabel: String = "Place"
+    var placeIcon: String = "arrow.up.forward.square.fill"
     let onHover: (Bool) -> Void
     let action: () -> Void
     @ViewBuilder let preview: (Bool) -> P
@@ -831,8 +992,8 @@ private struct GalleryCard<P: View>: View {
 
                     if hovered {
                         HStack(spacing: 5) {
-                            Image(systemName: "arrow.up.forward.square.fill").font(.system(size: 11, weight: .bold))
-                            Text("Place").font(.system(size: 11.5, weight: .semibold))
+                            Image(systemName: placeIcon).font(.system(size: 11, weight: .bold))
+                            Text(placeLabel).font(.system(size: 11.5, weight: .semibold))
                         }
                         .foregroundStyle(AMTheme.onAccent)
                         .padding(.horizontal, 11).padding(.vertical, 6)
@@ -977,7 +1138,8 @@ extension VinylStyle {
                     VinylStyle(themeID: .default,  name: "Classic",  subtitle: "Warm wood & gold"),
                     VinylStyle(themeID: .obsidian, name: "Obsidian", subtitle: "Jet black & chrome"),
                     VinylStyle(themeID: .pearl,    name: "Pearl",    subtitle: "Cream & terracotta"),
-                    VinylStyle(themeID: .midnight, name: "Midnight", subtitle: "Navy & steel")
+                    VinylStyle(themeID: .midnight, name: "Midnight", subtitle: "Navy & steel"),
+                    VinylStyle(themeID: .custom,   name: "Custom",   subtitle: "Pick your own exact colour")
                   ])
     ]
 
@@ -1030,6 +1192,10 @@ struct VinylStylePreview: View {
     // don't pass one (e.g. OnboardingView) just get the static placeholder
     // look, unchanged.
     @ObservedObject var live: GalleryLiveTrack = GalleryLiveTrack()
+    // Observed so this preview (grid tile or the picker sheet's own preview)
+    // updates live as the user drags — CustomColorManager writes straight
+    // through on every change, no separate draft/commit step.
+    @ObservedObject private var customColors = CustomColorManager.shared
 
     var body: some View {
         GeometryReader { geo in
@@ -1043,9 +1209,13 @@ struct VinylStylePreview: View {
         }
     }
 
-    /// For the Adaptive style specifically, the preview's whole palette
-    /// tracks the real playing track's colours, same as the live widget.
+    /// For Adaptive, the preview's whole palette tracks the real playing
+    /// track's colours, same as the live widget. For Custom, it tracks the
+    /// user's own picked colour instead.
     private var resolvedPalette: WidgetThemePalette {
+        if themeID == .custom {
+            return WidgetThemeID.adaptivePalette(from: customColors.vinyl.extractedColours)
+        }
         guard themeID == .adaptive, live.art != nil else { return themeID.palette }
         return WidgetThemeID.adaptivePalette(from: live.colours)
     }
