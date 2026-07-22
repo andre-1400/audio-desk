@@ -122,14 +122,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func applyBrandToGallery(_ brand: Brand) {
         guard let win = galleryWindow else { return }
+        // Only the appearance is set per brand now — this drives whether the
+        // window's native materials render light or dark. The background
+        // stays clear so the SwiftUI VisualEffectBlur provides the vibrancy.
         switch brand {
         case .spotify:
             win.appearance = NSAppearance(named: .darkAqua)
-            win.backgroundColor = NSColor(red: 0.071, green: 0.071, blue: 0.071, alpha: 1) // #121212
         case .appleMusic:
             win.appearance = NSAppearance(named: .aqua)
-            win.backgroundColor = .white
         }
+        win.backgroundColor = .clear
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -448,6 +450,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             win.titleVisibility = .hidden
             win.isMovableByWindowBackground = true
             win.isReleasedWhenClosed = false
+            // Vibrant, seamless native window: let the SwiftUI root's
+            // VisualEffectBlur show through, and drop the titlebar hairline
+            // so the toolbar area blends into the content like Music/Finder.
+            win.isOpaque = false
+            win.backgroundColor = .clear
+            win.titlebarSeparatorStyle = .none
             win.minSize = NSSize(width: 820, height: 600)
             win.contentView = NSHostingView(rootView: ContentView())
             win.center()

@@ -20,18 +20,29 @@ final class BrandManager: ObservableObject {
 // Apple Music = clean white + signature red.  Spotify = black + Spotify green.
 // Values are computed from the current brand so the whole UI reskins live.
 
+// Design tokens, repointed to native macOS semantics (Phase 1 redesign).
+// The names stay so the hundreds of existing call sites are untouched; only
+// the resolved values change — from hand-picked hex fills to system semantic
+// colours and materials that adapt to the active NSAppearance (which the
+// brand still drives: Apple Music = aqua/light, Spotify = darkAqua/dark).
 enum Neu {
-    private static var spotify: Bool { BrandManager.shared.brand == .spotify }
-    static var bg: Color      { spotify ? Color(hex: "121212") : Color(hex: "ffffff") }  // content
-    static var raised: Color  { spotify ? Color(hex: "181818") : Color(hex: "ffffff") }  // cards
-    static var well: Color    { spotify ? Color(hex: "242424") : Color(hex: "f1f1f4") }  // inset backdrops
-    static var elevated: Color { spotify ? Color(hex: "3a3a3a") : Color(hex: "ffffff") } // selected pill
-    static var sidebar: Color { spotify ? Color(hex: "000000") : Color(hex: "f5f5f7") }  // sidebar panel
-    static var dark: Color    { Color.black.opacity(spotify ? 0.45 : 0.08) }             // soft shadow
+    // Primary / secondary label colours — the system's, so they track
+    // appearance, accessibility contrast, and vibrancy automatically.
+    static var text: Color    { .primary }
+    static var subtext: Color { .secondary }
+    // Hairline separators use the real system separator colour.
+    static var hairline: Color { Color(nsColor: .separatorColor) }
+
+    // Surface fills. Kept as translucent-friendly semantic colours; most
+    // chrome now sits on materials (VisualEffectBlur / .appCard) rather than
+    // these opaque fills, but a few call sites still reference them.
+    static var bg: Color      { Color(nsColor: .windowBackgroundColor) }
+    static var raised: Color  { Color(nsColor: .controlBackgroundColor) }
+    static var well: Color    { Color(nsColor: .underPageBackgroundColor) }
+    static var elevated: Color { Color(nsColor: .controlBackgroundColor) }
+    static var sidebar: Color { Color(nsColor: .windowBackgroundColor) }
+    static var dark: Color    { Color.black.opacity(0.12) }
     static var light: Color   { Color.clear }
-    static var text: Color    { spotify ? Color(hex: "ffffff") : Color(hex: "1d1d1f") }  // primary label
-    static var subtext: Color { spotify ? Color(hex: "b3b3b3") : Color(hex: "86868b") }  // secondary label
-    static var hairline: Color { spotify ? Color.white.opacity(0.10) : Color.black.opacity(0.07) }
 }
 
 // Signature accent (red for Apple Music, green for Spotify) + the colour that reads on top of it.
@@ -45,44 +56,41 @@ enum AMTheme {
     }
 }
 
-private struct NeuRaised: ViewModifier {
-    var corner: CGFloat = 22
-    var pressed: Bool = false
-    func body(content: Content) -> some View {
-        content.background(
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(Neu.raised)
-                .overlay(
-                    RoundedRectangle(cornerRadius: corner, style: .continuous)
-                        .strokeBorder(Neu.hairline, lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(pressed ? 0.05 : 0.09),
-                        radius: pressed ? 3 : 12, x: 0, y: pressed ? 1 : 5)
-        )
-    }
-}
-
+// The old neumorphic modifiers, now thin shims over the native material
+// surfaces in DesignSystem.swift — so every existing call site (settings
+// blocks, buttons, cards) becomes a material card with continuous corners
+// and a soft shadow, no code churn at the call sites.
 extension View {
     func neuRaised(_ corner: CGFloat = 22, pressed: Bool = false) -> some View {
-        modifier(NeuRaised(corner: corner, pressed: pressed))
+        appCard(corner: corner, elevated: false)
     }
-    // Flat, light inset (clipped fill with a hairline edge).
+    // Recessed inset well (native material, no drop shadow).
     func neuInset(_ corner: CGFloat = 16) -> some View {
-        clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .strokeBorder(Neu.hairline, lineWidth: 1)
-            )
+        appWell(corner: corner)
     }
 }
 
+/// Retained name; now a native glass button surface (see GlassButtonStyle).
 struct NeuTileStyle: ButtonStyle {
     var corner: CGFloat = 20
+    @State private var hovered = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .neuRaised(corner, pressed: configuration.isPressed)
-            .scaleEffect(configuration.isPressed ? 0.985 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
+            .background(
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    .fill(.regularMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: corner, style: .continuous)
+                            .fill(Color.primary.opacity(hovered ? 0.06 : 0))
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                    .strokeBorder(.white.opacity(0.06), lineWidth: 1)
+            )
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.spring(response: 0.28, dampingFraction: 0.7), value: configuration.isPressed)
+            .onHover { hovered = $0 }
     }
 }
 
@@ -106,7 +114,9 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            Neu.bg.ignoresSafeArea()
+            // Native window vibrancy behind the whole app — the "liquid glass"
+            // base the flat Neu.bg fill used to cover.
+            VisualEffectBlur(.underWindowBackground).ignoresSafeArea()
             if showOnboarding {
                 OnboardingView(onFinish: {
                     OnboardingGate.markDone()
@@ -137,7 +147,9 @@ struct GalleryRoot: View {
             GalleryDetail(category: category, detector: detector)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Neu.bg.ignoresSafeArea())
+        // No opaque fill here — the window's VisualEffectBlur (from
+        // ContentView) shows through; the sidebar draws its own .sidebar
+        // material on top.
         .overlay {
             if showTips {
                 WelcomeTipsCard {
@@ -172,130 +184,72 @@ private struct GallerySidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Brand
-            HStack(spacing: 11) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(AMTheme.gradient)
-                        .frame(width: 42, height: 42)
-                        .shadow(color: AMTheme.accent.opacity(0.35), radius: 5, y: 2)
-                    Image(systemName: "music.note")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(AMTheme.onAccent)
-                }
+            // Brand header — a restrained app mark, no heavy accent gradient
+            // tile (that read as an Android splash chip).
+            HStack(spacing: 10) {
+                Image(systemName: "music.note.list")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(AMTheme.accent)
+                    .frame(width: 28, height: 28)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("MusicWidgets").font(.system(size: 15.5, weight: .bold, design: .rounded)).foregroundStyle(Neu.text)
-                    Text("Desktop players").font(.system(size: 10.5)).foregroundStyle(Neu.subtext)
+                    Text("MusicWidgets").font(.system(size: 15, weight: .semibold)).foregroundStyle(Neu.text)
+                    Text("Desktop players").font(.appCaption).foregroundStyle(Neu.subtext)
                 }
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, 18)
-            .padding(.top, 32)
-            .padding(.bottom, 28)
+            .padding(.top, 30)
+            .padding(.bottom, 14)
 
-            Text("LIBRARY")
-                .font(.system(size: 10.5, weight: .bold)).tracking(1.6)
-                .foregroundStyle(Neu.subtext.opacity(0.8))
-                .padding(.horizontal, 22)
-                .padding(.bottom, 10)
-
-            VStack(spacing: 7) {
-                ForEach(WidgetCategory.allCases) { cat in
-                    SidebarItem(category: cat, selected: category == cat) {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { category = cat }
+            // Native sidebar list — system selection highlight, hover, row
+            // metrics, exactly like Finder/Music.
+            List(selection: Binding(
+                get: { category },
+                set: { new in
+                    if let new { withAnimation(.easeInOut(duration: 0.18)) { category = new } }
+                }
+            )) {
+                Section("Library") {
+                    ForEach(WidgetCategory.allCases) { cat in
+                        Label {
+                            Text(cat.title)
+                            Spacer()
+                            Text("\(cat.widgetCount)")
+                                .foregroundStyle(.secondary)
+                                .font(.callout)
+                        } icon: {
+                            Image(systemName: cat.icon)
+                        }
+                        .tag(cat)
                     }
                 }
             }
-            .padding(.horizontal, 12)
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .environment(\.defaultMinListRowHeight, 30)
 
-            Spacer()
-
-            // Settings
-            SidebarRowButton(icon: "slider.horizontal.3", label: "Settings", action: onSettings)
-                .padding(.horizontal, 12)
-                .padding(.bottom, 8)
-
-            Text("MusicWidgets \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
-                .font(.system(size: 10))
-                .foregroundStyle(Neu.subtext.opacity(0.65))
-                .padding(.horizontal, 22)
-                .padding(.bottom, 16)
-        }
-        .frame(width: 218)
-        .frame(maxHeight: .infinity)
-        .background(
-            ZStack(alignment: .trailing) {
-                Neu.sidebar
-                Rectangle().fill(Neu.hairline).frame(width: 1)
-            }
-            .ignoresSafeArea()
-        )
-    }
-}
-
-private struct SidebarItem: View {
-    let category: WidgetCategory
-    let selected: Bool
-    let action: () -> Void
-    @State private var hovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: category.icon)
-                    .font(.system(size: 17, weight: .light))
-                    .foregroundStyle(selected ? category.accentColor : Neu.subtext)
-                    .frame(width: 22)
-                Text(category.title)
-                    .font(.system(size: 14, weight: selected ? .semibold : .medium))
-                    .foregroundStyle(selected ? Neu.text : Neu.subtext)
-                Spacer()
-                Text("\(category.widgetCount)")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(selected ? category.accentColor : Neu.subtext.opacity(0.8))
-                    .frame(minWidth: 20, minHeight: 20)
-                    .background(Circle().fill(selected ? AMTheme.accent.opacity(0.14) : Color.black.opacity(0.05)))
-            }
-            .padding(.horizontal, 12)
-            .frame(height: 46)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(selected ? AMTheme.accent.opacity(0.10) : (hovered ? Color.black.opacity(0.04) : Color.clear))
-            )
-            .overlay(alignment: .leading) {
-                if selected {
-                    Capsule().fill(category.accentColor).frame(width: 3, height: 20).offset(x: 2)
+            // Settings + version footer, matching sidebar row language.
+            VStack(alignment: .leading, spacing: 2) {
+                Button(action: onSettings) {
+                    Label("Settings", systemImage: "gearshape")
+                        .font(.system(size: 13))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
                 }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
-    }
-}
+                .buttonStyle(.plain)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 8)
 
-private struct SidebarRowButton: View {
-    let icon: String
-    let label: String
-    let action: () -> Void
-    @State private var hovered = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: icon).font(.system(size: 15, weight: .medium)).foregroundStyle(Neu.subtext).frame(width: 22)
-                Text(label).font(.system(size: 13.5, weight: .medium)).foregroundStyle(Neu.subtext)
-                Spacer()
+                Text("MusicWidgets \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
+                    .font(.appCaption)
+                    .foregroundStyle(Neu.subtext.opacity(0.7))
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 14)
             }
-            .padding(.horizontal, 12)
-            .frame(height: 42)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(hovered ? Color.black.opacity(0.04) : Color.clear)
-            )
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
+        .frame(width: 220)
+        .frame(maxHeight: .infinity)
+        .background(VisualEffectBlur(.sidebar, blendingMode: .behindWindow).ignoresSafeArea())
     }
 }
 
@@ -444,36 +398,24 @@ struct SettingsView: View {
     }
 }
 
+/// Same call-site API as before, now backed by the native macOS segmented
+/// control (`Picker(.segmented)`) instead of a hand-drawn pill row.
 struct NeuSegmented: View {
     let options: [String]
     let selected: Int
     let onSelect: (Int) -> Void
 
     var body: some View {
-        HStack(spacing: 6) {
+        Picker("", selection: Binding(
+            get: { selected },
+            set: { onSelect($0) }
+        )) {
             ForEach(options.indices, id: \.self) { i in
-                let isSel = i == selected
-                Text(options[i])
-                    .font(.system(size: 13, weight: isSel ? .semibold : .medium))
-                    .foregroundStyle(isSel ? Neu.text : Neu.subtext)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 34)
-                    .background(
-                        Group {
-                            if isSel {
-                                RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                    .fill(Neu.elevated)
-                                    .shadow(color: Color.black.opacity(0.18), radius: 3, y: 1)
-                            }
-                        }
-                    )
-                    .contentShape(Rectangle())
-                    .onTapGesture { withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) { onSelect(i) } }
+                Text(options[i]).tag(i)
             }
         }
-        .padding(6)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Neu.well))
-        .neuInset(12)
+        .labelsHidden()
+        .pickerStyle(.segmented)
     }
 }
 
@@ -659,27 +601,27 @@ private struct GalleryDetail: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 4) {
+            // Header — large SF Pro title (not SF Rounded), HIG type ramp.
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(category.title)
-                        .font(.system(size: 27, weight: .bold, design: .rounded))
+                        .font(.system(size: 28, weight: .bold))
                         .foregroundStyle(Neu.text)
                     Text("\(category.widgetCount) styles · hover to preview, click to place on your desktop")
-                        .font(.system(size: 12.5)).foregroundStyle(Neu.subtext)
+                        .font(.appSubheadline).foregroundStyle(Neu.subtext)
                 }
                 Spacer()
                 // Widget size, right where you pick the widget
-                VStack(alignment: .trailing, spacing: 5) {
+                VStack(alignment: .trailing, spacing: 6) {
                     Text("SIZE")
-                        .font(.system(size: 9.5, weight: .bold)).tracking(1.4)
-                        .foregroundStyle(Neu.subtext.opacity(0.8))
+                        .font(.system(size: 10, weight: .semibold)).tracking(1.2)
+                        .foregroundStyle(Neu.subtext)
                     WidgetSizeSlider(scale: $sizeM.scale)
                         .frame(width: 190)
                 }
             }
-            .padding(.horizontal, 34)
-            .padding(.top, 30)
+            .padding(.horizontal, 32)
+            .padding(.top, 28)
             .padding(.bottom, 20)
 
             // Grid (grouped by form)
@@ -1073,10 +1015,17 @@ private struct GalleryCard<P: View>: View {
                         .frame(height: 190)
                         .frame(maxWidth: .infinity)
                         .background(
-                            RadialGradient(colors: special ? [accent.opacity(0.16), Neu.well] : [Neu.raised, Neu.well],
-                                           center: .center, startRadius: 4, endRadius: 190)
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(.quaternary.opacity(0.4))
+                                if special {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(RadialGradient(colors: [accent.opacity(0.14), .clear],
+                                                             center: .center, startRadius: 4, endRadius: 200))
+                                }
+                            }
                         )
-                        .neuInset(16)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     if special, let badgeText {
                         HStack(spacing: 4) {
@@ -1118,29 +1067,30 @@ private struct GalleryCard<P: View>: View {
                 }
 
                 VStack(spacing: 3) {
-                    Text(title).font(.system(size: 14.5, weight: .semibold)).foregroundStyle(Neu.text)
-                    Text(subtitle).font(.system(size: 11)).foregroundStyle(Neu.subtext).lineLimit(1)
+                    Text(title).font(.appHeadline).foregroundStyle(Neu.text)
+                    Text(subtitle).font(.appCaption).foregroundStyle(Neu.subtext).lineLimit(1)
                 }
                 .padding(.top, 14)
                 .padding(.bottom, 2)
             }
             .padding(14)
         }
-        .buttonStyle(NeuTileStyle(corner: 22))
+        .buttonStyle(.plain)
+        // Native material card surface; hover deepens the shadow (elevation).
+        .appCard(corner: 20, elevated: hovered)
         .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(
                     special
-                        ? LinearGradient(colors: [accent.opacity(hovered ? 0.9 : 0.65), accent.opacity(hovered ? 0.6 : 0.3)],
+                        ? LinearGradient(colors: [accent.opacity(hovered ? 0.9 : 0.6), accent.opacity(hovered ? 0.55 : 0.28)],
                                          startPoint: .topLeading, endPoint: .bottomTrailing)
-                        : LinearGradient(colors: [hovered ? accent.opacity(0.55) : (active ? accent.opacity(0.35) : .clear)],
+                        : LinearGradient(colors: [hovered ? accent.opacity(0.5) : (active ? accent.opacity(0.32) : .clear)],
                                          startPoint: .topLeading, endPoint: .bottomTrailing),
                     lineWidth: special ? 2 : 1.5
                 )
-                .padding(1)
         )
-        .shadow(color: special ? accent.opacity(hovered ? 0.28 : 0.16) : .clear, radius: hovered ? 16 : 10, y: 4)
-        .scaleEffect(hovered ? 1.015 : 1.0)
+        .shadow(color: special ? accent.opacity(hovered ? 0.26 : 0.14) : .clear, radius: hovered ? 16 : 10, y: 4)
+        .scaleEffect(hovered ? 1.012 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.72), value: hovered)
         .animation(.easeOut(duration: 0.2), value: active)
         .onHover { onHover($0) }
@@ -1193,8 +1143,7 @@ private struct NowPlayingBar: View {
                         .font(.system(size: 11.5, weight: .medium)).foregroundStyle(Neu.subtext)
                 }
                 .padding(.horizontal, 13).frame(height: 30)
-                .background(Capsule().fill(Neu.well))
-                .overlay(Capsule().strokeBorder(Neu.hairline, lineWidth: 1))
+                .background(Capsule().fill(.regularMaterial))
             }
         }
         .padding(.horizontal, 16)
