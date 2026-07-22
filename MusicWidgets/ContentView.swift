@@ -695,6 +695,9 @@ private struct GalleryDetail: View {
                                             active: activeWidget.entry == "vinyl:\(style.themeID.rawValue)",
                                             placeLabel: style.themeID == .custom ? "Customize" : "Place",
                                             placeIcon: style.themeID == .custom ? "eyedropper" : "arrow.up.forward.square.fill",
+                                            special: style.isSpecialStyle,
+                                            badgeText: style.specialKind?.badgeText,
+                                            badgeIcon: style.specialKind?.badgeIcon ?? "sparkles",
                                             onHover: { setHover(style.id, $0) },
                                             action: {
                                                 if style.themeID == .custom {
@@ -715,6 +718,9 @@ private struct GalleryDetail: View {
                                         active: activeWidget.entry == "vinylh:\(model.id)",
                                         placeLabel: model.themeID == .custom ? "Customize" : "Place",
                                         placeIcon: model.themeID == .custom ? "eyedropper" : "arrow.up.forward.square.fill",
+                                        special: model.isSpecialStyle,
+                                        badgeText: model.specialKind?.badgeText,
+                                        badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
                                         onHover: { setHover(model.id, $0) },
                                         action: {
                                             if model.themeID == .custom {
@@ -736,6 +742,9 @@ private struct GalleryDetail: View {
                                             active: activeWidget.entry == "cd:\(model.id)",
                                             placeLabel: model.isCustom ? "Customize" : "Place",
                                             placeIcon: model.isCustom ? "eyedropper" : "arrow.up.forward.square.fill",
+                                            special: model.isSpecialStyle,
+                                            badgeText: model.specialKind?.badgeText,
+                                            badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
                                             onHover: { setHover(model.id, $0) },
                                             action: {
                                                 if model.isCustom {
@@ -790,11 +799,17 @@ private struct GalleryDetail: View {
     }
 
     @ViewBuilder
-    private func formSection<Item: Identifiable, Card: View>(
+    private func formSection<Item: Identifiable & GalleryStyleItem, Card: View>(
         name: String, subtitle: String, count: Int,
         items: [Item],
         @ViewBuilder card: @escaping (Item) -> Card
     ) -> some View {
+        // Adaptive/Custom, if this form has them, are always first (see each
+        // model's own `.all`) — group them into their own compact row ahead
+        // of a labelled divider, instead of blending into the regular grid.
+        let special = items.filter { $0.isSpecialStyle }
+        let prebuilt = items.filter { !$0.isSpecialStyle }
+
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Text(name).font(.system(size: 16, weight: .bold, design: .rounded)).foregroundStyle(Neu.text)
@@ -806,20 +821,46 @@ private struct GalleryDetail: View {
                     .frame(minWidth: 22, minHeight: 22)
                     .background(Circle().fill(Neu.well))
             }
-            // Eager rows (no LazyVGrid) so off-screen rows are never re-measured.
-            let cols = columnCount
-            let rows = stride(from: 0, to: items.count, by: cols).map { start in
-                Array(items[start..<min(start + cols, items.count)])
+
+            if !special.isEmpty {
+                // Its own compact row (not padded into the full column
+                // count), so on wider windows these two read as a
+                // deliberately featured pair rather than a sparse grid row.
+                HStack(spacing: 26) {
+                    ForEach(special) { item in
+                        card(item).frame(maxWidth: .infinity)
+                    }
+                }
             }
-            VStack(spacing: 26) {
-                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                    HStack(spacing: 26) {
-                        ForEach(row) { item in
-                            card(item).frame(maxWidth: .infinity)
-                        }
-                        if row.count < cols {
-                            ForEach(0..<(cols - row.count), id: \.self) { _ in
-                                Color.clear.frame(maxWidth: .infinity)
+
+            if !special.isEmpty && !prebuilt.isEmpty {
+                HStack(spacing: 10) {
+                    Rectangle().fill(Neu.hairline).frame(height: 1)
+                    Text("PREBUILT COLOURS")
+                        .font(.system(size: 10, weight: .bold)).tracking(1.3)
+                        .foregroundStyle(Neu.subtext.opacity(0.75))
+                        .fixedSize()
+                    Rectangle().fill(Neu.hairline).frame(height: 1)
+                }
+                .padding(.vertical, 2)
+            }
+
+            if !prebuilt.isEmpty {
+                // Eager rows (no LazyVGrid) so off-screen rows are never re-measured.
+                let cols = columnCount
+                let rows = stride(from: 0, to: prebuilt.count, by: cols).map { start in
+                    Array(prebuilt[start..<min(start + cols, prebuilt.count)])
+                }
+                VStack(spacing: 26) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        HStack(spacing: 26) {
+                            ForEach(row) { item in
+                                card(item).frame(maxWidth: .infinity)
+                            }
+                            if row.count < cols {
+                                ForEach(0..<(cols - row.count), id: \.self) { _ in
+                                    Color.clear.frame(maxWidth: .infinity)
+                                }
                             }
                         }
                     }
@@ -960,6 +1001,46 @@ private struct CustomColorSheetView: View {
     }
 }
 
+// MARK: - "Special" styles (Adaptive, Custom) vs. prebuilt colours
+//
+// Adaptive and Custom aren't just two more colour options — they're a
+// different KIND of style (one lives, one is fully user-defined), so the
+// gallery groups them together, right after the form header, ahead of and
+// visually distinct from the prebuilt fixed colours below.
+
+enum SpecialStyleKind {
+    case adaptive, custom
+
+    var badgeText: String { self == .adaptive ? "LIVE" : "CUSTOM" }
+    var badgeIcon: String { self == .adaptive ? "dot.radiowaves.left.and.right" : "eyedropper" }
+}
+
+protocol GalleryStyleItem {
+    var specialKind: SpecialStyleKind? { get }
+}
+extension GalleryStyleItem {
+    var isSpecialStyle: Bool { specialKind != nil }
+}
+
+extension VinylStyle: GalleryStyleItem {
+    var specialKind: SpecialStyleKind? {
+        themeID == .adaptive ? .adaptive : (themeID == .custom ? .custom : nil)
+    }
+}
+extension VinylHorizontalModel: GalleryStyleItem {
+    var specialKind: SpecialStyleKind? {
+        themeID == .adaptive ? .adaptive : (themeID == .custom ? .custom : nil)
+    }
+}
+extension CDModel: GalleryStyleItem {
+    var specialKind: SpecialStyleKind? {
+        isAdaptive ? .adaptive : (isCustom ? .custom : nil)
+    }
+}
+extension AlbumArtModel: GalleryStyleItem {
+    var specialKind: SpecialStyleKind? { nil }
+}
+
 // MARK: - Gallery card (spacious, hover-to-animate)
 
 private struct GalleryCard<P: View>: View {
@@ -973,6 +1054,12 @@ private struct GalleryCard<P: View>: View {
     // pass "Customize" instead.
     var placeLabel: String = "Place"
     var placeIcon: String = "arrow.up.forward.square.fill"
+    // Adaptive/Custom: an always-visible accent border, a glow, and a small
+    // corner badge, rather than only differing by their title text. See
+    // GalleryStyleItem.isSpecialStyle for what counts as "special".
+    var special: Bool = false
+    var badgeText: String? = nil
+    var badgeIcon: String = "sparkles"
     let onHover: (Bool) -> Void
     let action: () -> Void
     @ViewBuilder let preview: (Bool) -> P
@@ -985,10 +1072,22 @@ private struct GalleryCard<P: View>: View {
                         .frame(height: 190)
                         .frame(maxWidth: .infinity)
                         .background(
-                            RadialGradient(colors: [Neu.raised, Neu.well],
+                            RadialGradient(colors: special ? [accent.opacity(0.16), Neu.well] : [Neu.raised, Neu.well],
                                            center: .center, startRadius: 4, endRadius: 190)
                         )
                         .neuInset(16)
+
+                    if special, let badgeText {
+                        HStack(spacing: 4) {
+                            Image(systemName: badgeIcon).font(.system(size: 9, weight: .bold))
+                            Text(badgeText).font(.system(size: 10, weight: .bold)).tracking(0.3)
+                        }
+                        .foregroundStyle(AMTheme.onAccent)
+                        .padding(.horizontal, 9).padding(.vertical, 5)
+                        .background(Capsule().fill(accent).shadow(color: accent.opacity(0.5), radius: 5, y: 2))
+                        .padding(12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    }
 
                     if hovered {
                         HStack(spacing: 5) {
@@ -1029,10 +1128,17 @@ private struct GalleryCard<P: View>: View {
         .buttonStyle(NeuTileStyle(corner: 22))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(hovered ? accent.opacity(0.55) : (active ? accent.opacity(0.35) : .clear),
-                              lineWidth: 1.5)
+                .strokeBorder(
+                    special
+                        ? LinearGradient(colors: [accent.opacity(hovered ? 0.9 : 0.65), accent.opacity(hovered ? 0.6 : 0.3)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing)
+                        : LinearGradient(colors: [hovered ? accent.opacity(0.55) : (active ? accent.opacity(0.35) : .clear)],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: special ? 2 : 1.5
+                )
                 .padding(1)
         )
+        .shadow(color: special ? accent.opacity(hovered ? 0.28 : 0.16) : .clear, radius: hovered ? 16 : 10, y: 4)
         .scaleEffect(hovered ? 1.015 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.72), value: hovered)
         .animation(.easeOut(duration: 0.2), value: active)
@@ -1135,11 +1241,11 @@ extension VinylStyle {
                   icon: "record.circle",
                   styles: [
                     VinylStyle(themeID: .adaptive, name: "Adaptive", subtitle: "Matches the album art, live"),
+                    VinylStyle(themeID: .custom,   name: "Custom",   subtitle: "Pick your own exact colour"),
                     VinylStyle(themeID: .default,  name: "Classic",  subtitle: "Warm wood & gold"),
                     VinylStyle(themeID: .obsidian, name: "Obsidian", subtitle: "Jet black & chrome"),
                     VinylStyle(themeID: .pearl,    name: "Pearl",    subtitle: "Cream & terracotta"),
-                    VinylStyle(themeID: .midnight, name: "Midnight", subtitle: "Navy & steel"),
-                    VinylStyle(themeID: .custom,   name: "Custom",   subtitle: "Pick your own exact colour")
+                    VinylStyle(themeID: .midnight, name: "Midnight", subtitle: "Navy & steel")
                   ])
     ]
 

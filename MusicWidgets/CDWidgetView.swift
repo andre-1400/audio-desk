@@ -61,24 +61,24 @@ struct CDModel: Identifiable {
     var isCustom: Bool = false
 
     static let all: [CDModel] = [
-        // ===== Discman (portable) — Adaptive first, then a few basics =====
+        // ===== Discman (portable) — Adaptive + Custom first, then a few basics =====
         CDModel(id: "discman-adaptive", name: "Adaptive", subtitle: "Matches the album art, live",
                 archetype: .discman, material: .adaptivePlaceholder, isAdaptive: true),
+        CDModel(id: "discman-custom", name: "Custom", subtitle: "Pick your own exact colour",
+                archetype: .discman, material: .adaptivePlaceholder, isCustom: true),
         CDModel(id: "discman-silver", name: "Silver", subtitle: "Brushed silver", archetype: .discman, material: .silver),
         CDModel(id: "discman-noir",   name: "Noir",   subtitle: "Stealth black",  archetype: .discman, material: .noir),
         CDModel(id: "discman-ruby",   name: "Ruby",   subtitle: "Glossy red",     archetype: .discman, material: .ruby),
         CDModel(id: "discman-ivory",  name: "Ivory",  subtitle: "Warm cream",     archetype: .discman, material: .ivory),
-        CDModel(id: "discman-custom", name: "Custom", subtitle: "Pick your own exact colour",
-                archetype: .discman, material: .adaptivePlaceholder, isCustom: true),
 
-        // ===== Hi-Fi deck (component) — Adaptive first, then a few basics =====
+        // ===== Hi-Fi deck (component) — Adaptive + Custom first, then a few basics =====
         CDModel(id: "hifi-adaptive", name: "Adaptive", subtitle: "Matches the album art, live",
                 archetype: .hifi, material: .adaptivePlaceholder, isAdaptive: true),
+        CDModel(id: "hifi-custom",  name: "Custom",   subtitle: "Pick your own exact colour",
+                archetype: .hifi, material: .adaptivePlaceholder, isCustom: true),
         CDModel(id: "hifi-aluminum", name: "Aluminum", subtitle: "Brushed aluminum", archetype: .hifi, material: .aluminum),
         CDModel(id: "hifi-onyx",     name: "Onyx",     subtitle: "Matte black",     archetype: .hifi, material: .onyx),
-        CDModel(id: "hifi-navy",     name: "Navy",     subtitle: "Deep blue steel", archetype: .hifi, material: .navy),
-        CDModel(id: "hifi-custom",  name: "Custom",   subtitle: "Pick your own exact colour",
-                archetype: .hifi, material: .adaptivePlaceholder, isCustom: true)
+        CDModel(id: "hifi-navy",     name: "Navy",     subtitle: "Deep blue steel", archetype: .hifi, material: .navy)
     ]
 }
 
