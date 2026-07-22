@@ -157,7 +157,6 @@ struct LabeledColorPicker: View {
                                 Circle().strokeBorder(swatch == value ? Color.white : Neu.hairline,
                                                        lineWidth: swatch == value ? 2 : 1)
                             )
-                            .shadow(color: .black.opacity(swatch == value ? 0.25 : 0), radius: 2, y: 1)
                     }
                     .buttonStyle(.plain)
                 }
