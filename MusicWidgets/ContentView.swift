@@ -264,137 +264,120 @@ struct SettingsView: View {
     private let accent = AMTheme.accent
 
     var body: some View {
-        ZStack {
-            Neu.bg.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text("Settings")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundStyle(Neu.text)
-                    Spacer()
-                    Button(action: onClose) {
-                        Image(systemName: "xmark").font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Neu.subtext).frame(width: 34, height: 34)
-                    }
-                    .buttonStyle(NeuTileStyle(corner: 10))
+        VStack(spacing: 0) {
+            HStack {
+                Text("Settings").font(.appTitle).foregroundStyle(Neu.text)
+                Spacer()
+                Button(action: onClose) {
+                    Image(systemName: "xmark").font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(Neu.subtext).frame(width: 28, height: 28)
                 }
-                .padding(.bottom, 4)
+                .buttonStyle(GlassButtonStyle(corner: 9))
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 10)
 
-                Text("Applies to the widget on your desktop")
-                    .font(.system(size: 11)).foregroundStyle(Neu.subtext)
-                    .padding(.bottom, 16)
+            // Native grouped Form — the same section/row language as macOS
+            // System Settings, replacing the hand-drawn "block" cards.
+            Form {
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Widget Size").font(.appBody).foregroundStyle(Neu.text)
+                        Text("Anywhere from icon-sized to over half the screen")
+                            .font(.appCaption).foregroundStyle(Neu.subtext)
+                        WidgetSizeSlider(scale: $sizeM.scale)
+                    }
+                    .padding(.vertical, 4)
 
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 16) {
-
-                        // Appearance
-                        block(title: "Widget Size", subtitle: "Anywhere from icon-sized to over half the screen") {
-                            WidgetSizeSlider(scale: $sizeM.scale)
-                        }
-
-                        block(title: "Opacity", subtitle: "Let the widget blend into your wallpaper") {
-                            HStack(spacing: 12) {
-                                Image(systemName: "circle.dotted").font(.system(size: 13))
-                                    .foregroundStyle(Neu.subtext)
-                                Slider(value: $settings.widgetOpacity, in: 0.5...1.0).tint(accent)
-                                Image(systemName: "circle.fill").font(.system(size: 13))
-                                    .foregroundStyle(Neu.subtext)
-                                Text("\(Int(settings.widgetOpacity * 100))%")
-                                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                    .foregroundStyle(Neu.text)
-                                    .frame(width: 44, alignment: .trailing)
-                            }
-                        }
-
-                        // Behavior
-                        block(title: "Behavior", subtitle: "How the widget lives on your desktop") {
-                            VStack(spacing: 0) {
-                                toggleRow(icon: "square.stack.3d.up", title: "Always on top",
-                                          subtitle: "Float above other windows",
-                                          isOn: $settings.alwaysOnTop)
-                                divider
-                                toggleRow(icon: "cursorarrow.rays", title: "Click-through",
-                                          subtitle: "Clicks pass through to what's behind",
-                                          isOn: $settings.clickThrough)
-                                divider
-                                toggleRow(icon: "moon.zzz", title: "Hide when paused",
-                                          subtitle: "Fade out when nothing is playing",
-                                          isOn: $settings.hideWhenPaused)
-                                divider
-                                toggleRow(icon: "record.circle", title: "Track-change animation",
-                                          subtitle: "Off: the vinyl widget snaps to the next song instantly",
-                                          isOn: $settings.vinylTransitionAnimationEnabled)
-                            }
-                        }
-
-                        // Musical notes
-                        block(title: "Musical Notes", subtitle: "🎵 drift from a top corner while playing") {
-                            VStack(spacing: 14) {
-                                HStack {
-                                    Text(settings.notesEnabled ? "On" : "Off")
-                                        .font(.system(size: 13, weight: .medium)).foregroundStyle(Neu.text)
-                                    Spacer()
-                                    Toggle("", isOn: $settings.notesEnabled).labelsHidden().tint(accent)
-                                }
-                                if settings.notesEnabled {
-                                    NeuSegmented(options: ["Left", "Right"],
-                                                 selected: settings.notesSide == .left ? 0 : 1) { i in
-                                        settings.notesSide = i == 0 ? .left : .right
-                                    }
-                                    .transition(.opacity.combined(with: .move(edge: .top)))
-                                }
-                            }
-                            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: settings.notesEnabled)
-                        }
-
-                        // Startup
-                        block(title: "Startup", subtitle: "Open MusicWidgets when you log in") {
-                            toggleRow(icon: "power", title: "Launch at login",
-                                      subtitle: startup.isEnabled ? "Opens automatically at login" : "Off — open it yourself",
-                                      isOn: Binding(
-                                        get: { startup.isEnabled },
-                                        set: { startup.setEnabled($0) }
-                                      ))
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Opacity").font(.appBody).foregroundStyle(Neu.text)
+                        Text("Let the widget blend into your wallpaper")
+                            .font(.appCaption).foregroundStyle(Neu.subtext)
+                        HStack(spacing: 12) {
+                            Image(systemName: "circle.dotted").font(.system(size: 12))
+                                .foregroundStyle(Neu.subtext)
+                            Slider(value: $settings.widgetOpacity, in: 0.5...1.0).tint(accent)
+                            Image(systemName: "circle.fill").font(.system(size: 12))
+                                .foregroundStyle(Neu.subtext)
+                            Text("\(Int(settings.widgetOpacity * 100))%")
+                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(Neu.text)
+                                .frame(width: 40, alignment: .trailing)
                         }
                     }
-                    .padding(.bottom, 8)
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Appearance")
+                }
+
+                Section("Behavior") {
+                    toggleRow(icon: "square.stack.3d.up", title: "Always on top",
+                              subtitle: "Float above other windows",
+                              isOn: $settings.alwaysOnTop)
+                    toggleRow(icon: "cursorarrow.rays", title: "Click-through",
+                              subtitle: "Clicks pass through to what's behind",
+                              isOn: $settings.clickThrough)
+                    toggleRow(icon: "moon.zzz", title: "Hide when paused",
+                              subtitle: "Fade out when nothing is playing",
+                              isOn: $settings.hideWhenPaused)
+                    toggleRow(icon: "record.circle", title: "Track-change animation",
+                              subtitle: "Off: the vinyl widget snaps to the next song instantly",
+                              isOn: $settings.vinylTransitionAnimationEnabled)
+                }
+
+                Section {
+                    HStack {
+                        Label("Musical notes", systemImage: "music.note")
+                            .foregroundStyle(Neu.text)
+                        Spacer()
+                        Toggle("", isOn: $settings.notesEnabled).labelsHidden().tint(accent)
+                    }
+                    if settings.notesEnabled {
+                        NeuSegmented(options: ["Left", "Right"],
+                                     selected: settings.notesSide == .left ? 0 : 1) { i in
+                            settings.notesSide = i == 0 ? .left : .right
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+                } header: {
+                    Text("Musical Notes")
+                } footer: {
+                    Text("🎵 drift from a top corner while playing")
+                }
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: settings.notesEnabled)
+
+                Section("Startup") {
+                    toggleRow(icon: "power", title: "Launch at login",
+                              subtitle: startup.isEnabled ? "Opens automatically at login" : "Off — open it yourself",
+                              isOn: Binding(
+                                get: { startup.isEnabled },
+                                set: { startup.setEnabled($0) }
+                              ))
                 }
             }
-            .padding(26)
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
         }
         .frame(width: 460, height: 620)
-    }
-
-    private var divider: some View {
-        Rectangle().fill(Neu.hairline).frame(height: 1).padding(.vertical, 10)
+        .background(VisualEffectBlur(.sheet))
     }
 
     private func toggleRow(icon: String, title: String, subtitle: String, isOn: Binding<Bool>) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(isOn.wrappedValue ? accent : Neu.subtext)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 13, weight: .medium)).foregroundStyle(Neu.text)
-                Text(subtitle).font(.system(size: 10.5)).foregroundStyle(Neu.subtext)
+        Toggle(isOn: isOn) {
+            Label {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(.appBody).foregroundStyle(Neu.text)
+                    Text(subtitle).font(.appCaption).foregroundStyle(Neu.subtext)
+                }
+            } icon: {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(isOn.wrappedValue ? accent : Neu.subtext)
+                    .frame(width: 20)
             }
-            Spacer()
-            Toggle("", isOn: isOn).labelsHidden().tint(accent)
         }
-    }
-
-    private func block<C: View>(title: String, subtitle: String, @ViewBuilder content: () -> C) -> some View {
-        VStack(alignment: .leading, spacing: 13) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 14.5, weight: .semibold)).foregroundStyle(Neu.text)
-                Text(subtitle).font(.system(size: 11)).foregroundStyle(Neu.subtext)
-            }
-            content()
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .neuRaised(18)
+        .tint(accent)
     }
 }
 
@@ -874,29 +857,28 @@ private struct CustomColorSheetView: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Custom Colour").font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(Neu.text)
+                    Text("Custom Colour").font(.system(size: 18, weight: .bold)).foregroundStyle(Neu.text)
                     Text("Full control — pick the exact colour this widget's body should be")
-                        .font(.system(size: 11.5)).foregroundStyle(Neu.subtext)
+                        .font(.appCaption).foregroundStyle(Neu.subtext)
                 }
                 Spacer()
                 Button(action: onClose) {
                     Image(systemName: "xmark").font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Neu.subtext).frame(width: 30, height: 30)
+                        .foregroundStyle(Neu.subtext).frame(width: 28, height: 28)
                 }
-                .buttonStyle(NeuTileStyle(corner: 9))
+                .buttonStyle(GlassButtonStyle(corner: 9))
             }
 
             preview
                 .frame(height: 220)
                 .frame(maxWidth: .infinity)
-                .background(RadialGradient(colors: [Neu.raised, Neu.well], center: .center, startRadius: 4, endRadius: 220))
-                .neuInset(16)
+                .appWell(corner: 16)
 
             LabeledColorPicker(value: binding)
 
             HStack(spacing: 12) {
                 Button("Close") { onClose() }
-                    .buttonStyle(NeuTileStyle(corner: 12))
+                    .buttonStyle(GlassButtonStyle(corner: 12))
                     .frame(maxWidth: .infinity)
                 Button {
                     place()
@@ -916,7 +898,7 @@ private struct CustomColorSheetView: View {
         }
         .padding(26)
         .frame(width: 440)
-        .background(Neu.bg)
+        .background(VisualEffectBlur(.sheet))
     }
 
     @ViewBuilder private var preview: some View {

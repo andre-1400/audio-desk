@@ -33,7 +33,7 @@ struct WelcomeTipsCard: View {
 
                 VStack(spacing: 6) {
                     Text("Your widget is live!")
-                        .font(.system(size: 21, weight: .bold, design: .rounded))
+                        .font(.system(size: 21, weight: .bold))
                         .foregroundStyle(Neu.text)
                     Text("Three things worth knowing:")
                         .font(.system(size: 13))
@@ -65,12 +65,7 @@ struct WelcomeTipsCard: View {
             }
             .padding(30)
             .frame(width: 420)
-            .background(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .fill(Neu.raised)
-                    .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).strokeBorder(Neu.hairline, lineWidth: 1))
-                    .shadow(color: .black.opacity(0.35), radius: 40, y: 18)
-            )
+            .appCard(corner: 26, elevated: true)
         }
     }
 
@@ -163,7 +158,7 @@ struct OnboardingView: View {
             }
             VStack(spacing: 9) {
                 Text("Let's set up your player")
-                    .font(.system(size: 27, weight: .bold, design: .rounded))
+                    .font(.system(size: 27, weight: .bold))
                     .foregroundStyle(Neu.text)
                 Text("A few quick taps to put your first widget on the desktop.")
                     .font(.system(size: 14))
@@ -228,7 +223,7 @@ struct OnboardingView: View {
                         .font(.system(size: 38, weight: .ultraLight))
                         .foregroundStyle(cat.accentColor)
                 }
-                Text(cat.title).font(.system(size: 16, weight: .semibold, design: .rounded)).foregroundStyle(Neu.text)
+                Text(cat.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Neu.text)
             }
             .frame(maxWidth: .infinity)
             .frame(height: 190)
@@ -287,7 +282,7 @@ struct OnboardingView: View {
                         .foregroundStyle(selected ? type.accentColor : Neu.text)
                 }
                 VStack(spacing: 3) {
-                    Text(name).font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(Neu.text)
+                    Text(name).font(.system(size: 15, weight: .semibold)).foregroundStyle(Neu.text)
                     Text(subtitle).font(.system(size: 10.5)).foregroundStyle(Neu.subtext)
                         .multilineTextAlignment(.center).lineLimit(2)
                 }
@@ -362,7 +357,7 @@ struct OnboardingView: View {
 
     private func title(_ t: String, _ s: String) -> some View {
         VStack(spacing: 5) {
-            Text(t).font(.system(size: 22, weight: .bold, design: .rounded)).foregroundStyle(Neu.text)
+            Text(t).font(.system(size: 22, weight: .bold)).foregroundStyle(Neu.text)
             Text(s).font(.system(size: 13)).foregroundStyle(Neu.subtext)
         }
     }
