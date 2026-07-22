@@ -1097,58 +1097,92 @@ private struct NowPlayingBar: View {
     @ObservedObject var detector: MusicDetector
     @StateObject private var artFetcher = AlbumArtFetcher()
     @State private var art: NSImage? = nil
-    @State private var pulse = false
 
     private var np: NowPlayingInfo { detector.nowPlaying }
     private var hasTrack: Bool { !np.trackName.isEmpty }
 
+    // Same 0...1 fraction the widgets compute for their own scrub bars —
+    // just without their per-frame TimelineView interpolation, since this
+    // bar already re-renders on every ~4Hz detector tick (see GalleryDetail's
+    // doc comment on why only NowPlayingBar, not the whole grid, observes
+    // the detector directly).
+    private var progress: Double {
+        guard let duration = np.durationMillis, duration > 0, let position = np.positionMillis else { return 0 }
+        return min(1, max(0, Double(position) / Double(duration)))
+    }
+
     var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Neu.well)
-                    .frame(width: 52, height: 52).neuInset(11)
-                if let art {
-                    Image(nsImage: art).resizable().scaledToFill()
-                        .frame(width: 52, height: 52)
-                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                } else {
-                    Image(systemName: "music.note")
-                        .font(.system(size: 19, weight: .medium)).foregroundStyle(Neu.subtext)
+        VStack(spacing: 10) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Neu.well)
+                        .frame(width: 52, height: 52).neuInset(11)
+                    if let art {
+                        Image(nsImage: art).resizable().scaledToFill()
+                            .frame(width: 52, height: 52)
+                            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    } else {
+                        Image(systemName: "music.note")
+                            .font(.system(size: 19, weight: .medium)).foregroundStyle(Neu.subtext)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(hasTrack ? np.trackName : "Nothing playing")
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(Neu.text).lineLimit(1)
+                    Text(hasTrack ? np.artistName : "Start a track in Spotify or Apple Music")
+                        .font(.system(size: 11.5)).foregroundStyle(Neu.subtext).lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                // Same transport commands the widgets themselves use
+                // (MusicDetector.previousTrack/togglePlayback/nextTrack) —
+                // plain glyph buttons, no background chrome, matching
+                // Apple Music's own mini-player controls. The play/pause
+                // glyph itself conveys playing/paused state, so the old
+                // separate status pill is gone — it's redundant now.
+                if hasTrack {
+                    transportControls
                 }
             }
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(hasTrack ? np.trackName : "Nothing playing")
-                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Neu.text).lineLimit(1)
-                Text(hasTrack ? np.artistName : "Start a track in Spotify or Apple Music")
-                    .font(.system(size: 11.5)).foregroundStyle(Neu.subtext).lineLimit(1)
-            }
-
-            Spacer(minLength: 8)
 
             if hasTrack {
-                HStack(spacing: 7) {
-                    Circle()
-                        .fill(np.isPlaying ? Color(hex: "53e08a") : Neu.subtext)
-                        .frame(width: 7, height: 7)
-                        .shadow(color: np.isPlaying ? Color(hex: "53e08a").opacity(0.8) : .clear, radius: 4)
-                        .scaleEffect(np.isPlaying && pulse ? 1.35 : 1.0)
-                    Text(np.isPlaying ? "Playing" : "Paused")
-                        .font(.system(size: 11.5, weight: .medium)).foregroundStyle(Neu.subtext)
-                }
-                .padding(.horizontal, 13).frame(height: 30)
-                .background(Capsule().fill(.regularMaterial))
+                Capsule().fill(Neu.hairline).frame(height: 3)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { geo in
+                            Capsule().fill(Neu.subtext)
+                                .frame(width: max(3, geo.size.width * progress))
+                        }
+                    }
+                    .clipShape(Capsule())
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
         .neuRaised(18)
-        .onAppear {
-            loadArt(np.albumArtURL)
-            withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) { pulse = true }
-        }
+        .onAppear { loadArt(np.albumArtURL) }
         .onChange(of: np.albumArtURL) { _, url in loadArt(url) }
+    }
+
+    private var transportControls: some View {
+        HStack(spacing: 16) {
+            transportButton("backward.fill", size: 13) { detector.previousTrack() }
+            transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15) { detector.togglePlayback() }
+            transportButton("forward.fill", size: 13) { detector.nextTrack() }
+        }
+    }
+
+    private func transportButton(_ icon: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: size, weight: .semibold))
+                .foregroundStyle(Neu.text)
+                .frame(width: 26, height: 26)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func loadArt(_ url: String?) {
