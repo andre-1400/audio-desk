@@ -371,7 +371,13 @@ struct CDWidgetView: View {
     }
 
     private var lcd: some View {
-        CDLcd(track: np.trackName, artist: np.artistName, playing: playing, material: mat)
+        // No longer an LCD readout — modern Apple-Music-style track text on
+        // the housing. Kept the `lcd` name so the two layout call sites are
+        // untouched. Sizes scale per body (the Discman is a bigger device).
+        CDTrackText(track: np.trackName, artist: np.artistName, material: mat,
+                    titleSize: isPortrait ? 19 : 17,
+                    subtitleSize: isPortrait ? 13 : 12,
+                    width: isPortrait ? 208 : 232)
     }
 
     private var isPortrait: Bool {
@@ -380,8 +386,13 @@ struct CDWidgetView: View {
 
     private var controls: some View {
         // Preview cards show these purely for looks — cosmetic only, never
-        // wired to real transport commands.
-        CDControls(playing: playing, material: mat, analog: isPortrait,
+        // wired to real transport commands. Modern bare-glyph transport
+        // (Apple Music layout); play/pause bigger + fully opaque, skips
+        // smaller + muted. Proportioned per body like every other widget.
+        CDControls(playing: playing, material: mat,
+                   playSize: isPortrait ? 27 : 24,
+                   skipSize: isPortrait ? 18 : 17,
+                   spacing: isPortrait ? 42 : 34,
                    onPrev: { if !isPreview { detector.previousTrack() } },
                    onPlay: { if !isPreview { togglePlayback() } },
                    onNext: { if !isPreview { detector.nextTrack() } })
@@ -698,153 +709,97 @@ struct CDDeck: View {
     }
 }
 
-// MARK: - Shared LCD
+// MARK: - Track text (modern — replaces the old skeuomorphic LCD readout)
+//
+// Same visual language as the vinyl widget's modern panel: SF Pro, a bold
+// title over a medium muted artist line, sitting directly on the housing
+// with no glass/LCD box. Colours derive from `material.isLight`, which for
+// the Adaptive/Custom bodies already reflects the blurred-art brightness
+// (CDMaterial.adaptive computes it via AdaptiveBody.isLight), so the text
+// keeps contrast on every body — exactly how the vinyl panel picks its own.
 
-struct CDLcd: View {
+struct CDTrackText: View {
     let track: String
     let artist: String
-    let playing: Bool
     let material: CDMaterial
-    var width: CGFloat = 176
+    var titleSize: CGFloat = 18
+    var subtitleSize: CGFloat = 13
+    var width: CGFloat = 208
+
+    private var primary: Color { material.isLight ? Color.black.opacity(0.88) : .white }
+    private var secondary: Color { material.isLight ? Color.black.opacity(0.58) : Color.white.opacity(0.72) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(track.isEmpty ? "NO DISC" : track.uppercased())
-                .font(.system(size: 11, weight: .heavy, design: .monospaced)).tracking(0.5)
-                .foregroundStyle(material.lcd)
-                .shadow(color: material.lcd.opacity(material.isLight ? 0 : 0.6), radius: 3)
-                .lineLimit(1).truncationMode(.tail)
-            Text(artist.isEmpty ? (playing ? "▶ PLAY" : "❚❚ PAUSE") : artist.uppercased())
-                .font(.system(size: 8, weight: .bold, design: .monospaced)).tracking(0.5)
-                .foregroundStyle(material.lcd.opacity(0.7))
-                .lineLimit(1).truncationMode(.tail)
+        VStack(alignment: .leading, spacing: 3) {
+            Text(track.isEmpty ? "Nothing Playing" : track)
+                .font(.system(size: titleSize, weight: .bold))
+                .tracking(0.2)
+                .foregroundStyle(primary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .truncationMode(.tail)
+            if !artist.isEmpty {
+                Text(artist)
+                    .font(.system(size: subtitleSize, weight: .medium))
+                    .tracking(0.2)
+                    .foregroundStyle(secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+                    .truncationMode(.tail)
+            }
         }
-        .frame(width: width, alignment: .leading)
-        .padding(.horizontal, 11).padding(.vertical, 7)
-        .background(
-            RoundedRectangle(cornerRadius: 4)
-                .fill(LinearGradient(colors: material.lcdBg, startPoint: .top, endPoint: .bottom))
-                .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(Color.black.opacity(0.5), lineWidth: 1))
-                .overlay(RoundedRectangle(cornerRadius: 4).strokeBorder(material.lcd.opacity(0.12), lineWidth: 0.5).padding(1))
-                .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
-        )
+        .frame(maxWidth: width, alignment: .leading)
     }
 }
 
-// MARK: - Shared controls
+// MARK: - Transport controls (modern bare glyphs, Apple Music layout)
+//
+// No capsule panel, no domed/analog physical keys — just SF Symbol glyphs
+// like the vinyl and album-art widgets: play/pause reads bigger and fully
+// opaque (primary), skips smaller and muted (secondary). The disc build,
+// deck, and animations are untouched; only these controls changed.
 
 struct CDControls: View {
     let playing: Bool
     let material: CDMaterial
-    var analog: Bool = false
+    var playSize: CGFloat = 26
+    var skipSize: CGFloat = 18
+    var spacing: CGFloat = 36
     var onPrev: () -> Void
     var onPlay: () -> Void
     var onNext: () -> Void
 
+    private var primary: Color { material.isLight ? Color.black.opacity(0.88) : .white }
+    private var secondary: Color { material.isLight ? Color.black.opacity(0.55) : Color.white.opacity(0.68) }
+
     var body: some View {
-        HStack(spacing: 0) {
-            Button(action: onPrev) { CDPhysicalButton(icon: "backward.fill", material: material, analog: analog) }.buttonStyle(CDButtonStyle())
-            Spacer()
-            Button(action: onPlay) { CDPhysicalButton(icon: playing ? "pause.fill" : "play.fill", material: material, primary: true, analog: analog) }.buttonStyle(CDButtonStyle())
-            Spacer()
-            Button(action: onNext) { CDPhysicalButton(icon: "forward.fill", material: material, analog: analog) }.buttonStyle(CDButtonStyle())
+        HStack(spacing: spacing) {
+            glyph("backward.fill", size: skipSize, color: secondary, action: onPrev)
+            glyph(playing ? "pause.fill" : "play.fill", size: playSize, color: primary, action: onPlay)
+            glyph("forward.fill", size: skipSize, color: secondary, action: onNext)
         }
-        .padding(.horizontal, 20).padding(.vertical, 12)
-        .background(
-            Capsule().fill(LinearGradient(colors: material.panel, startPoint: .top, endPoint: .bottom))
-                .overlay(Capsule().strokeBorder(Color.white.opacity(material.isLight ? 0.7 : 0.10), lineWidth: 1))
-                .overlay(Capsule().strokeBorder(Color.black.opacity(0.35), lineWidth: 1).padding(1))
-                .shadow(color: .black.opacity(0.45), radius: 6, y: 3)
-        )
+    }
+
+    private func glyph(_ symbol: String, size: CGFloat, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: size, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: size + 14, height: size + 14)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(CDPressStyle())
     }
 }
 
-// MARK: - Physical button
-
-struct CDPhysicalButton: View {
-    let icon: String
-    let material: CDMaterial
-    var primary: Bool = false
-    var analog: Bool = false
-
-    var body: some View {
-        if analog { analogButton } else { digitalButton }
-    }
-
-    // Glossy domed button (used by the special devices for now)
-    private var digitalButton: some View {
-        let d: CGFloat = primary ? 42 : 33
-        let primaryCap = material.buttonAccent ?? material.accent
-        let capColors: [Color] = primary
-            ? [primaryCap.adjustBrightness(0.18), primaryCap, primaryCap.adjustBrightness(-0.22)]
-            : (material.isLight ? [Color(hex: "ffffff"), Color(hex: "e2e7ef"), Color(hex: "b6bfcc")]
-                                : [Color(hex: "4a525d"), Color(hex: "333a43"), Color(hex: "1a1e24")])
-        let iconColor: Color = primary ? Color(hex: "07171c") : (material.isLight ? Color(hex: "3a414b") : Color(hex: "eef3f8"))
-
-        return ZStack {
-            Circle().fill(Color.black.opacity(0.45)).frame(width: d + 8, height: d + 8).blur(radius: 1.5)
-            Circle().fill(LinearGradient(colors: [Color.black.opacity(0.5), Color.white.opacity(material.isLight ? 0.3 : 0.05)], startPoint: .bottom, endPoint: .top))
-                .frame(width: d + 5, height: d + 5)
-            Circle().fill(LinearGradient(colors: capColors, startPoint: .top, endPoint: .bottom))
-                .frame(width: d, height: d)
-                .overlay(Ellipse().fill(LinearGradient(colors: [Color.white.opacity(0.7), .clear], startPoint: .top, endPoint: .center))
-                    .frame(width: d * 0.7, height: d * 0.45).offset(y: -d * 0.16).blur(radius: 0.5))
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.8))
-                .overlay(Circle().strokeBorder(Color.black.opacity(0.3), lineWidth: 0.6).padding(0.5))
-                .shadow(color: .black.opacity(0.5), radius: 2, y: 2)
-            Image(systemName: icon).font(.system(size: primary ? 14 : 11, weight: .black))
-                .foregroundStyle(iconColor)
-                .shadow(color: .white.opacity(primary ? 0.2 : 0.12), radius: 0.5, y: 0.6)
-        }
-        .frame(width: d + 8, height: d + 8)
-    }
-
-    // Analog: matte rounded-rect transport key, beveled edge, engraved icon
-    private var analogButton: some View {
-        let w: CGFloat = primary ? 42 : 34
-        let h: CGFloat = (primary ? 42 : 34) * 0.82
-        let r: CGFloat = w * 0.30
-        let primaryCap = material.buttonAccent ?? material.accent
-        let capColors: [Color] = primary
-            ? [primaryCap.adjustBrightness(0.06), primaryCap.adjustBrightness(-0.16)]
-            : (material.isLight ? [Color(hex: "eef1f6"), Color(hex: "c4ccd7")]
-                                : [Color(hex: "464d57"), Color(hex: "262b32")])
-        let iconColor: Color = primary
-            ? Color(hex: "201006")
-            : (material.isLight ? Color(hex: "434a54") : Color(hex: "d0d7df"))
-        let debossLight: Color = material.isLight ? Color.white.opacity(0.85) : Color.white.opacity(0.14)
-
-        return ZStack {
-            // recessed slot
-            RoundedRectangle(cornerRadius: r + 2, style: .continuous)
-                .fill(Color.black.opacity(0.42))
-                .frame(width: w + 6, height: h + 6)
-                .blur(radius: 1.2)
-            RoundedRectangle(cornerRadius: r + 1, style: .continuous)
-                .fill(LinearGradient(colors: [Color.black.opacity(0.55), Color.white.opacity(material.isLight ? 0.45 : 0.06)],
-                                     startPoint: .bottom, endPoint: .top))
-                .frame(width: w + 3, height: h + 3)
-
-            // matte key cap
-            RoundedRectangle(cornerRadius: r, style: .continuous)
-                .fill(LinearGradient(colors: capColors, startPoint: .top, endPoint: .bottom))
-                .frame(width: w, height: h)
-                // top chamfer highlight (beveled edge catching light)
-                .overlay(
-                    RoundedRectangle(cornerRadius: r, style: .continuous)
-                        .strokeBorder(LinearGradient(colors: [Color.white.opacity(material.isLight ? 0.9 : 0.4), .clear],
-                                                     startPoint: .top, endPoint: .center), lineWidth: 1)
-                )
-                .overlay(RoundedRectangle(cornerRadius: r, style: .continuous).strokeBorder(Color.black.opacity(0.32), lineWidth: 0.7))
-                .shadow(color: .black.opacity(0.45), radius: 1.5, x: 0, y: 1.5)
-
-            // engraved (debossed) icon
-            Image(systemName: icon)
-                .font(.system(size: primary ? 12.5 : 10, weight: .heavy))
-                .foregroundStyle(iconColor)
-                .shadow(color: debossLight, radius: 0, x: 0, y: 0.8)
-        }
-        .frame(width: w + 6, height: h + 6)
+/// Springy press feedback for the modern bare-glyph transport buttons —
+/// same feel as the vinyl widget's PressScaleButtonStyle.
+private struct CDPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.84 : 1.0)
+            .opacity(configuration.isPressed ? 0.6 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 
