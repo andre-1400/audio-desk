@@ -9,14 +9,15 @@ import AppKit
 // copy of the same design.
 
 enum AlbumArtSize: String, CaseIterable, Identifiable {
-    case compact, card, hero
+    case compact, circle, mini, card
     var id: String { rawValue }
 
     var baseSize: CGSize {
         switch self {
         case .compact: return CGSize(width: 220, height: 220)
+        case .circle:  return CGSize(width: 200, height: 200)
+        case .mini:    return CGSize(width: 280, height: 84)
         case .card:    return CGSize(width: 280, height: 360)
-        case .hero:    return CGSize(width: 380, height: 460)
         }
     }
 }
@@ -29,8 +30,9 @@ struct AlbumArtModel: Identifiable {
 
     static let all: [AlbumArtModel] = [
         AlbumArtModel(id: "albumart-compact", name: "Compact", subtitle: "Just the cover art", size: .compact),
-        AlbumArtModel(id: "albumart-card", name: "Card", subtitle: "Art with track info", size: .card),
-        AlbumArtModel(id: "albumart-hero", name: "Hero", subtitle: "Full-bleed backdrop + controls", size: .hero)
+        AlbumArtModel(id: "albumart-circle", name: "Circle", subtitle: "Round art with a live progress ring", size: .circle),
+        AlbumArtModel(id: "albumart-mini", name: "Mini", subtitle: "A glanceable info strip", size: .mini),
+        AlbumArtModel(id: "albumart-card", name: "Card", subtitle: "Full-bleed art with controls", size: .card)
     ]
 }
 
@@ -43,14 +45,12 @@ struct AlbumArtWidgetView: View {
     // GalleryLiveTrack. Only ever read when isPreview.
     var previewInfo: NowPlayingInfo? = nil
     var previewArt: NSImage? = nil
-    var previewExtracted: ExtractedColours? = nil
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
 
     @State private var displayedArt: NSImage?
     @State private var displayedInfo: NowPlayingInfo = .empty
-    @State private var extracted: ExtractedColours = .fallback
 
     // MARK: - Progress-bar scrubbing (Card layout only) — same scheme as
     // VinylWidgetView/VinylHorizontalWidgetView, duplicated rather than
@@ -65,17 +65,15 @@ struct AlbumArtWidgetView: View {
     private var art: NSImage {
         (isPreview ? previewArt : displayedArt) ?? FallbackCoverArtGenerator.fallbackImage
     }
-    private var effectiveExtracted: ExtractedColours {
-        isPreview ? (previewExtracted ?? .fallback) : extracted
-    }
     private var trackKey: String { "\(np.trackName)|\(np.artistName)" }
 
     var body: some View {
         Group {
             switch model.size {
             case .compact: compactLayout
+            case .circle: circleLayout
+            case .mini: miniLayout
             case .card: cardLayout
-            case .hero: heroLayout
             }
         }
         .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
@@ -108,7 +106,6 @@ struct AlbumArtWidgetView: View {
             withAnimation(.easeInOut(duration: 0.35)) {
                 displayedArt = image
             }
-            extracted = image.map(ColourExtractor.extract) ?? .fallback
         }
     }
 
@@ -124,10 +121,10 @@ struct AlbumArtWidgetView: View {
             .id(trackKey)
             .transition(.opacity)
             .animation(.easeInOut(duration: 0.3), value: trackKey)
-            // Explicit frame right at the image, before clipping — matches
-            // how Card/Hero pin their own art frame here rather than relying
-            // on the outer body-level frame. Without this, one track whose
-            // fetched art reported an unusual intrinsic size (e.g. a
+            // Explicit frame right at the image, before clipping — every
+            // layout in this file pins its own art frame here rather than
+            // relying on the outer body-level frame. Without this, one track
+            // whose fetched art reported an unusual intrinsic size (e.g. a
             // non-square source image) briefly rendered at that image's own
             // proportions before the outer frame ever got a say, clipping
             // the rounded corners against the wrong rectangle.
@@ -141,27 +138,123 @@ struct AlbumArtWidgetView: View {
             .onTapGesture { togglePlayback() }
     }
 
-    // MARK: - Card (280x360) — art + track info + progress
+    // MARK: - Circle (200x200) — round art + a live progress ring
 
-    private var cardLayout: some View {
-        VStack(spacing: 0) {
-            // Art moved up and slightly smaller than before, to leave real
-            // room for the transport row under the title without the card
-            // feeling cramped or needing to grow.
+    private var circleLayout: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { context in
+            let fraction = progressFraction(at: context.date)
+            ZStack {
+                artImage
+                    .id(trackKey)
+                    .transition(.opacity)
+                    .animation(.easeInOut(duration: 0.3), value: trackKey)
+                    .aspectRatio(1, contentMode: .fill)
+                    .frame(width: 168, height: 168)
+                    .clipShape(Circle())
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+
+                // The one widget in the family that shows playback position
+                // as a ring instead of a bar — there's no room for one here,
+                // and it reads naturally against the round art.
+                Circle()
+                    .trim(from: 0, to: hasProgressData ? fraction : 0)
+                    .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 188, height: 188)
+                    .animation(.linear(duration: 0.4), value: fraction)
+
+                Circle()
+                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                    .frame(width: 188, height: 188)
+            }
+            .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
+            .contentShape(Circle())
+            .onTapGesture { togglePlayback() }
+        }
+    }
+
+    // MARK: - Mini (280x84) — a glanceable horizontal strip
+
+    private var miniLayout: some View {
+        HStack(spacing: 14) {
             artImage
                 .id(trackKey)
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.3), value: trackKey)
                 .aspectRatio(1, contentMode: .fill)
-                .frame(width: 196, height: 196)
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .frame(width: 58, height: 58)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
                 )
                 .contentShape(Rectangle())
                 .onTapGesture { togglePlayback() }
-                .padding(.top, 22)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if !np.artistName.isEmpty {
+                    Text(np.artistName)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Play/pause only — no skip buttons — keeps this the smallest,
+            // most glanceable member of the family, distinct from Card's
+            // full transport row.
+            transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 17, prominent: true) {
+                togglePlayback()
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 18)
+        .padding(.vertical, 12)
+        .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color.black.opacity(0.62))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+        )
+    }
+
+    // MARK: - Card (280x360) — full-bleed art + info + controls
+
+    private var cardLayout: some View {
+        ZStack(alignment: .bottom) {
+            // The art itself IS the background now — full-bleed and sharp,
+            // no blur — instead of a small inset square over a flat colour
+            // gradient. Tapping anywhere on it toggles playback.
+            artImage
+                .id(trackKey)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.3), value: trackKey)
+                .aspectRatio(contentMode: .fill)
+                .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
+                .clipped()
+                .contentShape(Rectangle())
+                .onTapGesture { togglePlayback() }
+
+            // Scrim only where the UI actually sits, fading to clear above
+            // it — keeps the art readable up top instead of darkening the
+            // whole card the way a full-frame overlay would.
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.30), .black.opacity(0.74)],
+                startPoint: .top, endPoint: .bottom
+            )
+            .frame(height: 190)
+            .allowsHitTesting(false)
 
             VStack(spacing: 3) {
                 Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
@@ -173,36 +266,32 @@ struct AlbumArtWidgetView: View {
                 if !np.artistName.isEmpty {
                     Text(np.artistName)
                         .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.65))
+                        .foregroundStyle(.white.opacity(0.7))
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .truncationMode(.tail)
                 }
+
+                // Preview cards show these purely for looks — cosmetic
+                // only, never wired to real transport commands.
+                HStack(spacing: 26) {
+                    transportButton("backward.fill", size: 15) { if !isPreview { detector.previousTrack() } }
+                    transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 20, prominent: true) { togglePlayback() }
+                    transportButton("forward.fill", size: 15) { if !isPreview { detector.nextTrack() } }
+                }
+                .padding(.top, 10)
+
+                cardScrubBar
+                    .padding(.top, 12)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 16)
-
-            // Preview cards show these purely for looks — cosmetic only,
-            // never wired to real transport commands.
-            HStack(spacing: 26) {
-                transportButton("backward.fill", size: 15) { if !isPreview { detector.previousTrack() } }
-                transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 20, prominent: true) { togglePlayback() }
-                transportButton("forward.fill", size: 15) { if !isPreview { detector.nextTrack() } }
-            }
-            .padding(.top, 14)
-
-            Spacer(minLength: 12)
-
-            cardScrubBar
-                .padding(.horizontal, 28)
-                .padding(.bottom, 20)
+            .padding(.horizontal, 26)
+            .padding(.bottom, 20)
         }
         .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
-        .background(cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
         )
     }
 
@@ -335,86 +424,6 @@ struct AlbumArtWidgetView: View {
         return true
     }
 
-    private var cardBackground: some View {
-        LinearGradient(
-            colors: [effectiveExtracted.dominant, effectiveExtracted.secondary],
-            startPoint: .top, endPoint: .bottom
-        )
-        .animation(.easeInOut(duration: 0.5), value: effectiveExtracted.dominant)
-    }
-
-    // MARK: - Hero (380x460) — full-bleed backdrop + transport controls
-
-    private var heroLayout: some View {
-        ZStack {
-            // Blurred, darkened backdrop from the same art — the "Apple Music
-            // now playing" full-bleed look, no physical device at all.
-            artImage
-                .id(trackKey)
-                .transition(.opacity)
-                .animation(.easeInOut(duration: 0.4), value: trackKey)
-                .aspectRatio(contentMode: .fill)
-                .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
-                .clipped()
-                .blur(radius: 34)
-                .overlay(Color.black.opacity(0.44))
-
-            VStack(spacing: 18) {
-                Spacer(minLength: 8)
-
-                artImage
-                    .id(trackKey)
-                    .transition(.opacity)
-                    .animation(.easeInOut(duration: 0.3), value: trackKey)
-                    .aspectRatio(1, contentMode: .fill)
-                    .frame(width: 210, height: 210)
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
-                    )
-                    .shadow(color: .black.opacity(0.5), radius: 22, x: 0, y: 12)
-                    .contentShape(Rectangle())
-                    .onTapGesture { togglePlayback() }
-
-                VStack(spacing: 5) {
-                    Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                    if !np.artistName.isEmpty {
-                        Text(np.artistName)
-                            .font(.system(size: 12.5, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.68))
-                            .lineLimit(1)
-                    }
-                }
-                .padding(.horizontal, 24)
-
-                ProgressStrip(info: np, tint: .white)
-                    .frame(width: 260)
-
-                // Preview cards show these purely for looks — cosmetic
-                // only, never wired to real transport commands.
-                HStack(spacing: 28) {
-                    transportButton("backward.fill", size: 15) { if !isPreview { detector.previousTrack() } }
-                    transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 20, prominent: true) { togglePlayback() }
-                    transportButton("forward.fill", size: 15) { if !isPreview { detector.nextTrack() } }
-                }
-                .padding(.top, 2)
-
-                Spacer(minLength: 18)
-            }
-        }
-        .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
-        .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.4), radius: 24, x: 0, y: 14)
-    }
-
     // Bare glyphs, no button-cap background — matches Apple Music's own
     // mini-player exactly: play/pause reads bigger and fully opaque white,
     // skip buttons smaller and muted.
@@ -513,36 +522,6 @@ private struct AlbumArtScrubDragCaptureView: NSViewRepresentable {
     }
 }
 
-// MARK: - Shared small pieces
-
-/// A thin, ticking progress bar — cheap TimelineView tick rather than a timer.
-private struct ProgressStrip: View {
-    let info: NowPlayingInfo
-    let tint: Color
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.5)) { context in
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(tint.opacity(0.22))
-                    Capsule().fill(tint.opacity(0.9))
-                        .frame(width: geo.size.width * fraction(at: context.date))
-                }
-            }
-        }
-        .frame(height: 3)
-    }
-
-    private func fraction(at date: Date) -> Double {
-        guard let pos = info.positionMillis, let dur = info.durationMillis, dur > 0 else { return 0 }
-        var elapsedMillis = Double(pos)
-        if info.isPlaying, let sampledAt = info.progressSampledAt {
-            elapsedMillis += date.timeIntervalSince(sampledAt) * 1000
-        }
-        return min(1, max(0, elapsedMillis / Double(dur)))
-    }
-}
-
 // MARK: - Sized root (applies the global small/medium/large scale, like CD/Vinyl)
 
 struct AlbumArtSizedRoot: View {
@@ -570,7 +549,7 @@ struct AlbumArtModelPreview: View {
             let s = min(geo.size.width / base.width, geo.size.height / base.height)
             AlbumArtWidgetView(
                 model: model, isPreview: true,
-                previewInfo: live.info, previewArt: live.art, previewExtracted: live.colours
+                previewInfo: live.info, previewArt: live.art
             )
                 .frame(width: base.width, height: base.height)
                 .scaleEffect(s)

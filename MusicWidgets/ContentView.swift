@@ -694,7 +694,7 @@ private struct GalleryDetail: View {
                             }
                         }
                     } else {
-                        formSection(name: "Album Art", subtitle: "Three sizes, one clean look",
+                        formSection(name: "Album Art", subtitle: "Four takes on minimal",
                                     count: AlbumArtModel.all.count, items: AlbumArtModel.all) { model in
                             GalleryCard(title: model.name, subtitle: model.subtitle,
                                         accent: category.accentColor,
