@@ -25,6 +25,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var albumArtModel: AlbumArtModel?
     private var vinylHorizontalWindow: WidgetWindow?
     private var vinylHorizontalModel: VinylHorizontalModel?
+    private var vinylSpindleWindow: WidgetWindow?
+    private var vinylSpindleModel: VinylSpindleModel?
 
     private var galleryWindow: NSWindow?
     private var statusItem: NSStatusItem?
@@ -263,6 +265,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let model = cdModel, cdWindow != nil { return "cd:\(model.id)" }
         if let model = albumArtModel, albumArtWindow != nil { return "albumart:\(model.id)" }
         if let model = vinylHorizontalModel, vinylHorizontalWindow != nil { return "vinylh:\(model.id)" }
+        if let model = vinylSpindleModel, vinylSpindleWindow != nil { return "spindle:\(model.id)" }
         return nil
     }
 
@@ -287,6 +290,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let raw = String(entry.dropFirst(7))
             guard let model = VinylHorizontalModel.all.first(where: { $0.id == raw }) else { return nil }
             return "Horizontal · \(model.name)"
+        }
+        if entry.hasPrefix("spindle:") {
+            let raw = String(entry.dropFirst(8))
+            guard let model = VinylSpindleModel.all.first(where: { $0.id == raw }) else { return nil }
+            return "Spindle · \(model.name)"
         }
         return nil
     }
@@ -313,6 +321,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else if entry.hasPrefix("vinylh:"),
                   let model = VinylHorizontalModel.all.first(where: { $0.id == String(entry.dropFirst(7)) }) {
             launchVinylHorizontalWidget(model: model)
+        } else if entry.hasPrefix("spindle:"),
+                  let model = VinylSpindleModel.all.first(where: { $0.id == String(entry.dropFirst(8)) }) {
+            launchVinylSpindleWidget(model: model)
         }
     }
 
@@ -320,15 +331,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var hasActiveWidget: Bool {
         vinylWindow != nil || cdWindow != nil || albumArtWindow != nil || vinylHorizontalWindow != nil
+            || vinylSpindleWindow != nil
     }
 
     private var isWidgetOrderedIn: Bool {
         (vinylWindow?.isVisible ?? false) || (cdWindow?.isVisible ?? false) || (albumArtWindow?.isVisible ?? false)
-            || (vinylHorizontalWindow?.isVisible ?? false)
+            || (vinylHorizontalWindow?.isVisible ?? false) || (vinylSpindleWindow?.isVisible ?? false)
     }
 
     private var activeWidgetWindows: [NSWindow] {
-        [vinylWindow, cdWindow, albumArtWindow, vinylHorizontalWindow].compactMap { $0 }
+        [vinylWindow, cdWindow, albumArtWindow, vinylHorizontalWindow, vinylSpindleWindow].compactMap { $0 }
     }
 
     @objc private func toggleWidgetVisibility() {
@@ -349,6 +361,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeCDWidget()
         closeAlbumArtWidget()
         closeVinylHorizontalWidget()
+        closeVinylSpindleWidget()
     }
 
     @objc func showGallerySettings() {
@@ -555,11 +568,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                       height: horizontalBaseSize.height * s)
     }
 
+    /// Spindle also has no musical-notes overlay, same reasoning as Album
+    /// Art/Horizontal — there's no housing corner for it to sit on.
+    private func vinylSpindleWindowSize() -> CGSize {
+        let s = WidgetSizeManager.shared.scale
+        return CGSize(width: spindleBaseSize.width * s,
+                      height: spindleBaseSize.height * s)
+    }
+
     private func relayoutActiveWidget() {
         if vinylWindow != nil { applyVinylLayout() }
         if cdWindow != nil { applyCDLayout() }
         if albumArtWindow != nil { applyAlbumArtLayout() }
         if vinylHorizontalWindow != nil { applyVinylHorizontalLayout() }
+        if vinylSpindleWindow != nil { applyVinylSpindleLayout() }
     }
 
     /// Returns a saved position only if it's actually visible on some screen,
@@ -584,6 +606,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeCDWidget()
         closeAlbumArtWidget()
         closeVinylHorizontalWidget()
+        closeVinylSpindleWidget()
         themeManager.setTheme(themeID)
         RecentWidgets.note(vinyl: themeID)
         ActiveWidgetState.shared.entry = "vinyl:\(themeID.rawValue)"
@@ -675,6 +698,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeVinylWidget()
         closeAlbumArtWidget()
         closeVinylHorizontalWidget()
+        closeVinylSpindleWidget()
         cdModel = model
         RecentWidgets.note(cd: model)
         ActiveWidgetState.shared.entry = "cd:\(model.id)"
@@ -740,6 +764,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeVinylWidget()
         closeCDWidget()
         closeVinylHorizontalWidget()
+        closeVinylSpindleWidget()
         albumArtModel = model
         RecentWidgets.note(albumArt: model)
         ActiveWidgetState.shared.entry = "albumart:\(model.id)"
@@ -805,6 +830,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeVinylWidget()
         closeCDWidget()
         closeAlbumArtWidget()
+        closeVinylSpindleWidget()
         vinylHorizontalModel = model
         RecentWidgets.note(vinylHorizontal: model)
         ActiveWidgetState.shared.entry = "vinylh:\(model.id)"
@@ -862,6 +888,72 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         vinylHorizontalModel = nil
+    }
+
+    // MARK: - Launch Vinyl Spindle widget
+
+    func launchVinylSpindleWidget(model: VinylSpindleModel) {
+        closeVinylWidget()
+        closeCDWidget()
+        closeAlbumArtWidget()
+        closeVinylHorizontalWidget()
+        vinylSpindleModel = model
+        RecentWidgets.note(vinylSpindle: model)
+        ActiveWidgetState.shared.entry = "spindle:\(model.id)"
+        hiddenByUser = false
+        hiddenByPause = false
+        let size = vinylSpindleWindowSize()
+
+        if let existing = vinylSpindleWindow {
+            existing.contentView?.subviews.forEach { $0.removeFromSuperview() }
+            let host = NSHostingView(rootView: VinylSpindleSizedRoot(model: model).modifier(DesktopWidgetChrome(cornerInset: 20)))
+            host.frame = existing.contentView?.bounds ?? .zero
+            host.autoresizingMask = [.width, .height]
+            existing.contentView?.addSubview(host)
+            applyVinylSpindleLayout()
+            existing.orderFrontRegardless()
+            existing.alphaValue = WidgetSettings.shared.widgetOpacity
+            return
+        }
+
+        let window = WidgetWindow()
+        window.setContentSize(size)
+        window.setFrameOrigin(launchOrigin(xKey: "vinylSpindleWidgetX", yKey: "vinylSpindleWidgetY", size: size))
+
+        let host = NSHostingView(rootView: VinylSpindleSizedRoot(model: model).modifier(DesktopWidgetChrome(cornerInset: 20)))
+        host.frame = window.contentView?.bounds ?? .zero
+        host.autoresizingMask = [.width, .height]
+        window.contentView?.addSubview(host)
+        self.vinylSpindleWindow = window
+
+        NotificationCenter.default.addObserver(forName: NSWindow.didMoveNotification, object: window, queue: .main) { _ in
+            UserDefaults.standard.set(window.frame.origin.x, forKey: "vinylSpindleWidgetX")
+            UserDefaults.standard.set(window.frame.origin.y, forKey: "vinylSpindleWidgetY")
+        }
+
+        applyWindowPreferences()
+        fadeIn(window)
+    }
+
+    private func applyVinylSpindleLayout() {
+        guard let window = vinylSpindleWindow else { return }
+        let size = vinylSpindleWindowSize()
+        let c = window.frame
+        let origin = CGPoint(x: c.midX - size.width / 2, y: c.midY - size.height / 2)
+        window.setFrame(CGRect(origin: origin, size: size), display: true, animate: false)
+        UserDefaults.standard.set(window.frame.origin.x, forKey: "vinylSpindleWidgetX")
+        UserDefaults.standard.set(window.frame.origin.y, forKey: "vinylSpindleWidgetY")
+    }
+
+    func closeVinylSpindleWidget() {
+        if let window = vinylSpindleWindow {
+            vinylSpindleWindow = nil
+            fadeOut(window, thenClose: true)
+            if ActiveWidgetState.shared.entry?.hasPrefix("spindle:") == true {
+                ActiveWidgetState.shared.entry = nil
+            }
+        }
+        vinylSpindleModel = nil
     }
 }
 

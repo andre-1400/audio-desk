@@ -668,6 +668,22 @@ private struct GalleryDetail: View {
                                 VinylHorizontalModelPreview(model: model, animated: animated, live: liveTrack)
                             }
                         }
+                        formSection(name: "Spindle", subtitle: "Just the disc, floating free",
+                                    count: VinylSpindleModel.all.count, items: VinylSpindleModel.all) { model in
+                            GalleryCard(title: model.name, subtitle: model.subtitle,
+                                        accent: category.accentColor,
+                                        hovered: hoveredID == model.id,
+                                        active: activeWidget.entry == "spindle:\(model.id)",
+                                        special: model.isSpecialStyle,
+                                        badgeText: model.specialKind?.badgeText,
+                                        badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
+                                        onHover: { setHover(model.id, $0) },
+                                        action: {
+                                            AppDelegate.shared?.launchVinylSpindleWidget(model: model)
+                                        }) { animated in
+                                VinylSpindleModelPreview(model: model, animated: animated, live: liveTrack)
+                            }
+                        }
                     } else if category == .cd {
                         ForEach(CDModel.forms) { form in
                             formSection(name: form.name, subtitle: form.subtitle,
@@ -967,6 +983,13 @@ extension VinylStyle: GalleryStyleItem {
 extension VinylHorizontalModel: GalleryStyleItem {
     var specialKind: SpecialStyleKind? {
         themeID == .adaptive ? .adaptive : (themeID == .custom ? .custom : nil)
+    }
+}
+extension VinylSpindleModel: GalleryStyleItem {
+    // No Custom option for this style (see VinylSpindleWidgetView's own
+    // doc comment) — only Adaptive counts as "special" here.
+    var specialKind: SpecialStyleKind? {
+        themeID == .adaptive ? .adaptive : nil
     }
 }
 extension CDModel: GalleryStyleItem {
@@ -1749,7 +1772,7 @@ enum WidgetCategory: String, Identifiable, CaseIterable {
     }
     var widgetCount: Int {
         switch self {
-        case .vinyl: return VinylStyle.all.count + VinylHorizontalModel.all.count
+        case .vinyl: return VinylStyle.all.count + VinylHorizontalModel.all.count + VinylSpindleModel.all.count
         case .cd: return CDModel.all.count
         case .albumArt: return AlbumArtModel.all.count
         }
