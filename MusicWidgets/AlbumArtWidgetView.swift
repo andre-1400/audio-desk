@@ -116,13 +116,6 @@ struct AlbumArtWidgetView: View {
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.38), radius: 18, x: 0, y: 10)
-            .overlay(alignment: .topTrailing) {
-                if !np.trackName.isEmpty {
-                    PlaybackDot(isPlaying: np.isPlaying)
-                        .padding(10)
-                }
-            }
             .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             .onTapGesture { togglePlayback() }
     }
@@ -280,18 +273,6 @@ struct AlbumArtWidgetView: View {
 }
 
 // MARK: - Shared small pieces
-
-/// A minimal playing/paused indicator — no skeuomorphism, just a soft dot.
-private struct PlaybackDot: View {
-    let isPlaying: Bool
-    var body: some View {
-        Circle()
-            .fill(isPlaying ? Color(hex: "3ddc73") : Color.white.opacity(0.55))
-            .frame(width: 9, height: 9)
-            .shadow(color: (isPlaying ? Color(hex: "3ddc73") : .clear).opacity(0.7), radius: 4)
-            .overlay(Circle().strokeBorder(Color.black.opacity(0.25), lineWidth: 0.5))
-    }
-}
 
 /// A thin, ticking progress bar — cheap TimelineView tick rather than a timer.
 private struct ProgressStrip: View {
