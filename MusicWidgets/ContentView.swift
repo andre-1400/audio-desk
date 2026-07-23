@@ -1031,18 +1031,6 @@ private struct GalleryCard<P: View>: View {
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                    if special, let badgeText {
-                        HStack(spacing: 4) {
-                            Image(systemName: badgeIcon).font(.system(size: 9, weight: .bold))
-                            Text(badgeText).font(.system(size: 10, weight: .bold)).tracking(0.3)
-                        }
-                        .foregroundStyle(AMTheme.onAccent)
-                        .padding(.horizontal, 9).padding(.vertical, 5)
-                        .background(Capsule().fill(accent))
-                        .padding(12)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    }
-
                     if hovered {
                         HStack(spacing: 5) {
                             Image(systemName: placeIcon).font(.system(size: 11, weight: .bold))
@@ -1070,7 +1058,20 @@ private struct GalleryCard<P: View>: View {
                     }
                 }
 
-                VStack(spacing: 3) {
+                VStack(spacing: 5) {
+                    // Moved down here from an overlay on the preview itself —
+                    // it was sitting right on top of the disc/tonearm and
+                    // covering part of the widget on every style that has
+                    // one, not just Ghost.
+                    if special, let badgeText {
+                        HStack(spacing: 4) {
+                            Image(systemName: badgeIcon).font(.system(size: 8, weight: .bold))
+                            Text(badgeText).font(.system(size: 9, weight: .bold)).tracking(0.3)
+                        }
+                        .foregroundStyle(AMTheme.onAccent)
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(Capsule().fill(accent))
+                    }
                     Text(title).font(.appHeadline).foregroundStyle(Neu.text)
                     Text(subtitle).font(.appCaption).foregroundStyle(Neu.subtext).lineLimit(1)
                 }

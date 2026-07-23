@@ -215,44 +215,6 @@ final class CDTransitionAnimator: ObservableObject {
     func start() { cancel(); let id = UUID(); token = id; advance(.decelerate, id: id) }
     func cancel() { scheduled.forEach { $0.cancel() }; scheduled.removeAll(); token = nil; phase = .idle }
 
-    /// Track-change animations off: skip the eject/insert choreography
-    /// entirely (the caller swaps the art instantly, before calling this),
-    /// but still let the disc audibly/visibly spin back up from a stop
-    /// instead of the new disc silently inheriting whatever speed the old
-    /// one was already at. .decelerate and .spinUp are the only two phases
-    /// that affect spin speed at all (see targetSpeed) and neither has any
-    /// lift/eject/lid-open visual effect on its own (see discLayer/flipLid),
-    /// so cycling just those two — skipping liftOff/eject/gap/insert/seat —
-    /// reproduces only the spin-down-then-up motion, at the exact same
-    /// rate/curve as the full animation's own spinUp phase.
-    func startSpinReset() {
-        cancel()
-        let id = UUID()
-        token = id
-        advance(.decelerate, id: id, then: .spinUp, finally: .idle)
-    }
-
-    /// Like advance(_:id:), but follows a caller-supplied two-step chain
-    /// instead of the default full phaseAfter sequence.
-    private func advance(_ next: CDPhase, id: UUID, then following: CDPhase, finally last: CDPhase) {
-        guard token == id else { return }
-        withAnimation(animation(for: next)) { phase = next }
-        let work = DispatchWorkItem { [weak self] in
-            guard let self, self.token == id else { return }
-            withAnimation(self.animation(for: following)) { self.phase = following }
-            let finish = DispatchWorkItem { [weak self] in
-                guard let self, self.token == id else { return }
-                self.phase = last
-                self.onComplete?()
-                self.token = nil
-            }
-            self.scheduled.append(finish)
-            DispatchQueue.main.asyncAfter(deadline: .now() + self.duration(for: following), execute: finish)
-        }
-        scheduled.append(work)
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration(for: next), execute: work)
-    }
-
     private func advance(_ next: CDPhase, id: UUID) {
         guard token == id else { return }
         if next == .gap { onReveal?() }
@@ -327,6 +289,11 @@ struct CDWidgetView: View {
     @State private var incomingArt: NSImage? = nil
     @State private var lastTrackKey: String = ""
     @State private var optimisticPlaying: Bool? = nil
+    // Animations-off track change: hold the disc at a genuine standstill
+    // (not just target 0, which only coasts down) for half a second, then
+    // let it spin back up from real rest at the usual acceleration rate.
+    @State private var spinResetToken: UUID? = nil
+    @State private var spinFrozen = false
     // Only ever read when model.isAdaptive; neutral grey/white rather than
     // the generic extraction-failure fallback so it reads as "will become
     // whatever's playing," not a fixed brown.
@@ -364,6 +331,7 @@ struct CDWidgetView: View {
 
     private var targetSpeed: Double {
         if isPreview { return previewSpinning ? 760 : 0 }
+        if spinFrozen { return 0 }
         switch transition.phase {
         case .spinUp, .idle: return playing ? maxSpinSpeed : 0
         default: return 0
@@ -398,7 +366,8 @@ struct CDWidgetView: View {
         CDDeck(material: mat, diameter: model.archetype.deckDiameter,
                phase: transition.phase, targetSpeed: targetSpeed,
                displayedArt: effectiveDisplayedArt, incomingArt: isPreview ? nil : incomingArt,
-               onTap: { if !isPreview { togglePlayback() } }, isStatic: isPreview && !previewSpinning)
+               onTap: { if !isPreview { togglePlayback() } }, isStatic: isPreview && !previewSpinning,
+               resetSpinToken: spinResetToken)
     }
 
     private var lcd: some View {
@@ -561,22 +530,30 @@ struct CDWidgetView: View {
 
         guard settings.vinylTransitionAnimationEnabled else {
             // Animations off: skip the eject/insert choreography — the new
-            // disc's art swaps in instantly — but still let it spin back up
-            // from a stop instead of silently inheriting the old disc's
-            // speed, which read as the new disc "already spinning at full
-            // speed" the instant it appeared.
+            // disc's art swaps in instantly, frozen at a genuine standstill
+            // (not just coasting down) for half a second, then spins back up
+            // at the normal acceleration rate. Direct freeze + hard reset
+            // instead of routing through CDTransitionAnimator's phase
+            // machinery — that involved chaining several async steps for
+            // what only needs to be "stop now, wait, go," and was the
+            // likely source of it working unreliably.
             if let url = np.albumArtURL {
                 artFetcher.fetchArt(from: url, trackKey: newKey, forceRefresh: true) { image in
                     let hadDisc = self.displayedArt != nil
                     self.incomingArt = image
                     self.displayedArt = image
                     self.updateAdaptiveColoursIfNeeded()
-                    if hadDisc { self.transition.startSpinReset() }
+                    guard hadDisc else { return }
+                    self.spinFrozen = true
+                    self.spinResetToken = UUID()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.spinFrozen = false
+                    }
                 }
             } else {
                 incomingArt = nil
                 displayedArt = nil
-                transition.cancel()
+                spinFrozen = false
                 updateAdaptiveColoursIfNeeded()
             }
             return
@@ -640,6 +617,11 @@ struct CDDeck: View {
     let incomingArt: NSImage?
     var onTap: () -> Void = {}
     var isStatic: Bool = false   // gallery previews: no spin engine / TimelineView
+    /// Changing this forces spinSpeed to exactly 0 instantly, bypassing the
+    /// normal gradual-deceleration ramp — used by the animations-off
+    /// track-change path, which needs the disc to actually stop (not just
+    /// coast down), hold there, then spin back up from real rest.
+    var resetSpinToken: UUID? = nil
 
     @State private var angle: Double = 0
     @State private var spinSpeed: Double = 0
@@ -679,6 +661,10 @@ struct CDDeck: View {
         .frame(width: dock + 16, height: dock + 20)
         .contentShape(Circle())
         .onTapGesture { onTap() }
+        .onChange(of: resetSpinToken) { _, _ in
+            spinSpeed = 0
+            lastTick = nil
+        }
     }
 
     private var discLayer: some View {
