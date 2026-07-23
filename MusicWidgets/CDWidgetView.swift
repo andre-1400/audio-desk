@@ -215,6 +215,44 @@ final class CDTransitionAnimator: ObservableObject {
     func start() { cancel(); let id = UUID(); token = id; advance(.decelerate, id: id) }
     func cancel() { scheduled.forEach { $0.cancel() }; scheduled.removeAll(); token = nil; phase = .idle }
 
+    /// Track-change animations off: skip the eject/insert choreography
+    /// entirely (the caller swaps the art instantly, before calling this),
+    /// but still let the disc audibly/visibly spin back up from a stop
+    /// instead of the new disc silently inheriting whatever speed the old
+    /// one was already at. .decelerate and .spinUp are the only two phases
+    /// that affect spin speed at all (see targetSpeed) and neither has any
+    /// lift/eject/lid-open visual effect on its own (see discLayer/flipLid),
+    /// so cycling just those two — skipping liftOff/eject/gap/insert/seat —
+    /// reproduces only the spin-down-then-up motion, at the exact same
+    /// rate/curve as the full animation's own spinUp phase.
+    func startSpinReset() {
+        cancel()
+        let id = UUID()
+        token = id
+        advance(.decelerate, id: id, then: .spinUp, finally: .idle)
+    }
+
+    /// Like advance(_:id:), but follows a caller-supplied two-step chain
+    /// instead of the default full phaseAfter sequence.
+    private func advance(_ next: CDPhase, id: UUID, then following: CDPhase, finally last: CDPhase) {
+        guard token == id else { return }
+        withAnimation(animation(for: next)) { phase = next }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.token == id else { return }
+            withAnimation(self.animation(for: following)) { self.phase = following }
+            let finish = DispatchWorkItem { [weak self] in
+                guard let self, self.token == id else { return }
+                self.phase = last
+                self.onComplete?()
+                self.token = nil
+            }
+            self.scheduled.append(finish)
+            DispatchQueue.main.asyncAfter(deadline: .now() + self.duration(for: following), execute: finish)
+        }
+        scheduled.append(work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration(for: next), execute: work)
+    }
+
     private func advance(_ next: CDPhase, id: UUID) {
         guard token == id else { return }
         if next == .gap { onReveal?() }
@@ -522,17 +560,23 @@ struct CDWidgetView: View {
         lastTrackKey = newKey
 
         guard settings.vinylTransitionAnimationEnabled else {
-            // Animations off: snap straight to the next disc instead of the
-            // eject/insert choreography — same toggle Vinyl v1 respects.
+            // Animations off: skip the eject/insert choreography — the new
+            // disc's art swaps in instantly — but still let it spin back up
+            // from a stop instead of silently inheriting the old disc's
+            // speed, which read as the new disc "already spinning at full
+            // speed" the instant it appeared.
             if let url = np.albumArtURL {
                 artFetcher.fetchArt(from: url, trackKey: newKey, forceRefresh: true) { image in
+                    let hadDisc = self.displayedArt != nil
                     self.incomingArt = image
                     self.displayedArt = image
                     self.updateAdaptiveColoursIfNeeded()
+                    if hadDisc { self.transition.startSpinReset() }
                 }
             } else {
                 incomingArt = nil
                 displayedArt = nil
+                transition.cancel()
                 updateAdaptiveColoursIfNeeded()
             }
             return

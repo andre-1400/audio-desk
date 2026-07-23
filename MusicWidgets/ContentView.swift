@@ -613,6 +613,7 @@ private struct GalleryDetail: View {
                                             special: style.isSpecialStyle,
                                             badgeText: style.specialKind?.badgeText,
                                             badgeIcon: style.specialKind?.badgeIcon ?? "sparkles",
+                                            transparentPreview: style.themeID == .ghost,
                                             onHover: { setHover(style.id, $0) },
                                             action: {
                                                 if style.themeID == .custom {
@@ -636,6 +637,7 @@ private struct GalleryDetail: View {
                                         special: model.isSpecialStyle,
                                         badgeText: model.specialKind?.badgeText,
                                         badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
+                                        transparentPreview: model.themeID == .ghost,
                                         onHover: { setHover(model.id, $0) },
                                         action: {
                                             if model.themeID == .custom {
@@ -998,6 +1000,11 @@ private struct GalleryCard<P: View>: View {
     var special: Bool = false
     var badgeText: String? = nil
     var badgeIcon: String = "sparkles"
+    // Ghost has no body of its own — wrapping its preview in the usual
+    // card backdrop (+ the special-card accent glow) put a visible surface
+    // behind it that the real desktop widget doesn't have. Skips both so
+    // the preview sits directly on the gallery's own background instead.
+    var transparentPreview: Bool = false
     let onHover: (Bool) -> Void
     let action: () -> Void
     @ViewBuilder let preview: (Bool) -> P
@@ -1011,12 +1018,14 @@ private struct GalleryCard<P: View>: View {
                         .frame(maxWidth: .infinity)
                         .background(
                             ZStack {
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(.quaternary.opacity(0.4))
-                                if special {
+                                if !transparentPreview {
                                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(RadialGradient(colors: [accent.opacity(0.14), .clear],
-                                                             center: .center, startRadius: 4, endRadius: 200))
+                                        .fill(.quaternary.opacity(0.4))
+                                    if special {
+                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                            .fill(RadialGradient(colors: [accent.opacity(0.14), .clear],
+                                                                 center: .center, startRadius: 4, endRadius: 200))
+                                    }
                                 }
                             }
                         )
