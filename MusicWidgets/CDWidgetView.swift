@@ -289,11 +289,6 @@ struct CDWidgetView: View {
     @State private var incomingArt: NSImage? = nil
     @State private var lastTrackKey: String = ""
     @State private var optimisticPlaying: Bool? = nil
-    // Animations-off track change: hold the disc at a genuine standstill
-    // (not just target 0, which only coasts down) for half a second, then
-    // let it spin back up from real rest at the usual acceleration rate.
-    @State private var spinResetToken: UUID? = nil
-    @State private var spinFrozen = false
     // Only ever read when model.isAdaptive; neutral grey/white rather than
     // the generic extraction-failure fallback so it reads as "will become
     // whatever's playing," not a fixed brown.
@@ -302,7 +297,6 @@ struct CDWidgetView: View {
     /// housing. Cached per track — never recomputed per frame.
     @State private var blurredBodyArt: NSImage?
 
-    @ObservedObject private var settings = WidgetSettings.shared
     // Observed so the gallery grid's Custom tile (and, if it happens to be
     // open, this exact widget) update the moment a colour is picked/saved.
     @ObservedObject private var customColors = CustomColorManager.shared
@@ -331,7 +325,6 @@ struct CDWidgetView: View {
 
     private var targetSpeed: Double {
         if isPreview { return previewSpinning ? 760 : 0 }
-        if spinFrozen { return 0 }
         switch transition.phase {
         case .spinUp, .idle: return playing ? maxSpinSpeed : 0
         default: return 0
@@ -366,8 +359,7 @@ struct CDWidgetView: View {
         CDDeck(material: mat, diameter: model.archetype.deckDiameter,
                phase: transition.phase, targetSpeed: targetSpeed,
                displayedArt: effectiveDisplayedArt, incomingArt: isPreview ? nil : incomingArt,
-               onTap: { if !isPreview { togglePlayback() } }, isStatic: isPreview && !previewSpinning,
-               resetSpinToken: spinResetToken)
+               onTap: { if !isPreview { togglePlayback() } }, isStatic: isPreview && !previewSpinning)
     }
 
     private var lcd: some View {
@@ -528,37 +520,10 @@ struct CDWidgetView: View {
         guard newKey != lastTrackKey else { return }
         lastTrackKey = newKey
 
-        guard settings.vinylTransitionAnimationEnabled else {
-            // Animations off: skip the eject/insert choreography — the new
-            // disc's art swaps in instantly, frozen at a genuine standstill
-            // (not just coasting down) for half a second, then spins back up
-            // at the normal acceleration rate. Direct freeze + hard reset
-            // instead of routing through CDTransitionAnimator's phase
-            // machinery — that involved chaining several async steps for
-            // what only needs to be "stop now, wait, go," and was the
-            // likely source of it working unreliably.
-            if let url = np.albumArtURL {
-                artFetcher.fetchArt(from: url, trackKey: newKey, forceRefresh: true) { image in
-                    let hadDisc = self.displayedArt != nil
-                    self.incomingArt = image
-                    self.displayedArt = image
-                    self.updateAdaptiveColoursIfNeeded()
-                    guard hadDisc else { return }
-                    self.spinFrozen = true
-                    self.spinResetToken = UUID()
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.spinFrozen = false
-                    }
-                }
-            } else {
-                incomingArt = nil
-                displayedArt = nil
-                spinFrozen = false
-                updateAdaptiveColoursIfNeeded()
-            }
-            return
-        }
-
+        // CD always plays its eject/insert transition, regardless of the
+        // track-change animation setting — it's short enough that turning
+        // it off isn't worth the complexity, unlike Vinyl v1's much longer
+        // sleeve-fly choreography.
         if let url = np.albumArtURL {
             artFetcher.fetchArt(from: url, trackKey: newKey, forceRefresh: true) { image in self.incomingArt = image }
         } else { incomingArt = nil }
@@ -617,11 +582,6 @@ struct CDDeck: View {
     let incomingArt: NSImage?
     var onTap: () -> Void = {}
     var isStatic: Bool = false   // gallery previews: no spin engine / TimelineView
-    /// Changing this forces spinSpeed to exactly 0 instantly, bypassing the
-    /// normal gradual-deceleration ramp — used by the animations-off
-    /// track-change path, which needs the disc to actually stop (not just
-    /// coast down), hold there, then spin back up from real rest.
-    var resetSpinToken: UUID? = nil
 
     @State private var angle: Double = 0
     @State private var spinSpeed: Double = 0
@@ -661,10 +621,6 @@ struct CDDeck: View {
         .frame(width: dock + 16, height: dock + 20)
         .contentShape(Circle())
         .onTapGesture { onTap() }
-        .onChange(of: resetSpinToken) { _, _ in
-            spinSpeed = 0
-            lastTick = nil
-        }
     }
 
     private var discLayer: some View {

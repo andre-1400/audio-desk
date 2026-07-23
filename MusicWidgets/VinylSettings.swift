@@ -23,11 +23,12 @@ final class WidgetSettings: ObservableObject {
     @Published var hideWhenPaused: Bool {
         didSet { UserDefaults.standard.set(hideWhenPaused, forKey: "widget.hideWhenPaused") }
     }
-    /// Every widget's own track-change transition: Vinyl v1's disc-lift/
-    /// sleeve-eject, CD's disc eject/insert, Horizontal's quick disc-dip
-    /// pulse. When off, all of them snap straight to the next track/disc/
-    /// colour instead. Album Art's plain crossfade isn't gated by this —
-    /// that's ordinary "don't pop" UI polish, not a track-change set piece.
+    /// Vinyl v1's disc-lift/sleeve-eject and Horizontal's quick disc-dip
+    /// pulse. When off, both snap straight to the next track/colour instead.
+    /// CD's own eject/insert is exempt on purpose — short enough that
+    /// turning it off isn't worth it, unlike Vinyl v1's longer choreography.
+    /// Album Art's plain crossfade isn't gated by this either — that's
+    /// ordinary "don't pop" UI polish, not a track-change set piece.
     @Published var vinylTransitionAnimationEnabled: Bool {
         didSet { UserDefaults.standard.set(vinylTransitionAnimationEnabled, forKey: "widget.vinylTransitionAnimation") }
     }

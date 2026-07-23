@@ -333,7 +333,7 @@ struct SettingsView: View {
                               subtitle: "Fade out when nothing is playing",
                               isOn: $settings.hideWhenPaused)
                     toggleRow(icon: "record.circle", title: "Track-change animation",
-                              subtitle: "Off: every widget snaps to the next song instantly",
+                              subtitle: "Off: the vinyl widgets snap to the next song instantly",
                               isOn: $settings.vinylTransitionAnimationEnabled)
                 }
 
@@ -1705,7 +1705,7 @@ private struct VinylWidgetReplica: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 140)
+            .frame(height: 140, alignment: .top)
         } else {
             placeholderTrackInfo
         }
@@ -1745,7 +1745,7 @@ private struct VinylWidgetReplica: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 140)
+        .frame(height: 140, alignment: .top)
     }
 }
 

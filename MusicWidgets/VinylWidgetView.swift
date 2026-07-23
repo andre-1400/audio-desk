@@ -1111,8 +1111,13 @@ struct VinylWidgetView: View {
         }
         // Fixed height keeps the platter (and therefore the tonearm) at a
         // known position regardless of how the text metrics resolve.
+        // alignment: .top matters for Ghost specifically — with the button/
+        // scrubber rows hidden, the remaining title+artist block is much
+        // shorter than 140pt, and without an explicit top alignment this
+        // frame's default centering left it floating in the middle of that
+        // reserved space instead of sitting right under the disc.
         .frame(maxWidth: .infinity)
-        .frame(height: 140)
+        .frame(height: 140, alignment: .top)
     }
 
     /// "Artist - Album", collapsing gracefully when either is missing.
