@@ -372,12 +372,15 @@ struct CDWidgetView: View {
 
     private var lcd: some View {
         // No longer an LCD readout — modern Apple-Music-style track text on
-        // the housing. Kept the `lcd` name so the two layout call sites are
-        // untouched. Sizes scale per body (the Discman is a bigger device).
+        // the housing. Kept the `lcd` name since both layouts still just
+        // drop this in place. Sizes scale per body (the Discman is bigger);
+        // the Hi-Fi centres its text since that whole column is now centred
+        // in the free space beside the deck.
         CDTrackText(track: np.trackName, artist: np.artistName, material: mat,
                     titleSize: isPortrait ? 19 : 17,
                     subtitleSize: isPortrait ? 13 : 12,
-                    width: isPortrait ? 208 : 232)
+                    width: isPortrait ? 208 : 232,
+                    alignment: isPortrait ? .leading : .center)
     }
 
     private var isPortrait: Bool {
@@ -399,29 +402,22 @@ struct CDWidgetView: View {
     }
 
     private func brandBar(wide: Bool = false) -> some View {
-        HStack(alignment: .center) {
-            // Our own stylized disc-audio mark (logo-inspired, legally distinct)
-            HStack(spacing: 6) {
-                ZStack {
-                    Circle().strokeBorder(mat.subtitle.opacity(0.85), lineWidth: 1.6).frame(width: 15, height: 15)
-                    Circle().strokeBorder(mat.subtitle.opacity(0.55), lineWidth: 1).frame(width: 8, height: 8)
-                    Circle().fill(mat.subtitle.opacity(0.85)).frame(width: 2.5, height: 2.5)
-                }
-                VStack(alignment: .leading, spacing: -1) {
-                    Text("DIGITAL DISC")
-                        .font(.system(size: 9, weight: .black, design: .rounded)).tracking(0.2)
-                    Text("STEREO · HI-FI AUDIO")
-                        .font(.system(size: 5.5, weight: .bold)).tracking(1.0)
-                }
-                .foregroundStyle(mat.subtitle.opacity(0.9))
+        // Our own stylized disc-audio mark (logo-inspired, legally distinct).
+        // No PWR/status-light indicator anymore — it read as leftover
+        // hardware chrome next to the modern track text.
+        HStack(spacing: 6) {
+            ZStack {
+                Circle().strokeBorder(mat.subtitle.opacity(0.85), lineWidth: 1.6).frame(width: 15, height: 15)
+                Circle().strokeBorder(mat.subtitle.opacity(0.55), lineWidth: 1).frame(width: 8, height: 8)
+                Circle().fill(mat.subtitle.opacity(0.85)).frame(width: 2.5, height: 2.5)
             }
-            Spacer()
-            HStack(spacing: 5) {
-                Text("PWR").font(.system(size: 6.5, weight: .bold)).tracking(1)
-                    .foregroundStyle(mat.subtitle.opacity(0.7))
-                Circle().fill(playing ? mat.accent : mat.accent.opacity(0.3)).frame(width: 6, height: 6)
-                    .shadow(color: playing ? mat.accent.opacity(0.9) : .clear, radius: 4)
+            VStack(alignment: .leading, spacing: -1) {
+                Text("DIGITAL DISC")
+                    .font(.system(size: 9, weight: .black, design: .rounded)).tracking(0.2)
+                Text("STEREO · HI-FI AUDIO")
+                    .font(.system(size: 5.5, weight: .bold)).tracking(1.0)
             }
+            .foregroundStyle(mat.subtitle.opacity(0.9))
         }
     }
 
@@ -461,14 +457,21 @@ struct CDWidgetView: View {
 
             HStack(spacing: 18) {
                 deck
-                VStack(alignment: .leading, spacing: 16) {
-                    brandBar()
-                    lcd
-                    controls
+                VStack(spacing: 0) {
+                    HStack { brandBar(); Spacer(minLength: 0) }
+                    // Title/artist + controls centred in the free space next
+                    // to the deck, instead of pinned under the brand bar.
+                    Spacer(minLength: 10)
+                    VStack(spacing: 16) {
+                        lcd
+                        controls
+                    }
+                    Spacer(minLength: 10)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
             }
             .padding(.horizontal, 26)
+            .padding(.vertical, 22)
             .frame(width: cardSize.width, height: cardSize.height)
         }
     }
@@ -725,16 +728,20 @@ struct CDTrackText: View {
     var titleSize: CGFloat = 18
     var subtitleSize: CGFloat = 13
     var width: CGFloat = 208
+    var alignment: HorizontalAlignment = .leading
 
     private var primary: Color { material.isLight ? Color.black.opacity(0.88) : .white }
     private var secondary: Color { material.isLight ? Color.black.opacity(0.58) : Color.white.opacity(0.72) }
+    private var frameAlignment: Alignment { alignment == .center ? .center : (alignment == .trailing ? .trailing : .leading) }
+    private var textAlignment: TextAlignment { alignment == .center ? .center : (alignment == .trailing ? .trailing : .leading) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: alignment, spacing: 3) {
             Text(track.isEmpty ? "Nothing Playing" : track)
                 .font(.system(size: titleSize, weight: .bold))
                 .tracking(0.2)
                 .foregroundStyle(primary)
+                .multilineTextAlignment(textAlignment)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .truncationMode(.tail)
@@ -743,12 +750,13 @@ struct CDTrackText: View {
                     .font(.system(size: subtitleSize, weight: .medium))
                     .tracking(0.2)
                     .foregroundStyle(secondary)
+                    .multilineTextAlignment(textAlignment)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                     .truncationMode(.tail)
             }
         }
-        .frame(maxWidth: width, alignment: .leading)
+        .frame(maxWidth: width, alignment: frameAlignment)
     }
 }
 
