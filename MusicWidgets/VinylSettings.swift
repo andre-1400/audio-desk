@@ -3,22 +3,9 @@ import Combine
 
 // MARK: - Global widget settings (size lives in WidgetSizeManager.shared)
 
-enum NotesSide: String, CaseIterable, Identifiable {
-    case left, right
-    var id: String { rawValue }
-    var title: String { self == .left ? "Left" : "Right" }
-}
-
 /// Shared, persisted settings for the active desktop widget.
 final class WidgetSettings: ObservableObject {
     static let shared = WidgetSettings()
-
-    @Published var notesEnabled: Bool {
-        didSet { UserDefaults.standard.set(notesEnabled, forKey: "widget.notes.enabled") }
-    }
-    @Published var notesSide: NotesSide {
-        didSet { UserDefaults.standard.set(notesSide.rawValue, forKey: "widget.notes.side") }
-    }
 
     /// Widget window opacity (0.5–1.0).
     @Published var widgetOpacity: Double {
@@ -36,17 +23,16 @@ final class WidgetSettings: ObservableObject {
     @Published var hideWhenPaused: Bool {
         didSet { UserDefaults.standard.set(hideWhenPaused, forKey: "widget.hideWhenPaused") }
     }
-    /// The vinyl widget's disc-lift/sleeve-eject track-change animation. When
-    /// off, the vinyl widget snaps straight to the next track and its
-    /// Adaptive colour, the same way the Vinyl Horizontal widget already
-    /// does (it has no sleeve mechanism to begin with).
+    /// Every widget's own track-change transition: Vinyl v1's disc-lift/
+    /// sleeve-eject, CD's disc eject/insert, Horizontal's quick disc-dip
+    /// pulse. When off, all of them snap straight to the next track/disc/
+    /// colour instead. Album Art's plain crossfade isn't gated by this —
+    /// that's ordinary "don't pop" UI polish, not a track-change set piece.
     @Published var vinylTransitionAnimationEnabled: Bool {
         didSet { UserDefaults.standard.set(vinylTransitionAnimationEnabled, forKey: "widget.vinylTransitionAnimation") }
     }
 
     private init() {
-        notesEnabled = UserDefaults.standard.bool(forKey: "widget.notes.enabled")
-        notesSide = NotesSide(rawValue: UserDefaults.standard.string(forKey: "widget.notes.side") ?? "") ?? .left
         let storedOpacity = UserDefaults.standard.object(forKey: "widget.opacity") as? Double
         widgetOpacity = min(1.0, max(0.5, storedOpacity ?? 1.0))
         alwaysOnTop = UserDefaults.standard.bool(forKey: "widget.alwaysOnTop")
@@ -80,148 +66,6 @@ enum RecentWidgets {
 
     static var entries: [String] { UserDefaults.standard.stringArray(forKey: key) ?? [] }
     static var last: String? { UserDefaults.standard.string(forKey: lastKey) }
-}
-
-// MARK: - Musical notes emitter (🎵 🎶 drifting out + fading while playing)
-
-private struct FloatingNote: Identifiable {
-    let id = UUID()
-    let birth = Date()
-    let isDouble: Bool = Bool.random()
-    let size: CGFloat = .random(in: 26...40)
-    let life: Double = .random(in: 2.6...3.9)
-    let rise: CGFloat = .random(in: 66...98)
-    let driftX: CGFloat
-    let startX: CGFloat = .random(in: -18...22)
-    let startY: CGFloat = .random(in: -20...16)
-    let baseAngle: Double = .random(in: -30...30)   // tilted, never upside down / sideways
-    let sway: Double = .random(in: 4...9)
-    let phase: Double = .random(in: 0...6.28)
-
-    init(side: NotesSide) {
-        driftX = side == .left ? .random(in: -64 ... -16) : .random(in: 16...64)
-    }
-}
-
-struct MusicalNotesView: View {
-    let side: NotesSide
-    let active: Bool
-
-    @State private var notes: [FloatingNote] = []
-    @State private var lastSpawn: Date = .distantPast
-
-    var body: some View {
-        TimelineView(.animation(paused: !active && notes.isEmpty)) { ctx in
-            let now = ctx.date
-            let t = now.timeIntervalSinceReferenceDate
-            ZStack {
-                ForEach(notes) { note in
-                    let p = min(1.0, now.timeIntervalSince(note.birth) / note.life)
-                    let angle = note.baseAngle + note.sway * sin(t * 1.5 + note.phase)
-                    NoteGlyph(isDouble: note.isDouble)
-                        .frame(width: note.size, height: note.size * 1.4)
-                        .rotationEffect(.degrees(angle))
-                        .opacity(opacity(p))
-                        .offset(x: note.startX + note.driftX * CGFloat(p),
-                                y: note.startY - CGFloat(p) * note.rise)
-                }
-            }
-            .frame(width: 130, height: 120, alignment: side == .left ? .topLeading : .topTrailing)
-            .onChange(of: now) { _, d in tick(d) }
-        }
-        .allowsHitTesting(false)
-    }
-
-    private func opacity(_ p: Double) -> Double {
-        if p >= 1 { return 0 }
-        if p < 0.18 { return p / 0.18 }
-        return 1 - (p - 0.18) / 0.82
-    }
-
-    private func tick(_ now: Date) {
-        notes.removeAll { now.timeIntervalSince($0.birth) > $0.life }
-        if active, now.timeIntervalSince(lastSpawn) > 0.7 {
-            lastSpawn = now
-            notes.append(FloatingNote(side: side))
-        }
-    }
-}
-
-// MARK: - Hand-drawn musical note glyphs (black)
-
-struct NoteGlyph: View {
-    let isDouble: Bool
-    var body: some View {
-        if isDouble { NoteDouble() } else { NoteSingle() }
-    }
-}
-
-/// Eighth note (♪): tilted notehead + stem + flag.
-struct NoteSingle: View {
-    var body: some View {
-        GeometryReader { g in
-            let w = g.size.width, h = g.size.height
-            ZStack {
-                // stem
-                RoundedRectangle(cornerRadius: w * 0.05)
-                    .fill(.black)
-                    .frame(width: w * 0.11, height: h * 0.66)
-                    .position(x: w * 0.60, y: h * 0.39)
-                // flag
-                Path { p in
-                    p.move(to: CGPoint(x: w * 0.655, y: h * 0.08))
-                    p.addQuadCurve(to: CGPoint(x: w * 0.92, y: h * 0.46),
-                                   control: CGPoint(x: w * 1.08, y: h * 0.16))
-                    p.addQuadCurve(to: CGPoint(x: w * 0.655, y: h * 0.34),
-                                   control: CGPoint(x: w * 0.84, y: h * 0.34))
-                    p.closeSubpath()
-                }.fill(.black)
-                // notehead
-                Ellipse()
-                    .fill(.black)
-                    .frame(width: w * 0.48, height: w * 0.36)
-                    .rotationEffect(.degrees(-22))
-                    .position(x: w * 0.38, y: h * 0.76)
-            }
-        }
-    }
-}
-
-/// Beamed pair (♫): two noteheads + stems joined by a slanted beam.
-struct NoteDouble: View {
-    var body: some View {
-        GeometryReader { g in
-            let w = g.size.width, h = g.size.height
-            ZStack {
-                // beam connecting the two stem tops
-                Path { p in
-                    p.move(to: CGPoint(x: w * 0.30, y: h * 0.05))
-                    p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.17))
-                    p.addLine(to: CGPoint(x: w * 0.88, y: h * 0.31))
-                    p.addLine(to: CGPoint(x: w * 0.30, y: h * 0.19))
-                    p.closeSubpath()
-                }.fill(.black)
-                // left stem
-                RoundedRectangle(cornerRadius: w * 0.04).fill(.black)
-                    .frame(width: w * 0.09, height: h * 0.62)
-                    .position(x: w * 0.345, y: h * 0.42)
-                // right stem
-                RoundedRectangle(cornerRadius: w * 0.04).fill(.black)
-                    .frame(width: w * 0.09, height: h * 0.54)
-                    .position(x: w * 0.835, y: h * 0.50)
-                // left notehead
-                Ellipse().fill(.black)
-                    .frame(width: w * 0.40, height: w * 0.30)
-                    .rotationEffect(.degrees(-20))
-                    .position(x: w * 0.22, y: h * 0.74)
-                // right notehead
-                Ellipse().fill(.black)
-                    .frame(width: w * 0.40, height: w * 0.30)
-                    .rotationEffect(.degrees(-20))
-                    .position(x: w * 0.71, y: h * 0.80)
-            }
-        }
-    }
 }
 
 // MARK: - Model traits (per-style hardware, independent of color palette)

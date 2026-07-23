@@ -348,13 +348,6 @@ struct VinylWidgetView: View {
         }
         .frame(width: 384, height: 516)
         .coordinateSpace(name: "widget")
-        .overlay(alignment: widgetSettings.notesSide == .left ? .topLeading : .topTrailing) {
-            if widgetSettings.notesEnabled {
-                MusicalNotesView(side: widgetSettings.notesSide, active: displayedNowPlaying.isPlaying)
-                    .padding(widgetSettings.notesSide == .left ? .leading : .trailing, 18)
-                    .padding(.top, -8)
-            }
-        }
         .onAppear {
             detector.start()
             displayedNowPlaying = detector.nowPlaying
@@ -859,17 +852,26 @@ struct VinylWidgetView: View {
 
     private var platterArea: some View {
         ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color(hex: "2a2a2a"), Color(hex: "111111"), Color(hex: "080808")],
-                        center: UnitPoint(x: 0.4, y: 0.35),
-                        startRadius: 0,
-                        endRadius: 136
+            // The turntable's platter mat, sitting behind the record and a
+            // touch wider than it (272 vs the disc's own 258) — normally a
+            // deliberate detail (a sliver of dark mat visible around the
+            // record's edge). For Ghost this is exactly the "backboard"
+            // that showed up behind the otherwise-invisible body: hardware
+            // the disc rests on, not the disc itself, so it goes with the
+            // rest of the housing.
+            if theme.showBody {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color(hex: "2a2a2a"), Color(hex: "111111"), Color(hex: "080808")],
+                            center: UnitPoint(x: 0.4, y: 0.35),
+                            startRadius: 0,
+                            endRadius: 136
+                        )
                     )
-                )
-                .frame(width: 272, height: 272)
-                .shadow(color: .black.opacity(0.8), radius: 12, x: 0, y: 4)
+                    .frame(width: 272, height: 272)
+                    .shadow(color: .black.opacity(0.8), radius: 12, x: 0, y: 4)
+            }
 
             // Audiophile platter rim
             if traits.hasPlatterRing {

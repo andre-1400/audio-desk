@@ -85,6 +85,7 @@ struct VinylHorizontalWidgetView: View {
     // open, this exact widget) update the moment a colour is picked/saved —
     // see CustomColorManager's own doc comment.
     @ObservedObject private var customColors = CustomColorManager.shared
+    @ObservedObject private var settings = WidgetSettings.shared
 
     private var isAdaptive: Bool { model.themeID == .adaptive }
     private var isCustom: Bool { model.themeID == .custom }
@@ -219,10 +220,11 @@ struct VinylHorizontalWidgetView: View {
         }
         refreshArt(forceRefresh: true)
 
-        guard !isInitialTrack else { return }
+        guard !isInitialTrack, settings.vinylTransitionAnimationEnabled else { return }
 
         // Quick "disc dips" pulse to mark the change, instead of a full
-        // sleeve-flying transition.
+        // sleeve-flying transition. Respects the same animation toggle
+        // Vinyl v1's own track-change animation does.
         withAnimation(.easeOut(duration: 0.16)) {
             discPulseScale = 0.82
         }

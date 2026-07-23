@@ -70,12 +70,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             showGallery()
         }
 
-        // Live-update the active widget when size or notes settings change.
+        // Live-update the active widget when size settings change.
         WidgetSizeManager.shared.$scale
-            .receive(on: DispatchQueue.main).dropFirst()
-            .sink { [weak self] _ in self?.relayoutActiveWidget() }
-            .store(in: &globalCancellables)
-        WidgetSettings.shared.$notesEnabled
             .receive(on: DispatchQueue.main).dropFirst()
             .sink { [weak self] _ in self?.relayoutActiveWidget() }
             .store(in: &globalCancellables)
@@ -524,24 +520,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Sizing helpers
 
-    private var notesPad: CGFloat { WidgetSettings.shared.notesEnabled ? 92 : 0 }
-
     private func vinylWindowSize() -> CGSize {
         let s = WidgetSizeManager.shared.scale
-        let p = notesPad
-        return CGSize(width: baseWidgetSize.width * s + 2 * p,
-                      height: baseWidgetSize.height * s + 2 * p)
+        return CGSize(width: baseWidgetSize.width * s, height: baseWidgetSize.height * s)
     }
 
     private func cdWindowSize(_ model: CDModel) -> CGSize {
         let s = WidgetSizeManager.shared.scale
-        let p = notesPad
-        return CGSize(width: model.archetype.baseSize.width * s + 2 * p,
-                      height: model.archetype.baseSize.height * s + 2 * p)
+        return CGSize(width: model.archetype.baseSize.width * s, height: model.archetype.baseSize.height * s)
     }
 
-    /// Album Art has no musical-notes overlay (it's the deliberately minimal
-    /// widget family), so unlike vinyl/CD its window needs no notesPad headroom.
     private func albumArtWindowSize(_ model: AlbumArtModel) -> CGSize {
         let s = WidgetSizeManager.shared.scale
         return CGSize(width: model.size.baseSize.width * s,

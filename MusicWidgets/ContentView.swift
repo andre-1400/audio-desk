@@ -333,30 +333,9 @@ struct SettingsView: View {
                               subtitle: "Fade out when nothing is playing",
                               isOn: $settings.hideWhenPaused)
                     toggleRow(icon: "record.circle", title: "Track-change animation",
-                              subtitle: "Off: the vinyl widget snaps to the next song instantly",
+                              subtitle: "Off: every widget snaps to the next song instantly",
                               isOn: $settings.vinylTransitionAnimationEnabled)
                 }
-
-                Section {
-                    HStack {
-                        Label("Musical notes", systemImage: "music.note")
-                            .foregroundStyle(Neu.text)
-                        Spacer()
-                        Toggle("", isOn: $settings.notesEnabled).labelsHidden().tint(accent)
-                    }
-                    if settings.notesEnabled {
-                        NeuSegmented(options: ["Left", "Right"],
-                                     selected: settings.notesSide == .left ? 0 : 1) { i in
-                            settings.notesSide = i == 0 ? .left : .right
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                } header: {
-                    Text("Musical Notes")
-                } footer: {
-                    Text("🎵 drift from a top corner while playing")
-                }
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: settings.notesEnabled)
 
                 Section("Startup") {
                     toggleRow(icon: "power", title: "Launch at login",
@@ -1444,15 +1423,20 @@ private struct VinylWidgetReplica: View {
 
     private var platterArea: some View {
         ZStack {
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color(hex: "2a2a2a"), Color(hex: "111111"), Color(hex: "080808")],
-                        center: UnitPoint(x: 0.4, y: 0.35), startRadius: 0, endRadius: 136
+            // Same Ghost fix as the live widget's own platterArea: this mat
+            // is hardware the disc rests on, not the disc itself, so it
+            // goes with the rest of the (invisible) housing.
+            if palette.showBody {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color(hex: "2a2a2a"), Color(hex: "111111"), Color(hex: "080808")],
+                            center: UnitPoint(x: 0.4, y: 0.35), startRadius: 0, endRadius: 136
+                        )
                     )
-                )
-                .frame(width: 272, height: 272)
-                .shadow(color: .black.opacity(0.8), radius: 12, x: 0, y: 4)
+                    .frame(width: 272, height: 272)
+                    .shadow(color: .black.opacity(0.8), radius: 12, x: 0, y: 4)
+            }
 
             if traits.hasPlatterRing {
                 Circle()

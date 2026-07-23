@@ -340,13 +340,6 @@ struct CDWidgetView: View {
     var body: some View {
         ZStack {
             archetypeBody.frame(width: cardSize.width, height: cardSize.height)
-                .overlay(alignment: settings.notesSide == .left ? .topLeading : .topTrailing) {
-                    if settings.notesEnabled && !isPreview {
-                        MusicalNotesView(side: settings.notesSide, active: playing)
-                            .padding(settings.notesSide == .left ? .leading : .trailing, 16)
-                            .padding(.top, -8)
-                    }
-                }
         }
         .frame(width: model.archetype.baseSize.width, height: model.archetype.baseSize.height)
         .onAppear { if !isPreview { setup() } }
@@ -527,6 +520,24 @@ struct CDWidgetView: View {
     private func handleTrackChange(_ newKey: String) {
         guard newKey != lastTrackKey else { return }
         lastTrackKey = newKey
+
+        guard settings.vinylTransitionAnimationEnabled else {
+            // Animations off: snap straight to the next disc instead of the
+            // eject/insert choreography — same toggle Vinyl v1 respects.
+            if let url = np.albumArtURL {
+                artFetcher.fetchArt(from: url, trackKey: newKey, forceRefresh: true) { image in
+                    self.incomingArt = image
+                    self.displayedArt = image
+                    self.updateAdaptiveColoursIfNeeded()
+                }
+            } else {
+                incomingArt = nil
+                displayedArt = nil
+                updateAdaptiveColoursIfNeeded()
+            }
+            return
+        }
+
         if let url = np.albumArtURL {
             artFetcher.fetchArt(from: url, trackKey: newKey, forceRefresh: true) { image in self.incomingArt = image }
         } else { incomingArt = nil }
