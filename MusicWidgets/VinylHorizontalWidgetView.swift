@@ -368,7 +368,7 @@ struct VinylHorizontalWidgetView: View {
     private var trackText: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
-                .font(.system(size: 16, weight: .bold, design: .rounded))
+                .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(fgPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)

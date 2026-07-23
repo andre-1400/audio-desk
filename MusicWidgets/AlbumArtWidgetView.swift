@@ -52,6 +52,15 @@ struct AlbumArtWidgetView: View {
     @State private var displayedInfo: NowPlayingInfo = .empty
     @State private var extracted: ExtractedColours = .fallback
 
+    // MARK: - Progress-bar scrubbing (Card layout only) — same scheme as
+    // VinylWidgetView/VinylHorizontalWidgetView, duplicated rather than
+    // shared per this codebase's convention of keeping each widget
+    // self-contained.
+    @State private var isScrubbing = false
+    @State private var scrubProgress: Double = 0
+    @State private var seekHandoffUntil: Date?
+    private let seekHandoffSuppressionDuration = 0.45
+
     private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
     private var art: NSImage {
         (isPreview ? previewArt : displayedArt) ?? FallbackCoverArtGenerator.fallbackImage
@@ -82,6 +91,10 @@ struct AlbumArtWidgetView: View {
         }
         .onChange(of: detector.nowPlaying) { _, live in
             guard !isPreview else { return }
+            if live.trackName != displayedInfo.trackName || live.artistName != displayedInfo.artistName {
+                seekHandoffUntil = nil
+            }
+            guard !shouldSuppressSeekHandoffUpdate(from: live) else { return }
             displayedInfo = live
         }
         .onChange(of: np.albumArtURL) { _, _ in
@@ -131,41 +144,59 @@ struct AlbumArtWidgetView: View {
     // MARK: - Card (280x360) — art + track info + progress
 
     private var cardLayout: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 0) {
+            // Art moved up and slightly smaller than before, to leave real
+            // room for the transport row under the title without the card
+            // feeling cramped or needing to grow.
             artImage
                 .id(trackKey)
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.3), value: trackKey)
                 .aspectRatio(1, contentMode: .fill)
-                .frame(width: 248, height: 248)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .frame(width: 196, height: 196)
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
                 )
-                .shadow(color: .black.opacity(0.30), radius: 14, x: 0, y: 8)
                 .contentShape(Rectangle())
                 .onTapGesture { togglePlayback() }
+                .padding(.top, 22)
 
-            VStack(spacing: 6) {
-                Text(np.trackName.isEmpty ? "NOTHING PLAYING" : np.trackName)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
+            VStack(spacing: 3) {
+                Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(.white)
                     .lineLimit(1)
-                    .tracking(np.trackName.isEmpty ? 1.4 : 0)
+                    .minimumScaleFactor(0.75)
+                    .truncationMode(.tail)
                 if !np.artistName.isEmpty {
-                    Text(np.artistName.uppercased())
-                        .font(.system(size: 10.5, weight: .medium))
+                    Text(np.artistName)
+                        .font(.system(size: 12.5, weight: .medium))
                         .foregroundStyle(.white.opacity(0.65))
                         .lineLimit(1)
-                        .tracking(0.6)
+                        .minimumScaleFactor(0.8)
+                        .truncationMode(.tail)
                 }
-                ProgressStrip(info: np, tint: .white)
-                    .frame(width: 220)
-                    .padding(.top, 4)
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+
+            // Preview cards show these purely for looks — cosmetic only,
+            // never wired to real transport commands.
+            HStack(spacing: 26) {
+                transportButton("backward.fill", size: 15) { if !isPreview { detector.previousTrack() } }
+                transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 20, prominent: true) { togglePlayback() }
+                transportButton("forward.fill", size: 15) { if !isPreview { detector.nextTrack() } }
+            }
+            .padding(.top, 14)
+
+            Spacer(minLength: 12)
+
+            cardScrubBar
+                .padding(.horizontal, 28)
+                .padding(.bottom, 20)
         }
-        .padding(.top, 24)
         .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
         .background(cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
@@ -173,7 +204,135 @@ struct AlbumArtWidgetView: View {
             RoundedRectangle(cornerRadius: 30, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.34), radius: 20, x: 0, y: 12)
+    }
+
+    /// Small, minimal, and — unlike the plain ProgressStrip used elsewhere —
+    /// interactive: drag anywhere on it to seek. Same NSView drag-capture
+    /// scheme as the vinyl widgets' own scrub bars (the widget window is
+    /// movable-by-background, so a plain SwiftUI DragGesture would drag the
+    /// whole widget instead of seeking).
+    private var cardScrubBar: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { context in
+            let fraction = isScrubbing ? scrubProgress : progressFraction(at: context.date)
+            GeometryReader { geo in
+                let width = geo.size.width
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.white.opacity(0.25)).frame(height: isScrubbing ? 5 : 3)
+                    Capsule().fill(Color.white).frame(width: max(2, width * fraction), height: isScrubbing ? 5 : 3)
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 9, height: 9)
+                        .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                        .offset(x: min(width - 9, max(0, width * fraction - 4.5)))
+                        .opacity(isScrubbing ? 1 : 0)
+                }
+                .frame(height: 16)
+                .overlay {
+                    if !isPreview {
+                        AlbumArtScrubDragCaptureView(
+                            onBegan: { handleScrubDrag(fraction: $0.x / width) },
+                            onMoved: { handleScrubDrag(fraction: $0.x / width) },
+                            onEnded: {
+                                handleScrubDrag(fraction: $0.x / width)
+                                commitScrub()
+                            },
+                            onCancelled: { endScrubSession() }
+                        )
+                    }
+                }
+            }
+            .frame(height: 16)
+            .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
+        }
+        .opacity(hasProgressData ? 1 : 0)
+    }
+
+    private var hasProgressData: Bool {
+        !np.trackName.isEmpty && (np.durationMillis ?? 0) > 0
+    }
+
+    private var canSeek: Bool {
+        !isPreview &&
+            !displayedInfo.trackName.isEmpty &&
+            displayedInfo.source != .none &&
+            (displayedInfo.durationMillis ?? 0) > 0
+    }
+
+    private func progressFraction(at date: Date) -> Double {
+        guard let dur = np.durationMillis, dur > 0, let pos = np.positionMillis else { return 0 }
+        var elapsed = Double(pos)
+        if np.isPlaying, let sampledAt = np.progressSampledAt {
+            elapsed += date.timeIntervalSince(sampledAt) * 1000
+        }
+        return min(1, max(0, elapsed / Double(dur)))
+    }
+
+    private func handleScrubDrag(fraction: Double) {
+        guard canSeek else { return }
+        if !isScrubbing {
+            setWidgetBackgroundDraggingEnabled(false)
+            isScrubbing = true
+        }
+        scrubProgress = min(1, max(0, fraction))
+    }
+
+    private func commitScrub() {
+        defer { endScrubSession() }
+        guard isScrubbing else { return }
+        commitSeek(toProgress: scrubProgress)
+    }
+
+    private func endScrubSession() {
+        isScrubbing = false
+        setWidgetBackgroundDraggingEnabled(true)
+    }
+
+    private func setWidgetBackgroundDraggingEnabled(_ enabled: Bool) {
+        guard let window = NSApp.windows.first(where: { $0 is WidgetWindow }) else { return }
+        window.isMovableByWindowBackground = enabled
+    }
+
+    /// Optimistically move the displayed position so the UI doesn't snap
+    /// back while the player catches up, then tell the player.
+    private func commitSeek(toProgress progress: Double) {
+        guard canSeek, let durationMillis = displayedInfo.durationMillis else { return }
+
+        let targetMillis = Int((progress * Double(durationMillis)).rounded())
+        let sampledAt = displayedInfo.isPlaying ? Date() : nil
+        seekHandoffUntil = Date().addingTimeInterval(seekHandoffSuppressionDuration)
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            displayedInfo = NowPlayingInfo(
+                trackName: displayedInfo.trackName,
+                artistName: displayedInfo.artistName,
+                albumName: displayedInfo.albumName,
+                albumArtURL: displayedInfo.albumArtURL,
+                isPlaying: displayedInfo.isPlaying,
+                source: displayedInfo.source,
+                positionMillis: targetMillis,
+                durationMillis: displayedInfo.durationMillis,
+                progressSampledAt: sampledAt
+            )
+        }
+        detector.seek(toMillis: targetMillis)
+    }
+
+    /// Suppresses exactly one stale post-seek poll from snapping the
+    /// optimistic position back down before the player's own seek lands.
+    private func shouldSuppressSeekHandoffUpdate(from live: NowPlayingInfo) -> Bool {
+        guard let seekHandoffUntil else { return false }
+        let now = Date()
+        guard now < seekHandoffUntil else {
+            self.seekHandoffUntil = nil
+            return false
+        }
+        if live.isPlaying != displayedInfo.isPlaying {
+            self.seekHandoffUntil = nil
+            return false
+        }
+        return true
     }
 
     private var cardBackground: some View {
@@ -219,17 +378,15 @@ struct AlbumArtWidgetView: View {
                     .onTapGesture { togglePlayback() }
 
                 VStack(spacing: 5) {
-                    Text(np.trackName.isEmpty ? "NOTHING PLAYING" : np.trackName)
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                    Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
-                        .tracking(np.trackName.isEmpty ? 1.6 : 0)
                     if !np.artistName.isEmpty {
-                        Text(np.artistName.uppercased())
-                            .font(.system(size: 11, weight: .medium))
+                        Text(np.artistName)
+                            .font(.system(size: 12.5, weight: .medium))
                             .foregroundStyle(.white.opacity(0.68))
                             .lineLimit(1)
-                            .tracking(0.8)
                     }
                 }
                 .padding(.horizontal, 24)
@@ -277,6 +434,82 @@ struct AlbumArtWidgetView: View {
         Image(nsImage: art)
             .resizable()
             .aspectRatio(contentMode: .fill)
+    }
+}
+
+/// Raw AppKit drag surface backing the Card layout's scrub bar — duplicated
+/// from the vinyl widgets' own (private, file-scoped) capture views rather
+/// than shared, per this codebase's convention of keeping each widget
+/// self-contained. The widget window is movable-by-background, and AppKit
+/// decides that at mouse-down — too early for a SwiftUI gesture callback to
+/// veto, so a plain DragGesture here would drag the whole widget instead.
+private struct AlbumArtScrubDragCaptureView: NSViewRepresentable {
+    var onBegan: (CGPoint) -> Void
+    var onMoved: (CGPoint) -> Void
+    var onEnded: (CGPoint) -> Void
+    var onCancelled: () -> Void
+
+    func makeNSView(context: Context) -> CaptureView {
+        let view = CaptureView()
+        view.onBegan = onBegan
+        view.onMoved = onMoved
+        view.onEnded = onEnded
+        view.onCancelled = onCancelled
+        return view
+    }
+
+    func updateNSView(_ nsView: CaptureView, context: Context) {
+        nsView.onBegan = onBegan
+        nsView.onMoved = onMoved
+        nsView.onEnded = onEnded
+        nsView.onCancelled = onCancelled
+    }
+
+    final class CaptureView: NSView {
+        var onBegan: ((CGPoint) -> Void)?
+        var onMoved: ((CGPoint) -> Void)?
+        var onEnded: ((CGPoint) -> Void)?
+        var onCancelled: (() -> Void)?
+
+        private var isTrackingPress = false
+
+        override var isFlipped: Bool { true }
+        override var mouseDownCanMoveWindow: Bool { false }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            bounds.contains(point) ? self : nil
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            isTrackingPress = true
+            window?.isMovableByWindowBackground = false
+            onBegan?(localPoint(from: event))
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard isTrackingPress else { return }
+            onMoved?(localPoint(from: event))
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            guard isTrackingPress else { return }
+            isTrackingPress = false
+            onEnded?(localPoint(from: event))
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            if newWindow == nil, isTrackingPress {
+                isTrackingPress = false
+                onCancelled?()
+            }
+            super.viewWillMove(toWindow: newWindow)
+        }
+
+        private func localPoint(from event: NSEvent) -> CGPoint {
+            convert(event.locationInWindow, from: nil)
+        }
     }
 }
 

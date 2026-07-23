@@ -413,7 +413,7 @@ struct CDWidgetView: View {
             }
             VStack(alignment: .leading, spacing: -1) {
                 Text("DIGITAL DISC")
-                    .font(.system(size: 9, weight: .black, design: .rounded)).tracking(0.2)
+                    .font(.system(size: 9, weight: .black)).tracking(0.2)
                 Text("STEREO · HI-FI AUDIO")
                     .font(.system(size: 5.5, weight: .bold)).tracking(1.0)
             }
