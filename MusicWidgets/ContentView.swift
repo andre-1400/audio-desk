@@ -622,6 +622,26 @@ private struct GalleryDetail: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 30) {
                     if category == .vinyl {
+                        // Flagship, ahead of the regular forms — a single
+                        // always-live style with no housing color to pick,
+                        // so it gets the same featured "LIVE" treatment
+                        // Adaptive/Custom get, not a numbered grid slot.
+                        formSection(name: "Spindle", subtitle: "Just the disc, floating free",
+                                    count: VinylSpindleModel.all.count, items: VinylSpindleModel.all) { model in
+                            GalleryCard(title: model.name, subtitle: model.subtitle,
+                                        accent: category.accentColor,
+                                        hovered: hoveredID == model.id,
+                                        active: activeWidget.entry == "spindle:\(model.id)",
+                                        special: model.isSpecialStyle,
+                                        badgeText: model.specialKind?.badgeText,
+                                        badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
+                                        onHover: { setHover(model.id, $0) },
+                                        action: {
+                                            AppDelegate.shared?.launchVinylSpindleWidget(model: model)
+                                        }) { animated in
+                                VinylSpindleModelPreview(model: model, animated: animated, live: liveTrack)
+                            }
+                        }
                         ForEach(VinylStyle.forms) { form in
                             formSection(name: form.name, subtitle: form.subtitle,
                                         count: form.styles.count, items: form.styles) { style in
@@ -666,22 +686,6 @@ private struct GalleryDetail: View {
                                             }
                                         }) { animated in
                                 VinylHorizontalModelPreview(model: model, animated: animated, live: liveTrack)
-                            }
-                        }
-                        formSection(name: "Spindle", subtitle: "Just the disc, floating free",
-                                    count: VinylSpindleModel.all.count, items: VinylSpindleModel.all) { model in
-                            GalleryCard(title: model.name, subtitle: model.subtitle,
-                                        accent: category.accentColor,
-                                        hovered: hoveredID == model.id,
-                                        active: activeWidget.entry == "spindle:\(model.id)",
-                                        special: model.isSpecialStyle,
-                                        badgeText: model.specialKind?.badgeText,
-                                        badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
-                                        onHover: { setHover(model.id, $0) },
-                                        action: {
-                                            AppDelegate.shared?.launchVinylSpindleWidget(model: model)
-                                        }) { animated in
-                                VinylSpindleModelPreview(model: model, animated: animated, live: liveTrack)
                             }
                         }
                     } else if category == .cd {
