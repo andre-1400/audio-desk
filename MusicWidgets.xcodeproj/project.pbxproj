@@ -19,7 +19,6 @@
 		AA000700 /* CustomColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000701 /* CustomColor.swift */; };
 		AA000702 /* HSVColorPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000703 /* HSVColorPickerView.swift */; };
 		AA000704 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000705 /* DesignSystem.swift */; };
-		AA000706 /* VinylSpindleWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000707 /* VinylSpindleWidgetView.swift */; };
 		AA000106 /* WidgetWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000116 /* WidgetWindow.swift */; };
 		AA000107 /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000117 /* WidgetTheme.swift */; };
 		AA000108 /* SongSwitchAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000118 /* SongSwitchAnimator.swift */; };
@@ -53,7 +52,6 @@
 		AA000701 /* CustomColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomColor.swift; sourceTree = "<group>"; };
 		AA000703 /* HSVColorPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HSVColorPickerView.swift; sourceTree = "<group>"; };
 		AA000705 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
-		AA000707 /* VinylSpindleWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VinylSpindleWidgetView.swift; sourceTree = "<group>"; };
 		AA000116 /* WidgetWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetWindow.swift; sourceTree = "<group>"; };
 		AA000117 /* WidgetTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTheme.swift; sourceTree = "<group>"; };
 		AA000118 /* SongSwitchAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongSwitchAnimator.swift; sourceTree = "<group>"; };
@@ -96,7 +94,6 @@
 				AA000701 /* CustomColor.swift */,
 				AA000703 /* HSVColorPickerView.swift */,
 				AA000705 /* DesignSystem.swift */,
-				AA000707 /* VinylSpindleWidgetView.swift */,
 				AA000116 /* WidgetWindow.swift */,
 				AA000117 /* WidgetTheme.swift */,
 				AA000118 /* SongSwitchAnimator.swift */,
@@ -216,7 +213,6 @@
 				AA000700 /* CustomColor.swift in Sources */,
 				AA000702 /* HSVColorPickerView.swift in Sources */,
 				AA000704 /* DesignSystem.swift in Sources */,
-				AA000706 /* VinylSpindleWidgetView.swift in Sources */,
 				AA000106 /* WidgetWindow.swift in Sources */,
 				AA000107 /* WidgetTheme.swift in Sources */,
 				AA000108 /* SongSwitchAnimator.swift in Sources */,
