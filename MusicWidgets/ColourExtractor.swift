@@ -206,7 +206,29 @@ enum ColourExtractor {
             }
         }
 
-        guard !pixels.isEmpty else { return .fallback }
+        guard !pixels.isEmpty else {
+            // Every sampled pixel was near-black or near-white — there's no
+            // interesting hue to weight toward below, but we still have real
+            // pixel data. Average all of it directly instead of substituting
+            // the unrelated warm-brown .fallback, which is what silently
+            // turned a genuinely near-white (or near-black) cover into a
+            // brown "dominant" colour — and broke every "is this art light
+            // or dark" decision built on top of it (every adaptive style
+            // reads dominant through here).
+            var sumR = 0.0, sumG = 0.0, sumB = 0.0
+            let count = width * height
+            for i in 0..<count {
+                let offset = i * bytesPerPixel
+                sumR += Double(pixelData[offset]) / 255.0
+                sumG += Double(pixelData[offset + 1]) / 255.0
+                sumB += Double(pixelData[offset + 2]) / 255.0
+            }
+            let avgR = sumR / Double(count), avgG = sumG / Double(count), avgB = sumB / Double(count)
+            return ExtractedColours(
+                dominant: Color(red: avgR, green: avgG, blue: avgB),
+                secondary: Color(red: avgR * 0.6, green: avgG * 0.6, blue: avgB * 0.6)
+            )
+        }
 
         // Weight by saturation rather than a flat average. A cover with a
         // large pale/neutral background (e.g. a cream sleeve with a small

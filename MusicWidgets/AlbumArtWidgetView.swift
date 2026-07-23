@@ -16,7 +16,7 @@ enum AlbumArtSize: String, CaseIterable, Identifiable {
         switch self {
         case .compact: return CGSize(width: 220, height: 220)
         case .circle:  return CGSize(width: 200, height: 200)
-        case .mini:    return CGSize(width: 330, height: 84)
+        case .mini:    return CGSize(width: 360, height: 84)
         case .card:    return CGSize(width: 280, height: 360)
         }
     }
@@ -88,9 +88,14 @@ struct AlbumArtWidgetView: View {
         effectiveExtracted.dominant.perceivedBrightness * (1 - darkening) > 0.48
     }
 
-    /// Card's scrim ranges 0 -> 0.74 top-to-bottom; 0.55 approximates its
-    /// effective strength across the band the text/controls actually sit in.
-    private var cardIsLight: Bool { isLightSurface(darkening: 0.55) }
+    /// Card's scrim ranges 0 -> 0.74 top-to-bottom. 0.55 here was a bug, not
+    /// just an over-estimate: perceived brightness tops out at 1.0, so
+    /// `1.0 * (1 - 0.55) = 0.45` could never clear the 0.48 threshold — dark
+    /// text was mathematically unreachable no matter how white the art was,
+    /// which is exactly what got reported. 0.15 is a real, achievable
+    /// darkening estimate for the (much lighter, gradient-fading) band the
+    /// text/controls actually sit in.
+    private var cardIsLight: Bool { isLightSurface(darkening: 0.15) }
     private var cardPrimary: Color { cardIsLight ? Color.black.opacity(0.88) : .white }
     private var cardSecondary: Color { cardIsLight ? Color.black.opacity(0.58) : Color.white.opacity(0.72) }
     /// The scrim itself flips too — a black scrim under dark text would
@@ -246,21 +251,26 @@ struct AlbumArtWidgetView: View {
     // MARK: - Mini (280x84) — a glanceable horizontal strip
 
     private var miniLayout: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 12) {
             artImage
                 .id(trackKey)
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.3), value: trackKey)
                 .aspectRatio(1, contentMode: .fill)
-                .frame(width: 58, height: 58)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .frame(width: 54, height: 54)
+                .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
                 )
                 .contentShape(Rectangle())
                 .onTapGesture { togglePlayback() }
 
+            // Was truncating to 2-3 characters on most real track names —
+            // the transport buttons' tap targets (46/36pt, sized for the
+            // much bigger Card) were eating most of the width on a strip
+            // this compact. Given real room here instead of a smaller font,
+            // which would've just made the same truncation harder to read.
             VStack(alignment: .leading, spacing: 2) {
                 Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
                     .font(.system(size: 14, weight: .semibold))
@@ -279,17 +289,18 @@ struct AlbumArtWidgetView: View {
 
             // Full back/play-pause/skip trio, same Apple Music hierarchy as
             // everywhere else in the app — play/pause bigger and fully
-            // opaque, skips smaller and muted. Preview cards show these
-            // purely for looks — cosmetic only, never wired to real
-            // transport commands.
-            HStack(spacing: 8) {
-                transportButton("backward.fill", size: 13) { if !isPreview { detector.previousTrack() } }
-                transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 17, prominent: true) { togglePlayback() }
-                transportButton("forward.fill", size: 13) { if !isPreview { detector.nextTrack() } }
+            // opaque, skips smaller and muted — but with tap targets sized
+            // for this strip instead of Card's much bigger ones. Preview
+            // cards show these purely for looks — cosmetic only, never
+            // wired to real transport commands.
+            HStack(spacing: 6) {
+                transportButton("backward.fill", size: 12, tapTarget: 24) { if !isPreview { detector.previousTrack() } }
+                transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 16, prominent: true, tapTarget: 32) { togglePlayback() }
+                transportButton("forward.fill", size: 12, tapTarget: 24) { if !isPreview { detector.nextTrack() } }
             }
         }
-        .padding(.leading, 14)
-        .padding(.trailing, 18)
+        .padding(.leading, 12)
+        .padding(.trailing, 14)
         .padding(.vertical, 12)
         .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
         .background(
@@ -530,13 +541,15 @@ struct AlbumArtWidgetView: View {
     private func transportButton(
         _ symbol: String, size: CGFloat, prominent: Bool = false,
         primaryColor: Color = .white, secondaryColor: Color = .white.opacity(0.65),
+        tapTarget: CGFloat? = nil,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: action) {
+        let target = tapTarget ?? (prominent ? 46 : 36)
+        return Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(prominent ? primaryColor : secondaryColor)
-                .frame(width: prominent ? 46 : 36, height: prominent ? 46 : 36)
+                .frame(width: target, height: target)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
