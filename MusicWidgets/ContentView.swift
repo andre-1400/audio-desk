@@ -946,10 +946,22 @@ private struct CustomColorSheetView: View {
 // visually distinct from the prebuilt fixed colours below.
 
 enum SpecialStyleKind {
-    case adaptive, custom
+    case adaptive, custom, ghost
 
-    var badgeText: String { self == .adaptive ? "LIVE" : "CUSTOM" }
-    var badgeIcon: String { self == .adaptive ? "dot.radiowaves.left.and.right" : "eyedropper" }
+    var badgeText: String {
+        switch self {
+        case .adaptive: return "LIVE"
+        case .custom: return "CUSTOM"
+        case .ghost: return "GHOST"
+        }
+    }
+    var badgeIcon: String {
+        switch self {
+        case .adaptive: return "dot.radiowaves.left.and.right"
+        case .custom: return "eyedropper"
+        case .ghost: return "circle.dashed"
+        }
+    }
 }
 
 protocol GalleryStyleItem {
@@ -961,12 +973,22 @@ extension GalleryStyleItem {
 
 extension VinylStyle: GalleryStyleItem {
     var specialKind: SpecialStyleKind? {
-        themeID == .adaptive ? .adaptive : (themeID == .custom ? .custom : nil)
+        switch themeID {
+        case .adaptive: return .adaptive
+        case .custom: return .custom
+        case .ghost: return .ghost
+        default: return nil
+        }
     }
 }
 extension VinylHorizontalModel: GalleryStyleItem {
     var specialKind: SpecialStyleKind? {
-        themeID == .adaptive ? .adaptive : (themeID == .custom ? .custom : nil)
+        switch themeID {
+        case .adaptive: return .adaptive
+        case .custom: return .custom
+        case .ghost: return .ghost
+        default: return nil
+        }
     }
 }
 extension CDModel: GalleryStyleItem {
@@ -1224,6 +1246,7 @@ extension VinylStyle {
                   styles: [
                     VinylStyle(themeID: .adaptive, name: "Adaptive", subtitle: "Matches the album art, live"),
                     VinylStyle(themeID: .custom,   name: "Custom",   subtitle: "Pick your own exact colour"),
+                    VinylStyle(themeID: .ghost,    name: "Ghost",    subtitle: "No body — just the disc and text"),
                     VinylStyle(themeID: .default,  name: "Classic",  subtitle: "Warm wood & gold"),
                     VinylStyle(themeID: .obsidian, name: "Obsidian", subtitle: "Jet black & chrome"),
                     VinylStyle(themeID: .pearl,    name: "Pearl",    subtitle: "Cream & terracotta"),
@@ -1304,8 +1327,8 @@ struct VinylStylePreview: View {
         if themeID == .custom {
             return WidgetThemeID.adaptivePalette(from: customColors.vinyl.extractedColours)
         }
-        guard themeID == .adaptive, live.art != nil else { return themeID.palette }
-        return WidgetThemeID.adaptivePalette(from: live.colours)
+        guard themeID == .adaptive || themeID == .ghost, live.art != nil else { return themeID.palette }
+        return WidgetThemeID.adaptivePalette(from: live.colours, showBody: themeID != .ghost)
     }
 
     @ViewBuilder private var content: some View {
@@ -1654,6 +1677,7 @@ private struct VinylWidgetReplica: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .truncationMode(.tail)
+                    .shadow(color: .black.opacity(palette.showBody ? 0 : 0.55), radius: 6)
                 Text(liveArtistName)
                     .font(.system(size: 14.5, weight: .medium))
                     .foregroundStyle(palette.trackArtist)
@@ -1661,7 +1685,49 @@ private struct VinylWidgetReplica: View {
                     .minimumScaleFactor(0.75)
                     .truncationMode(.tail)
                     .padding(.top, 4)
+                    .shadow(color: .black.opacity(palette.showBody ? 0 : 0.55), radius: 5)
 
+                if palette.showBody {
+                    HStack(spacing: 38) {
+                        Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
+                            .foregroundStyle(palette.trackArtist)
+                        Image(systemName: "play.fill").font(.system(size: 27, weight: .medium))
+                            .foregroundStyle(palette.trackTitle)
+                        Image(systemName: "forward.fill").font(.system(size: 21, weight: .medium))
+                            .foregroundStyle(palette.trackArtist)
+                    }
+                    .frame(height: 37)
+                    .padding(.top, 12)
+
+                    HStack(spacing: 9) {
+                        Text("0:00").frame(width: 34, alignment: .leading)
+                        Capsule().fill(palette.trackArtist.opacity(0.32)).frame(height: 4)
+                        Text("-0:00").frame(width: 34, alignment: .trailing)
+                    }
+                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                    .foregroundStyle(palette.trackArtist.opacity(0.85))
+                    .frame(height: 22)
+                    .padding(.top, 12)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 140)
+        } else {
+            placeholderTrackInfo
+        }
+    }
+
+    private var placeholderTrackInfo: some View {
+        VStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(palette.trackTitle.opacity(0.85))
+                .frame(width: 132, height: 13)
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(palette.trackArtist.opacity(0.7))
+                .frame(width: 96, height: 9)
+                .padding(.top, 8)
+
+            if palette.showBody {
                 HStack(spacing: 38) {
                     Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
                         .foregroundStyle(palette.trackArtist)
@@ -1683,43 +1749,6 @@ private struct VinylWidgetReplica: View {
                 .frame(height: 22)
                 .padding(.top, 12)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: 140)
-        } else {
-            placeholderTrackInfo
-        }
-    }
-
-    private var placeholderTrackInfo: some View {
-        VStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(palette.trackTitle.opacity(0.85))
-                .frame(width: 132, height: 13)
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(palette.trackArtist.opacity(0.7))
-                .frame(width: 96, height: 9)
-                .padding(.top, 8)
-
-            HStack(spacing: 38) {
-                Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
-                    .foregroundStyle(palette.trackArtist)
-                Image(systemName: "play.fill").font(.system(size: 27, weight: .medium))
-                    .foregroundStyle(palette.trackTitle)
-                Image(systemName: "forward.fill").font(.system(size: 21, weight: .medium))
-                    .foregroundStyle(palette.trackArtist)
-            }
-            .frame(height: 37)
-            .padding(.top, 12)
-
-            HStack(spacing: 9) {
-                Text("0:00").frame(width: 34, alignment: .leading)
-                Capsule().fill(palette.trackArtist.opacity(0.32)).frame(height: 4)
-                Text("-0:00").frame(width: 34, alignment: .trailing)
-            }
-            .font(.system(size: 10, weight: .medium).monospacedDigit())
-            .foregroundStyle(palette.trackArtist.opacity(0.85))
-            .frame(height: 22)
-            .padding(.top, 12)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 140)

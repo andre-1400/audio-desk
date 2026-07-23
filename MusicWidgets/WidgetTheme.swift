@@ -12,6 +12,9 @@ enum WidgetThemeID: String, CaseIterable {
     // Fixed — colour picked once by the user via HSVColorPickerView, not tied
     // to any playback state.
     case custom = "custom"
+    // Live, same as Adaptive, but with showBody: false — no housing shell,
+    // no button/scrubber chrome, just the disc and the title/artist text.
+    case ghost = "ghost"
 
     static func fromPersisted(_ value: String?) -> WidgetThemeID {
         guard let value,
@@ -220,6 +223,14 @@ extension WidgetThemeID {
         case .custom:
             return WidgetThemeID.adaptivePalette(from: CustomColorManager.shared.vinyl.extractedColours)
 
+        // MARK: Ghost — same live colours as Adaptive, no housing. This
+        // static branch (fallback colours) only fires for contexts with no
+        // live data, e.g. the gallery preview card; the live widget gets
+        // its colours from WidgetThemeID.adaptivePalette(from:showBody:) via
+        // WidgetThemeManager instead, same split as Adaptive/Custom.
+        case .ghost:
+            return WidgetThemeID.adaptivePalette(from: .adaptivePreviewPlaceholder, showBody: false)
+
         }
     }
 }
@@ -227,7 +238,7 @@ extension WidgetThemeID {
 // MARK: - Adaptive palette (live, built from the playing album's colours)
 
 extension WidgetThemeID {
-    static func adaptivePalette(from colours: ExtractedColours) -> WidgetThemePalette {
+    static func adaptivePalette(from colours: ExtractedColours, showBody: Bool = true) -> WidgetThemePalette {
         let dominant = colours.dominant
         let secondary = colours.secondary
         let darkest = secondary.adjustBrightness(-0.12)
@@ -243,7 +254,7 @@ extension WidgetThemeID {
         let labelColors = [dominant, secondary, darkest]
 
         return WidgetThemePalette(
-            showBody: true,
+            showBody: showBody,
             showBodyTexture: false,
             widgetBodyGradient: bodyColors,
             widgetBorder: dominant.opacity(0.20),

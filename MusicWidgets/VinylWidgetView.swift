@@ -235,7 +235,7 @@ struct VinylWidgetView: View {
     /// Perceived lightness of the body as actually drawn — see AdaptiveBody.
     /// Non-adaptive themes have no artwork, so they average their own gradient.
     private var bodyIsLight: Bool {
-        if themeManager.themeID == .adaptive {
+        if themeManager.themeID == .adaptive || themeManager.themeID == .ghost {
             return AdaptiveBody.isLight(extractedColours.dominant)
         }
         let colours = theme.widgetBodyGradient
@@ -1070,6 +1070,12 @@ struct VinylWidgetView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .truncationMode(.tail)
+                    // Ghost has no body behind this text at all — it sits
+                    // directly over whatever's on the user's desktop, which
+                    // the app has no way to know the colour of. A drop
+                    // shadow keeps it legible regardless, the same way any
+                    // floating-over-desktop text needs one.
+                    .shadow(color: .black.opacity(theme.showBody ? 0 : 0.55), radius: 6)
 
                 Text(displayedNowPlaying.trackName.isEmpty ? " " : artistLine)
                     .font(.system(size: 14.5, weight: .medium))
@@ -1079,9 +1085,14 @@ struct VinylWidgetView: View {
                     .minimumScaleFactor(0.75)
                     .truncationMode(.tail)
                     .padding(.top, 4)
+                    .shadow(color: .black.opacity(theme.showBody ? 0 : 0.55), radius: 5)
 
-                transportRow
-                    .padding(.top, 12)
+                // No body (Ghost) means no button/scrubber chrome either —
+                // title + artist only, floating next to the disc.
+                if theme.showBody {
+                    transportRow
+                        .padding(.top, 12)
+                }
             }
             // The song-switch animator publishes its phase inside
             // withAnimation, and the reveal that swaps the track text rides
@@ -1091,8 +1102,10 @@ struct VinylWidgetView: View {
             // moment the body colour does.
             .transaction { $0.animation = nil }
 
-            scrubberRow
-                .padding(.top, 12)
+            if theme.showBody {
+                scrubberRow
+                    .padding(.top, 12)
+            }
         }
         // Fixed height keeps the platter (and therefore the tonearm) at a
         // known position regardless of how the text metrics resolve.

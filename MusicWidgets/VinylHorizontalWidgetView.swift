@@ -26,6 +26,7 @@ struct VinylHorizontalModel: Identifiable {
     static let all: [VinylHorizontalModel] = [
         VinylHorizontalModel(id: "hbar-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", themeID: .adaptive),
         VinylHorizontalModel(id: "hbar-custom", name: "Custom", subtitle: "Pick your own exact colour", themeID: .custom),
+        VinylHorizontalModel(id: "hbar-ghost", name: "Ghost", subtitle: "No body — just the disc and text", themeID: .ghost),
         VinylHorizontalModel(id: "hbar-classic", name: "Classic", subtitle: "Warm wood & gold", themeID: .default),
         VinylHorizontalModel(id: "hbar-obsidian", name: "Obsidian", subtitle: "Jet black & chrome", themeID: .obsidian),
         VinylHorizontalModel(id: "hbar-pearl", name: "Pearl", subtitle: "Cream & terracotta", themeID: .pearl)
@@ -87,6 +88,7 @@ struct VinylHorizontalWidgetView: View {
 
     private var isAdaptive: Bool { model.themeID == .adaptive }
     private var isCustom: Bool { model.themeID == .custom }
+    private var isGhost: Bool { model.themeID == .ghost }
 
     private var effectiveColours: ExtractedColours {
         if isCustom { return customColors.vinylHorizontal.extractedColours }
@@ -99,15 +101,17 @@ struct VinylHorizontalWidgetView: View {
     }
 
     private var theme: WidgetThemePalette {
-        (isAdaptive || isCustom) ? WidgetThemeID.adaptivePalette(from: effectiveColours) : model.themeID.palette
+        (isAdaptive || isCustom || isGhost)
+            ? WidgetThemeID.adaptivePalette(from: effectiveColours, showBody: !isGhost)
+            : model.themeID.palette
     }
 
     /// Foreground colours picked for contrast against the body as drawn.
     private var fgPrimary: Color {
-        (isAdaptive || isCustom) ? AdaptiveBody.primary(effectiveColours.dominant) : theme.trackTitle
+        (isAdaptive || isCustom || isGhost) ? AdaptiveBody.primary(effectiveColours.dominant) : theme.trackTitle
     }
     private var fgSecondary: Color {
-        (isAdaptive || isCustom) ? AdaptiveBody.secondary(effectiveColours.dominant) : theme.trackArtist
+        (isAdaptive || isCustom || isGhost) ? AdaptiveBody.secondary(effectiveColours.dominant) : theme.trackArtist
     }
     private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
 
@@ -120,29 +124,39 @@ struct VinylHorizontalWidgetView: View {
             discArea
             VStack(alignment: .leading, spacing: 8) {
                 trackText
-                Spacer(minLength: 2)
-                transportRow
-                progressRow
+                // Ghost: no body means no button/scrubber chrome either —
+                // title + artist only, next to the disc.
+                if theme.showBody {
+                    Spacer(minLength: 2)
+                    transportRow
+                    progressRow
+                }
             }
             .padding(.vertical, 14)
             .padding(.trailing, 18)
         }
         .padding(.leading, 12)
         .frame(width: horizontalBaseSize.width, height: horizontalBaseSize.height, alignment: .leading)
-        .background(
-            ZStack {
-                LinearGradient(colors: theme.widgetBodyGradient, startPoint: .topLeading, endPoint: .bottomTrailing)
-                // Adaptive: same treatment as every other adaptive style —
-                // the body is the blurred album art, not an averaged colour.
-                AdaptiveBodyFill(blurredArt: effectiveBlurredBodyArt, size: horizontalBaseSize)
+        .background {
+            // Ghost: no housing at all — the bar sits directly over the
+            // desktop, same idea as Vinyl v1's own showBody: false.
+            if theme.showBody {
+                ZStack {
+                    LinearGradient(colors: theme.widgetBodyGradient, startPoint: .topLeading, endPoint: .bottomTrailing)
+                    // Adaptive: same treatment as every other adaptive style —
+                    // the body is the blurred album art, not an averaged colour.
+                    AdaptiveBodyFill(blurredArt: effectiveBlurredBodyArt, size: horizontalBaseSize)
+                }
             }
-        )
+        }
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(theme.widgetBorder, lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.32), radius: 16, x: 0, y: 9)
+        .overlay {
+            if theme.showBody {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(theme.widgetBorder, lineWidth: 1)
+            }
+        }
+        .shadow(color: .black.opacity(theme.showBody ? 0.32 : 0), radius: 16, x: 0, y: 9)
         .onAppear {
             guard !isPreview else { return }
             detector.start()
@@ -372,12 +386,17 @@ struct VinylHorizontalWidgetView: View {
                 .foregroundStyle(fgPrimary)
                 .lineLimit(1)
                 .truncationMode(.tail)
+                // Ghost has no body behind this text — it sits directly
+                // over the desktop, which the app has no way to know the
+                // colour of. A drop shadow keeps it legible regardless.
+                .shadow(color: .black.opacity(theme.showBody ? 0 : 0.55), radius: 6)
             if !np.artistName.isEmpty {
                 Text(np.artistName)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(fgSecondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .shadow(color: .black.opacity(theme.showBody ? 0 : 0.55), radius: 5)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -678,13 +697,14 @@ struct VinylHorizontalModelPreview: View {
     var body: some View {
         GeometryReader { geo in
             let s = min(geo.size.width / horizontalBaseSize.width, geo.size.height / horizontalBaseSize.height)
-            // Colour/blur only for the Adaptive model — every other style
-            // has its own fixed palette and must not pick up the live
-            // art's colour or blurred body.
+            // Colour only for Adaptive/Ghost (both live) — every other
+            // style has its own fixed palette and must not pick up the
+            // live art's colour. Blurred body only for Adaptive — Ghost
+            // has no body to blur into (showBody: false).
             VinylHorizontalWidgetView(
                 model: model, isPreview: true, animated: animated,
                 previewInfo: live.info, previewArt: live.art,
-                previewColours: model.themeID == .adaptive ? live.colours : nil,
+                previewColours: (model.themeID == .adaptive || model.themeID == .ghost) ? live.colours : nil,
                 previewBlurredArt: model.themeID == .adaptive ? live.blurredArt : nil
             )
                 .frame(width: horizontalBaseSize.width, height: horizontalBaseSize.height)
