@@ -906,7 +906,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         if let existing = vinylSpindleWindow {
             existing.contentView?.subviews.forEach { $0.removeFromSuperview() }
-            let host = NSHostingView(rootView: VinylSpindleSizedRoot(model: model).modifier(DesktopWidgetChrome(cornerInset: spindleMargin)))
+            let host = NSHostingView(rootView: VinylSpindleSizedRoot(model: model).modifier(DesktopWidgetChrome(cornerInset: 20)))
             host.frame = existing.contentView?.bounds ?? .zero
             host.autoresizingMask = [.width, .height]
             existing.contentView?.addSubview(host)
@@ -920,7 +920,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.setContentSize(size)
         window.setFrameOrigin(launchOrigin(xKey: "vinylSpindleWidgetX", yKey: "vinylSpindleWidgetY", size: size))
 
-        let host = NSHostingView(rootView: VinylSpindleSizedRoot(model: model).modifier(DesktopWidgetChrome(cornerInset: spindleMargin)))
+        let host = NSHostingView(rootView: VinylSpindleSizedRoot(model: model).modifier(DesktopWidgetChrome(cornerInset: 20)))
         host.frame = window.contentView?.bounds ?? .zero
         host.autoresizingMask = [.width, .height]
         window.contentView?.addSubview(host)

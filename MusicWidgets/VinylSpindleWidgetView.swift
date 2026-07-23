@@ -3,20 +3,16 @@ import AppKit
 
 // MARK: - Gallery model
 //
-// The bare mechanism and nothing else — just the spinning disc, its centre
-// spindle, and a tonearm that tracks playback position, no housing/body/
-// track panel around any of it. Floats directly on the desktop with a
-// fully transparent frame. Reuses the exact same disc renderer
-// (SpinningVinylView) as every other vinyl style — only what's built
-// around it differs (here, almost nothing).
+// The bare mechanism and nothing else — just the spinning disc and its
+// centre spindle, no housing/body/tonearm/track panel around it. Floats
+// directly on the desktop with a fully transparent frame. Reuses the exact
+// same disc renderer (SpinningVinylView) as every other vinyl style — only
+// what's built around it differs (here, nothing).
 //
-// Only one model, deliberately: there's no housing left to give a colour
-// to, so the Classic/Obsidian/Pearl device-body colourways this family's
-// other forms offer don't mean anything here — the disc always just shows
-// whatever's playing, live. That single option is presented with the same
-// "LIVE" special-card treatment Adaptive gets everywhere else, since it's
-// effectively a permanent Adaptive style with no alternative to contrast
-// against.
+// No Custom colour option (unlike Vinyl v1/Horizontal) — kept to Adaptive
+// plus the three named colourways for now, since this is scoped to the
+// bare-mechanism look itself, not a full re-run of the custom-colour-picker
+// plumbing. Easy to add later if wanted.
 
 struct VinylSpindleModel: Identifiable {
     let id: String
@@ -25,19 +21,18 @@ struct VinylSpindleModel: Identifiable {
     let themeID: WidgetThemeID
 
     static let all: [VinylSpindleModel] = [
-        VinylSpindleModel(id: "spindle-live", name: "Spindle", subtitle: "Just the disc, floating free", themeID: .adaptive)
+        VinylSpindleModel(id: "spindle-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", themeID: .adaptive),
+        VinylSpindleModel(id: "spindle-classic", name: "Classic", subtitle: "Warm wood & gold", themeID: .default),
+        VinylSpindleModel(id: "spindle-obsidian", name: "Obsidian", subtitle: "Jet black & chrome", themeID: .obsidian),
+        VinylSpindleModel(id: "spindle-pearl", name: "Pearl", subtitle: "Cream & terracotta", themeID: .pearl)
     ]
 }
 
 let spindleDiscDiameter: CGFloat = 272
-/// Margin all round the disc for its own drop shadow AND the tonearm's
-/// swing — the window itself is fully transparent outside the disc, same
-/// idea as cdMargin/Vinyl v1's own outer frame. Wider than a plain shadow
-/// margin would need on its own: the tonearm's pivot sits outside the
-/// disc's edge, and its far end (the needle) sweeps a real arc around that
-/// pivot as it tracks playback progress — a tight margin tuned only for
-/// the disc's own shadow would clip it against the actual window edge.
-let spindleMargin: CGFloat = 60
+/// Margin all round the disc for its own drop shadow — the window itself is
+/// fully transparent outside the disc, same idea as cdMargin/Vinyl v1's own
+/// outer frame.
+private let spindleMargin: CGFloat = 20
 let spindleBaseSize = CGSize(width: spindleDiscDiameter + spindleMargin * 2,
                               height: spindleDiscDiameter + spindleMargin * 2)
 
@@ -82,40 +77,6 @@ struct VinylSpindleWidgetView: View {
         detector.togglePlayback()
     }
 
-    // MARK: - Tonearm angles
-    //
-    // Same idea as Vinyl v1's tonearm (angle tracks playback progress), but
-    // with its own tuning: this one has no housing to visually anchor it,
-    // so paused = swung further out and away from the disc entirely (not
-    // just resting at its edge), and the sweep toward the label at 100%
-    // progress goes further in, since there's no track-info panel below to
-    // compete with for reading as "the needle is nearly at the centre now."
-
-    private let tonearmRestAngle = -14.0
-    private let tonearmStartAngle = 0.0
-    private let tonearmEndAngle = 20.0
-    private let tonearmMaxProgress = 0.98
-
-    private func tonearmAngle(at date: Date) -> Double {
-        guard !np.trackName.isEmpty, np.isPlaying else { return tonearmRestAngle }
-        guard let progress = playbackProgress(at: date) else { return tonearmStartAngle }
-        return tonearmAngle(forProgress: progress)
-    }
-
-    private func playbackProgress(at date: Date) -> Double? {
-        guard let dur = np.durationMillis, dur > 0, let pos = np.positionMillis else { return nil }
-        var elapsed = Double(pos)
-        if np.isPlaying, let sampledAt = np.progressSampledAt {
-            elapsed += date.timeIntervalSince(sampledAt) * 1000
-        }
-        return min(tonearmMaxProgress, max(0, elapsed / Double(dur)))
-    }
-
-    private func tonearmAngle(forProgress progress: Double) -> Double {
-        let clamped = min(tonearmMaxProgress, max(0, progress))
-        return tonearmStartAngle + (tonearmEndAngle - tonearmStartAngle) * clamped
-    }
-
     var body: some View {
         ZStack {
             SpinningVinylView(
@@ -129,22 +90,6 @@ struct VinylSpindleWidgetView: View {
             .frame(width: spindleDiscDiameter, height: spindleDiscDiameter)
 
             spindleHub
-
-            // Purely visual: swings toward the label as the song progresses,
-            // swings out and away when paused/stopped. Preview cards never
-            // animate this — previewSpinning only drives the disc spin, and
-            // there's no real position data for a preview to track anyway.
-            if !isPreview {
-                TimelineView(.animation) { context in
-                    tonearm
-                        .rotationEffect(
-                            .degrees(tonearmAngle(at: context.date)),
-                            anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0)
-                        )
-                }
-                .animation(.spring(response: 1.0, dampingFraction: 0.7), value: np.isPlaying)
-                .offset(x: spindleDiscDiameter / 2 * 0.731, y: -spindleDiscDiameter / 2 * 0.206)
-            }
         }
         .frame(width: spindleDiscDiameter, height: spindleDiscDiameter)
         .shadow(color: .black.opacity(0.45), radius: 20, y: 10)
@@ -215,79 +160,6 @@ struct VinylSpindleWidgetView: View {
                                      center: .center, startRadius: 0, endRadius: 3))
                 .frame(width: 5, height: 5)
         }
-    }
-
-    /// Identical geometry to Vinyl v1's/Horizontal's own tonearm —
-    /// duplicated rather than shared, per this codebase's existing
-    /// convention of hand-copying this exact assembly between widgets. No
-    /// counterweight here: that's a per-style trait this bare-mechanism
-    /// widget has no trait system for, and it isn't missed at this size.
-    private var tonearm: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: "1c1c1e"), Color(hex: "606064"), Color(hex: "1c1c1e")],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(width: 8, height: 132)
-                .rotationEffect(.degrees(20))
-                .position(x: 46, y: 85)
-                .shadow(color: .black.opacity(0.55), radius: 1.5, x: 1, y: 2)
-                .shadow(color: .black.opacity(0.32), radius: 5, x: 2, y: 5)
-
-            Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: "38383c"), Color(hex: "222224"), Color(hex: "0e0e10")],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: 30, height: 30)
-                .overlay(Circle().strokeBorder(Color.black.opacity(0.5), lineWidth: 1))
-                .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
-                .position(x: 68, y: 16)
-
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [Color(hex: "f2f2f4"), Color(hex: "c2c2c6"), Color(hex: "78787c")],
-                        center: UnitPoint(x: 0.35, y: 0.3),
-                        startRadius: 0,
-                        endRadius: 8
-                    )
-                )
-                .frame(width: 15, height: 15)
-                .overlay(Circle().strokeBorder(Color.black.opacity(0.28), lineWidth: 0.5))
-                .position(x: 68, y: 16)
-
-            // Headshell/needle mount at the far end of the rod.
-            RoundedRectangle(cornerRadius: 3)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: "666666"), Color(hex: "222222")],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .frame(width: 18, height: 16)
-                .position(x: 24, y: 152)
-
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color(hex: "bbbbbb"), Color(hex: "666666")],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: 2, height: 8)
-                .position(x: 28, y: 164)
-        }
-        .frame(width: 90, height: 180)
     }
 
     private func refreshArt(forceRefresh: Bool) {
