@@ -16,7 +16,7 @@ enum AlbumArtSize: String, CaseIterable, Identifiable {
         switch self {
         case .compact: return CGSize(width: 220, height: 220)
         case .circle:  return CGSize(width: 200, height: 200)
-        case .mini:    return CGSize(width: 280, height: 84)
+        case .mini:    return CGSize(width: 330, height: 84)
         case .card:    return CGSize(width: 280, height: 360)
         }
     }
@@ -45,12 +45,17 @@ struct AlbumArtWidgetView: View {
     // GalleryLiveTrack. Only ever read when isPreview.
     var previewInfo: NowPlayingInfo? = nil
     var previewArt: NSImage? = nil
+    var previewExtracted: ExtractedColours? = nil
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
 
     @State private var displayedArt: NSImage?
     @State private var displayedInfo: NowPlayingInfo = .empty
+    // Card/Circle sit text and controls directly on top of the album art,
+    // so — same as every adaptive vinyl/CD style — the art's own dominant
+    // colour decides whether they read as light or dark text.
+    @State private var extracted: ExtractedColours = .fallback
 
     // MARK: - Progress-bar scrubbing (Card layout only) — same scheme as
     // VinylWidgetView/VinylHorizontalWidgetView, duplicated rather than
@@ -65,7 +70,37 @@ struct AlbumArtWidgetView: View {
     private var art: NSImage {
         (isPreview ? previewArt : displayedArt) ?? FallbackCoverArtGenerator.fallbackImage
     }
+    private var effectiveExtracted: ExtractedColours {
+        isPreview ? (previewExtracted ?? .fallback) : extracted
+    }
     private var trackKey: String { "\(np.trackName)|\(np.artistName)" }
+
+    // MARK: - Adaptive text/control colour (Card + Circle)
+    //
+    // Same formula AdaptiveBody.isLight uses (perceived brightness against a
+    // 0.48 threshold — already checked against WCAG contrast across a
+    // spread of cover colours), but parametrised per layout's own scrim
+    // strength instead of that shared helper's fixed 0.40 darkening, which
+    // matches neither of these: Circle sits directly on raw art with no
+    // scrim at all, and Card's bottom scrim is considerably stronger.
+
+    private func isLightSurface(darkening: Double) -> Bool {
+        effectiveExtracted.dominant.perceivedBrightness * (1 - darkening) > 0.48
+    }
+
+    /// Card's scrim ranges 0 -> 0.74 top-to-bottom; 0.55 approximates its
+    /// effective strength across the band the text/controls actually sit in.
+    private var cardIsLight: Bool { isLightSurface(darkening: 0.55) }
+    private var cardPrimary: Color { cardIsLight ? Color.black.opacity(0.88) : .white }
+    private var cardSecondary: Color { cardIsLight ? Color.black.opacity(0.58) : Color.white.opacity(0.72) }
+    /// The scrim itself flips too — a black scrim under dark text would
+    /// fight the very contrast it's meant to protect.
+    private var cardScrimColor: Color { cardIsLight ? .white : .black }
+
+    /// No scrim at all under Circle's ring — it sits right on the raw art.
+    private var circleIsLight: Bool { isLightSurface(darkening: 0) }
+    private var circlePrimary: Color { circleIsLight ? Color.black.opacity(0.85) : Color.white.opacity(0.9) }
+    private var circleSecondary: Color { circleIsLight ? Color.black.opacity(0.35) : Color.white.opacity(0.10) }
 
     var body: some View {
         Group {
@@ -106,6 +141,7 @@ struct AlbumArtWidgetView: View {
             withAnimation(.easeInOut(duration: 0.35)) {
                 displayedArt = image
             }
+            extracted = image.map(ColourExtractor.extract) ?? .fallback
         }
     }
 
@@ -140,36 +176,70 @@ struct AlbumArtWidgetView: View {
 
     // MARK: - Circle (200x200) — round art + a live progress ring
 
+    /// Radius of the art disc — also the inner edge of the drag-to-seek
+    /// ring band, so a tap on the art (play/pause) and a drag on the ring
+    /// (seek) never fight over the same pixels.
+    private let circleArtRadius: CGFloat = 84
+    /// Outer edge of the drag-to-seek band — a little past the visible ring
+    /// (188pt diameter / 94pt radius) so it stays easy to grab.
+    private let circleDragOuterRadius: CGFloat = 100
+
     private var circleLayout: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { context in
-            let fraction = progressFraction(at: context.date)
+            let fraction = isScrubbing ? scrubProgress : progressFraction(at: context.date)
             ZStack {
                 artImage
                     .id(trackKey)
                     .transition(.opacity)
                     .animation(.easeInOut(duration: 0.3), value: trackKey)
                     .aspectRatio(1, contentMode: .fill)
-                    .frame(width: 168, height: 168)
+                    .frame(width: circleArtRadius * 2, height: circleArtRadius * 2)
                     .clipShape(Circle())
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+                    .overlay(Circle().strokeBorder(circleSecondary.opacity(0.6), lineWidth: 1))
+                    .contentShape(Circle())
+                    .onTapGesture { togglePlayback() }
 
                 // The one widget in the family that shows playback position
                 // as a ring instead of a bar — there's no room for one here,
-                // and it reads naturally against the round art.
+                // and it reads naturally against the round art. Drag
+                // anywhere on the ring band to seek.
                 Circle()
                     .trim(from: 0, to: hasProgressData ? fraction : 0)
-                    .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .stroke(circlePrimary, style: StrokeStyle(lineWidth: isScrubbing ? 4 : 3, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .frame(width: 188, height: 188)
-                    .animation(.linear(duration: 0.4), value: fraction)
+                    .animation(isScrubbing ? nil : .linear(duration: 0.4), value: fraction)
 
                 Circle()
-                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                    .strokeBorder(circleSecondary, lineWidth: 1)
                     .frame(width: 188, height: 188)
+
+                if isScrubbing {
+                    let angle = fraction * 2 * .pi - .pi / 2
+                    Circle()
+                        .fill(circlePrimary)
+                        .frame(width: 11, height: 11)
+                        .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                        .offset(x: cos(angle) * 94, y: sin(angle) * 94)
+                }
             }
             .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
-            .contentShape(Circle())
-            .onTapGesture { togglePlayback() }
+            .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
+            .overlay {
+                if !isPreview {
+                    AlbumArtRingDragCaptureView(
+                        innerRadius: circleArtRadius,
+                        outerRadius: circleDragOuterRadius,
+                        onBegan: { handleCircularScrubDrag($0, canvasSize: model.size.baseSize.width) },
+                        onMoved: { handleCircularScrubDrag($0, canvasSize: model.size.baseSize.width) },
+                        onEnded: {
+                            handleCircularScrubDrag($0, canvasSize: model.size.baseSize.width)
+                            commitScrub()
+                        },
+                        onCancelled: { endScrubSession() }
+                    )
+                }
+            }
         }
     }
 
@@ -207,11 +277,15 @@ struct AlbumArtWidgetView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Play/pause only — no skip buttons — keeps this the smallest,
-            // most glanceable member of the family, distinct from Card's
-            // full transport row.
-            transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 17, prominent: true) {
-                togglePlayback()
+            // Full back/play-pause/skip trio, same Apple Music hierarchy as
+            // everywhere else in the app — play/pause bigger and fully
+            // opaque, skips smaller and muted. Preview cards show these
+            // purely for looks — cosmetic only, never wired to real
+            // transport commands.
+            HStack(spacing: 8) {
+                transportButton("backward.fill", size: 13) { if !isPreview { detector.previousTrack() } }
+                transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 17, prominent: true) { togglePlayback() }
+                transportButton("forward.fill", size: 13) { if !isPreview { detector.nextTrack() } }
             }
         }
         .padding(.leading, 14)
@@ -248,9 +322,11 @@ struct AlbumArtWidgetView: View {
 
             // Scrim only where the UI actually sits, fading to clear above
             // it — keeps the art readable up top instead of darkening the
-            // whole card the way a full-frame overlay would.
+            // whole card the way a full-frame overlay would. Lightens
+            // instead of darkens on light art, so dark text still gets a
+            // scrim working *for* it instead of a black one fighting it.
             LinearGradient(
-                colors: [.clear, .black.opacity(0.30), .black.opacity(0.74)],
+                colors: [.clear, cardScrimColor.opacity(0.30), cardScrimColor.opacity(0.74)],
                 startPoint: .top, endPoint: .bottom
             )
             .frame(height: 190)
@@ -259,14 +335,14 @@ struct AlbumArtWidgetView: View {
             VStack(spacing: 3) {
                 Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(cardPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                     .truncationMode(.tail)
                 if !np.artistName.isEmpty {
                     Text(np.artistName)
                         .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(cardSecondary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                         .truncationMode(.tail)
@@ -275,9 +351,14 @@ struct AlbumArtWidgetView: View {
                 // Preview cards show these purely for looks — cosmetic
                 // only, never wired to real transport commands.
                 HStack(spacing: 26) {
-                    transportButton("backward.fill", size: 15) { if !isPreview { detector.previousTrack() } }
-                    transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 20, prominent: true) { togglePlayback() }
-                    transportButton("forward.fill", size: 15) { if !isPreview { detector.nextTrack() } }
+                    transportButton("backward.fill", size: 15, primaryColor: cardPrimary, secondaryColor: cardSecondary) {
+                        if !isPreview { detector.previousTrack() }
+                    }
+                    transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 20, prominent: true,
+                                     primaryColor: cardPrimary, secondaryColor: cardSecondary) { togglePlayback() }
+                    transportButton("forward.fill", size: 15, primaryColor: cardPrimary, secondaryColor: cardSecondary) {
+                        if !isPreview { detector.nextTrack() }
+                    }
                 }
                 .padding(.top, 10)
 
@@ -306,10 +387,10 @@ struct AlbumArtWidgetView: View {
             GeometryReader { geo in
                 let width = geo.size.width
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.white.opacity(0.25)).frame(height: isScrubbing ? 5 : 3)
-                    Capsule().fill(Color.white).frame(width: max(2, width * fraction), height: isScrubbing ? 5 : 3)
+                    Capsule().fill(cardSecondary.opacity(0.4)).frame(height: isScrubbing ? 5 : 3)
+                    Capsule().fill(cardPrimary).frame(width: max(2, width * fraction), height: isScrubbing ? 5 : 3)
                     Circle()
-                        .fill(Color.white)
+                        .fill(cardPrimary)
                         .frame(width: 9, height: 9)
                         .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
                         .offset(x: min(width - 9, max(0, width * fraction - 4.5)))
@@ -363,6 +444,23 @@ struct AlbumArtWidgetView: View {
             isScrubbing = true
         }
         scrubProgress = min(1, max(0, fraction))
+    }
+
+    /// Same scrub session as handleScrubDrag, just fed by an angle around
+    /// the circle's centre (measured clockwise from 12 o'clock) instead of
+    /// an x-position — Circle has no straight bar to drag along.
+    private func handleCircularScrubDrag(_ point: CGPoint, canvasSize: CGFloat) {
+        guard canSeek else { return }
+        if !isScrubbing {
+            setWidgetBackgroundDraggingEnabled(false)
+            isScrubbing = true
+        }
+        let center = CGPoint(x: canvasSize / 2, y: canvasSize / 2)
+        let dx = point.x - center.x
+        let dy = point.y - center.y
+        var angle = atan2(dx, -dy)
+        if angle < 0 { angle += 2 * .pi }
+        scrubProgress = min(1, max(0, angle / (2 * .pi)))
     }
 
     private func commitScrub() {
@@ -425,13 +523,19 @@ struct AlbumArtWidgetView: View {
     }
 
     // Bare glyphs, no button-cap background — matches Apple Music's own
-    // mini-player exactly: play/pause reads bigger and fully opaque white,
-    // skip buttons smaller and muted.
-    private func transportButton(_ symbol: String, size: CGFloat, prominent: Bool = false, action: @escaping () -> Void) -> some View {
+    // mini-player exactly: play/pause reads bigger and fully opaque, skip
+    // buttons smaller and muted. Defaults to white/white-muted for layouts
+    // with a fixed dark background (Mini); Card passes its own adaptive
+    // colours since it sits directly on the art.
+    private func transportButton(
+        _ symbol: String, size: CGFloat, prominent: Bool = false,
+        primaryColor: Color = .white, secondaryColor: Color = .white.opacity(0.65),
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(prominent ? Color.white : Color.white.opacity(0.65))
+                .foregroundStyle(prominent ? primaryColor : secondaryColor)
                 .frame(width: prominent ? 46 : 36, height: prominent ? 46 : 36)
                 .contentShape(Rectangle())
         }
@@ -522,6 +626,96 @@ private struct AlbumArtScrubDragCaptureView: NSViewRepresentable {
     }
 }
 
+/// Drag surface for Circle's ring: only claims an annular band (between
+/// innerRadius and outerRadius from centre) instead of its whole bounds, so
+/// taps on the inner art disc fall through to the SwiftUI tap gesture below
+/// instead of being swallowed by this view — the ring (seek) and the art
+/// (play/pause) sit on top of each other but need to stay independently
+/// tappable/draggable.
+private struct AlbumArtRingDragCaptureView: NSViewRepresentable {
+    var innerRadius: CGFloat
+    var outerRadius: CGFloat
+    var onBegan: (CGPoint) -> Void
+    var onMoved: (CGPoint) -> Void
+    var onEnded: (CGPoint) -> Void
+    var onCancelled: () -> Void
+
+    func makeNSView(context: Context) -> CaptureView {
+        let view = CaptureView()
+        configure(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: CaptureView, context: Context) {
+        configure(nsView)
+    }
+
+    private func configure(_ view: CaptureView) {
+        view.innerRadius = innerRadius
+        view.outerRadius = outerRadius
+        view.onBegan = onBegan
+        view.onMoved = onMoved
+        view.onEnded = onEnded
+        view.onCancelled = onCancelled
+    }
+
+    final class CaptureView: NSView {
+        var innerRadius: CGFloat = 0
+        var outerRadius: CGFloat = 0
+        var onBegan: ((CGPoint) -> Void)?
+        var onMoved: ((CGPoint) -> Void)?
+        var onEnded: ((CGPoint) -> Void)?
+        var onCancelled: (() -> Void)?
+
+        private var isTrackingPress = false
+
+        override var isFlipped: Bool { true }
+        override var mouseDownCanMoveWindow: Bool { false }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            guard bounds.contains(point) else { return nil }
+            // Once a drag is underway, keep capturing even if the pointer
+            // drifts inside the inner radius — a fast drag toward centre
+            // shouldn't drop the gesture mid-scrub.
+            if isTrackingPress { return self }
+            let center = CGPoint(x: bounds.midX, y: bounds.midY)
+            let distance = hypot(point.x - center.x, point.y - center.y)
+            return (distance >= innerRadius && distance <= outerRadius) ? self : nil
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            isTrackingPress = true
+            window?.isMovableByWindowBackground = false
+            onBegan?(localPoint(from: event))
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard isTrackingPress else { return }
+            onMoved?(localPoint(from: event))
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            guard isTrackingPress else { return }
+            isTrackingPress = false
+            onEnded?(localPoint(from: event))
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            if newWindow == nil, isTrackingPress {
+                isTrackingPress = false
+                onCancelled?()
+            }
+            super.viewWillMove(toWindow: newWindow)
+        }
+
+        private func localPoint(from event: NSEvent) -> CGPoint {
+            convert(event.locationInWindow, from: nil)
+        }
+    }
+}
+
 // MARK: - Sized root (applies the global small/medium/large scale, like CD/Vinyl)
 
 struct AlbumArtSizedRoot: View {
@@ -549,7 +743,7 @@ struct AlbumArtModelPreview: View {
             let s = min(geo.size.width / base.width, geo.size.height / base.height)
             AlbumArtWidgetView(
                 model: model, isPreview: true,
-                previewInfo: live.info, previewArt: live.art
+                previewInfo: live.info, previewArt: live.art, previewExtracted: live.colours
             )
                 .frame(width: base.width, height: base.height)
                 .scaleEffect(s)
