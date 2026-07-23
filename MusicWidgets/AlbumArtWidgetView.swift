@@ -111,6 +111,14 @@ struct AlbumArtWidgetView: View {
             .id(trackKey)
             .transition(.opacity)
             .animation(.easeInOut(duration: 0.3), value: trackKey)
+            // Explicit frame right at the image, before clipping — matches
+            // how Card/Hero pin their own art frame here rather than relying
+            // on the outer body-level frame. Without this, one track whose
+            // fetched art reported an unusual intrinsic size (e.g. a
+            // non-square source image) briefly rendered at that image's own
+            // proportions before the outer frame ever got a say, clipping
+            // the rounded corners against the wrong rectangle.
+            .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
             .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
