@@ -255,8 +255,10 @@ struct DesktopWidgetView: View {
         let eyebrowSize = size.height * 0.016
         // Transport icon size, proportional like everything else here — at
         // fixed point sizes these read fine on a real display but badly
-        // oversized on the much smaller gallery-preview canvas.
-        let iconSize = min(28, size.height * 0.028)
+        // oversized on the much smaller gallery-preview canvas. The cap
+        // also matters on its own: 28pt read as too big on a real screen
+        // too, not just the preview card.
+        let iconSize = min(22, size.height * 0.02)
 
         return ZStack {
             VStack(alignment: .leading, spacing: size.height * 0.012) {
@@ -304,28 +306,32 @@ struct DesktopWidgetView: View {
             .contentShape(Rectangle())
             .onTapGesture { togglePlayback() }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
-            .padding(.trailing, size.width * 0.08)
+            .padding(.trailing, size.width * 0.13)
 
+            // Vertically centred — the same height as the disc — rather
+            // than pinned to the bottom edge, so the two sides read as one
+            // balanced row instead of the disc floating above an
+            // unrelated control strip.
             VStack(alignment: .leading, spacing: size.height * 0.024) {
                 transportRow(iconSize: iconSize)
                 scrubBar
                     .frame(width: size.width * 0.32)
             }
             .padding(.leading, leadingPad)
-            .padding(.bottom, size.height * 0.07)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
     }
 
-    /// Same overall geometry/footprint as every other vinyl style's tonearm
-    /// (90x180 frame, pivot at 68,16 — duplicated per this codebase's
-    /// established convention) but with real material shading, a grounding
-    /// cast shadow, and an offset headshell so the stylus actually reads as
-    /// touching the groove instead of floating over it. Blown up to the
-    /// disc's full desktop size makes flat, thin shapes read as a cutout
-    /// rather than hardware, which is what this reworks. Purely decorative:
-    /// no progress tracking, no track-change choreography — the disc
-    /// always just rests here, spinning or not.
+    /// Same geometry as every other vinyl style's tonearm (90x180 frame,
+    /// pivot at 68,16, headshell attached directly at the rod's own 20°
+    /// angle — duplicated per this codebase's established convention) plus
+    /// a grounding cast shadow and a highlight streak down the rod so it
+    /// reads as metal rather than a flat cutout at the size a desktop
+    /// widget renders it at. The independently-tilted headshell tried
+    /// earlier made it look like a separate piece floating off the rod's
+    /// end, so this keeps the original single, consistent angle instead.
+    /// Purely decorative: no progress tracking, no track-change
+    /// choreography — the disc always just rests here, spinning or not.
     private var desktopTonearm: some View {
         ZStack {
             // Cast shadow onto the record — grounds the assembly as
@@ -335,18 +341,6 @@ struct DesktopWidgetView: View {
                 .frame(width: 74, height: 24)
                 .blur(radius: 8)
                 .position(x: 40, y: 158)
-
-            // Counterweight drum behind the pivot — every real tonearm has
-            // one to balance the headshell; without it the pivot end looks
-            // unfinished at this size.
-            RoundedRectangle(cornerRadius: 7)
-                .fill(LinearGradient(colors: [Color(hex: "3a3a3a"), Color(hex: "0c0c0c")],
-                                     startPoint: .top, endPoint: .bottom))
-                .frame(width: 16, height: 22)
-                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
-                .rotationEffect(.degrees(20))
-                .position(x: 84, y: 2)
-                .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
 
             // Arm rod — a brighter centre streak on top of the base
             // gradient reads as a specular highlight along a round metal
@@ -383,41 +377,18 @@ struct DesktopWidgetView: View {
                 .overlay(Circle().strokeBorder(Color.black.opacity(0.28), lineWidth: 0.5))
                 .position(x: 68, y: 16)
 
-            // Headshell + stylus, tilted independently of the rod's own
-            // 20° angle — a real headshell sits at an offset angle from the
-            // arm tube so the stylus meets the groove tangentially instead
-            // of pointing straight down; without that offset it reads as a
-            // rod with a block taped to the end.
-            ZStack {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(LinearGradient(colors: [Color(hex: "7c7c7c"), Color(hex: "1e1e1e")],
-                                         startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 18, height: 16)
-                    .overlay(Circle().fill(Color(hex: "c23b3b")).frame(width: 4, height: 4).offset(x: 5, y: -3))
-                    .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5))
-                    .position(x: 24, y: 150)
-                    .shadow(color: .black.opacity(0.5), radius: 2, x: 1, y: 2)
+            // Headshell + stylus
+            RoundedRectangle(cornerRadius: 3)
+                .fill(LinearGradient(colors: [Color(hex: "666666"), Color(hex: "222222")],
+                                     startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(width: 18, height: 16)
+                .position(x: 24, y: 152)
+                .shadow(color: .black.opacity(0.4), radius: 1.5, x: 1, y: 1)
 
-                Rectangle()
-                    .fill(LinearGradient(colors: [Color(hex: "e2e2e2"), Color(hex: "555555")], startPoint: .top, endPoint: .bottom))
-                    .frame(width: 1.6, height: 11)
-                    .position(x: 27, y: 163)
-
-                // Stylus tip — a small contact shadow plus a bright glint
-                // is the one detail that reads as "touching the groove"
-                // rather than hovering just above the disc surface.
-                Ellipse()
-                    .fill(Color.black.opacity(0.45))
-                    .frame(width: 6, height: 2.2)
-                    .blur(radius: 1)
-                    .position(x: 27.5, y: 169.5)
-                Circle()
-                    .fill(Color.white.opacity(0.95))
-                    .frame(width: 1.8, height: 1.8)
-                    .shadow(color: .white.opacity(0.85), radius: 2)
-                    .position(x: 27, y: 168)
-            }
-            .rotationEffect(.degrees(-10), anchor: UnitPoint(x: 24.0 / 90.0, y: 150.0 / 180.0))
+            Rectangle()
+                .fill(LinearGradient(colors: [Color(hex: "bbbbbb"), Color(hex: "666666")], startPoint: .top, endPoint: .bottom))
+                .frame(width: 2, height: 8)
+                .position(x: 28, y: 164)
         }
         .frame(width: 90, height: 180)
     }
