@@ -312,7 +312,7 @@ struct DesktopWidgetView: View {
             // than pinned to the bottom edge, so the two sides read as one
             // balanced row instead of the disc floating above an
             // unrelated control strip.
-            VStack(alignment: .leading, spacing: size.height * 0.024) {
+            VStack(alignment: .center, spacing: size.height * 0.024) {
                 transportRow(iconSize: iconSize)
                 scrubBar
                     .frame(width: size.width * 0.32)
