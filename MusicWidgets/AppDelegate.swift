@@ -25,6 +25,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var albumArtModel: AlbumArtModel?
     private var vinylHorizontalWindow: WidgetWindow?
     private var vinylHorizontalModel: VinylHorizontalModel?
+    private var desktopWidgetWindow: DesktopWidgetWindow?
+    private var desktopWidgetModel: DesktopWidgetModel?
 
     private var galleryWindow: NSWindow?
     private var statusItem: NSStatusItem?
@@ -259,6 +261,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let model = cdModel, cdWindow != nil { return "cd:\(model.id)" }
         if let model = albumArtModel, albumArtWindow != nil { return "albumart:\(model.id)" }
         if let model = vinylHorizontalModel, vinylHorizontalWindow != nil { return "vinylh:\(model.id)" }
+        if let model = desktopWidgetModel, desktopWidgetWindow != nil { return "desktop:\(model.id)" }
         return nil
     }
 
@@ -283,6 +286,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let raw = String(entry.dropFirst(7))
             guard let model = VinylHorizontalModel.all.first(where: { $0.id == raw }) else { return nil }
             return "Horizontal · \(model.name)"
+        }
+        if entry.hasPrefix("desktop:") {
+            let raw = String(entry.dropFirst(8))
+            guard let model = DesktopWidgetModel.all.first(where: { $0.id == raw }) else { return nil }
+            return "Desktop · \(model.name)"
         }
         return nil
     }
@@ -309,6 +317,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else if entry.hasPrefix("vinylh:"),
                   let model = VinylHorizontalModel.all.first(where: { $0.id == String(entry.dropFirst(7)) }) {
             launchVinylHorizontalWidget(model: model)
+        } else if entry.hasPrefix("desktop:"),
+                  let model = DesktopWidgetModel.all.first(where: { $0.id == String(entry.dropFirst(8)) }) {
+            launchDesktopWidget(model: model)
         }
     }
 
@@ -316,15 +327,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var hasActiveWidget: Bool {
         vinylWindow != nil || cdWindow != nil || albumArtWindow != nil || vinylHorizontalWindow != nil
+            || desktopWidgetWindow != nil
     }
 
     private var isWidgetOrderedIn: Bool {
         (vinylWindow?.isVisible ?? false) || (cdWindow?.isVisible ?? false) || (albumArtWindow?.isVisible ?? false)
-            || (vinylHorizontalWindow?.isVisible ?? false)
+            || (vinylHorizontalWindow?.isVisible ?? false) || (desktopWidgetWindow?.isVisible ?? false)
     }
 
     private var activeWidgetWindows: [NSWindow] {
-        [vinylWindow, cdWindow, albumArtWindow, vinylHorizontalWindow].compactMap { $0 }
+        [vinylWindow, cdWindow, albumArtWindow, vinylHorizontalWindow, desktopWidgetWindow].compactMap { $0 }
     }
 
     @objc private func toggleWidgetVisibility() {
@@ -345,6 +357,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeCDWidget()
         closeAlbumArtWidget()
         closeVinylHorizontalWidget()
+        closeDesktopWidget()
     }
 
     @objc func showGallerySettings() {
@@ -400,7 +413,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let s = WidgetSettings.shared
         let onTop = s.alwaysOnTop
         for w in activeWidgetWindows {
-            w.level = onTop ? .floating : desktopWidgetLevel
+            // The full-screen Desktop widget always stays pinned at
+            // desktop-picture level — "always on top" would float it above
+            // every other window, defeating the whole point of a
+            // background. Opacity/click-through still apply normally.
+            if w !== desktopWidgetWindow {
+                w.level = onTop ? .floating : desktopWidgetLevel
+            }
             w.ignoresMouseEvents = s.clickThrough
             if w.isVisible { w.alphaValue = s.widgetOpacity }
         }
@@ -572,6 +591,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeCDWidget()
         closeAlbumArtWidget()
         closeVinylHorizontalWidget()
+        closeDesktopWidget()
         themeManager.setTheme(themeID)
         RecentWidgets.note(vinyl: themeID)
         ActiveWidgetState.shared.entry = "vinyl:\(themeID.rawValue)"
@@ -663,6 +683,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeVinylWidget()
         closeAlbumArtWidget()
         closeVinylHorizontalWidget()
+        closeDesktopWidget()
         cdModel = model
         RecentWidgets.note(cd: model)
         ActiveWidgetState.shared.entry = "cd:\(model.id)"
@@ -728,6 +749,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeVinylWidget()
         closeCDWidget()
         closeVinylHorizontalWidget()
+        closeDesktopWidget()
         albumArtModel = model
         RecentWidgets.note(albumArt: model)
         ActiveWidgetState.shared.entry = "albumart:\(model.id)"
@@ -793,6 +815,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         closeVinylWidget()
         closeCDWidget()
         closeAlbumArtWidget()
+        closeDesktopWidget()
         vinylHorizontalModel = model
         RecentWidgets.note(vinylHorizontal: model)
         ActiveWidgetState.shared.entry = "vinylh:\(model.id)"
@@ -850,6 +873,62 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         vinylHorizontalModel = nil
+    }
+
+    // MARK: - Launch Desktop widget (full screen, desktop-picture level)
+
+    func launchDesktopWidget(model: DesktopWidgetModel) {
+        closeVinylWidget()
+        closeCDWidget()
+        closeAlbumArtWidget()
+        closeVinylHorizontalWidget()
+        desktopWidgetModel = model
+        RecentWidgets.note(desktop: model)
+        ActiveWidgetState.shared.entry = "desktop:\(model.id)"
+        hiddenByUser = false
+        hiddenByPause = false
+
+        // Main display only, captured fresh at launch — this window is
+        // never repositioned/dragged, so there's no saved-origin logic to
+        // restore, unlike every other widget.
+        let screenFrame = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+
+        if let existing = desktopWidgetWindow {
+            existing.contentView?.subviews.forEach { $0.removeFromSuperview() }
+            let host = NSHostingView(rootView: DesktopWidgetView(model: model, onClose: { [weak self] in
+                self?.closeDesktopWidget()
+            }))
+            host.frame = existing.contentView?.bounds ?? .zero
+            host.autoresizingMask = [.width, .height]
+            existing.contentView?.addSubview(host)
+            existing.setFrame(screenFrame, display: true)
+            existing.orderFrontRegardless()
+            existing.alphaValue = WidgetSettings.shared.widgetOpacity
+            return
+        }
+
+        let window = DesktopWidgetWindow(frame: screenFrame)
+        let host = NSHostingView(rootView: DesktopWidgetView(model: model, onClose: { [weak self] in
+            self?.closeDesktopWidget()
+        }))
+        host.frame = window.contentView?.bounds ?? .zero
+        host.autoresizingMask = [.width, .height]
+        window.contentView?.addSubview(host)
+        self.desktopWidgetWindow = window
+
+        applyWindowPreferences()
+        fadeIn(window)
+    }
+
+    func closeDesktopWidget() {
+        if let window = desktopWidgetWindow {
+            desktopWidgetWindow = nil
+            fadeOut(window, thenClose: true)
+            if ActiveWidgetState.shared.entry?.hasPrefix("desktop:") == true {
+                ActiveWidgetState.shared.entry = nil
+            }
+        }
+        desktopWidgetModel = nil
     }
 }
 

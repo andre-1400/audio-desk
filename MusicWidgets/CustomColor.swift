@@ -54,10 +54,11 @@ struct HSVColor: Equatable, Hashable, Codable {
 }
 
 /// Persists one user-picked HSVColor per widget family that has a "Custom"
-/// style — Vinyl v1, Vinyl Horizontal, CD Discman, CD Hi-Fi. A single shared
-/// instance so every place that reads a Custom colour (a live desktop
-/// widget, a gallery card's preview, the picker sheet's own mini preview)
-/// observes the same source and stays in sync.
+/// style — Vinyl v1, Vinyl Horizontal, CD Discman, CD Hi-Fi, Desktop Vinyl,
+/// Desktop Cover. A single shared instance so every place that reads a
+/// Custom colour (a live desktop widget, a gallery card's preview, the
+/// picker sheet's own mini preview) observes the same source and stays in
+/// sync.
 final class CustomColorManager: ObservableObject {
     static let shared = CustomColorManager()
 
@@ -65,6 +66,8 @@ final class CustomColorManager: ObservableObject {
     @Published var vinylHorizontal: HSVColor { didSet { Self.save(vinylHorizontal, key: "customColor.vinylHorizontal") } }
     @Published var cdDiscman: HSVColor { didSet { Self.save(cdDiscman, key: "customColor.cdDiscman") } }
     @Published var cdHifi: HSVColor { didSet { Self.save(cdHifi, key: "customColor.cdHifi") } }
+    @Published var desktopVinyl: HSVColor { didSet { Self.save(desktopVinyl, key: "customColor.desktopVinyl") } }
+    @Published var desktopCover: HSVColor { didSet { Self.save(desktopCover, key: "customColor.desktopCover") } }
 
     /// Every colour actually placed on the desktop (any family), most
     /// recent first, shown as swatches in the picker so past builds stay
@@ -81,6 +84,8 @@ final class CustomColorManager: ObservableObject {
         vinylHorizontal = Self.load("customColor.vinylHorizontal")
         cdDiscman = Self.load("customColor.cdDiscman")
         cdHifi = Self.load("customColor.cdHifi")
+        desktopVinyl = Self.load("customColor.desktopVinyl")
+        desktopCover = Self.load("customColor.desktopCover")
         recentColors = Self.loadList("customColor.recents")
     }
 

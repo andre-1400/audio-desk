@@ -584,13 +584,16 @@ private struct GalleryDetail: View {
                         .font(.appSubheadline).foregroundStyle(Neu.subtext)
                 }
                 Spacer()
-                // Widget size, right where you pick the widget
-                VStack(alignment: .trailing, spacing: 6) {
-                    Text("SIZE")
-                        .font(.system(size: 10, weight: .semibold)).tracking(1.2)
-                        .foregroundStyle(Neu.subtext)
-                    WidgetSizeSlider(scale: $sizeM.scale)
-                        .frame(width: 190)
+                // Widget size, right where you pick the widget — not
+                // meaningful for Desktop, which is always full screen.
+                if category != .desktop {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        Text("SIZE")
+                            .font(.system(size: 10, weight: .semibold)).tracking(1.2)
+                            .foregroundStyle(Neu.subtext)
+                        WidgetSizeSlider(scale: $sizeM.scale)
+                            .frame(width: 190)
+                    }
                 }
             }
             .padding(.horizontal, 32)
@@ -674,7 +677,7 @@ private struct GalleryDetail: View {
                                 }
                             }
                         }
-                    } else {
+                    } else if category == .albumArt {
                         formSection(name: "Album Art", subtitle: "Four takes on minimal",
                                     count: AlbumArtModel.all.count, items: AlbumArtModel.all) { model in
                             GalleryCard(title: model.name, subtitle: model.subtitle,
@@ -684,6 +687,31 @@ private struct GalleryDetail: View {
                                         onHover: { setHover(model.id, $0) },
                                         action: { AppDelegate.shared?.launchAlbumArtWidget(model: model) }) { _ in
                                 AlbumArtModelPreview(model: model, live: liveTrack)
+                            }
+                        }
+                    } else {
+                        ForEach(DesktopWidgetModel.forms) { form in
+                            formSection(name: form.name, subtitle: form.subtitle,
+                                        count: form.models.count, items: form.models) { model in
+                                GalleryCard(title: model.name, subtitle: model.subtitle,
+                                            accent: category.accentColor,
+                                            hovered: hoveredID == model.id,
+                                            active: activeWidget.entry == "desktop:\(model.id)",
+                                            placeLabel: model.isCustom ? "Customize" : "Place",
+                                            placeIcon: model.isCustom ? "eyedropper" : "arrow.up.forward.square.fill",
+                                            special: model.isSpecialStyle,
+                                            badgeText: model.specialKind?.badgeText,
+                                            badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
+                                            onHover: { setHover(model.id, $0) },
+                                            action: {
+                                                if model.isCustom {
+                                                    customColorTarget = .desktop(model)
+                                                } else {
+                                                    AppDelegate.shared?.launchDesktopWidget(model: model)
+                                                }
+                                            }) { animated in
+                                    DesktopWidgetModelPreview(model: model, animated: animated, live: liveTrack)
+                                }
                             }
                         }
                     }
@@ -800,12 +828,14 @@ private enum CustomColorTarget: Identifiable {
     case vinyl
     case vinylHorizontal(VinylHorizontalModel)
     case cd(CDModel)
+    case desktop(DesktopWidgetModel)
 
     var id: String {
         switch self {
         case .vinyl: return "vinyl"
         case .vinylHorizontal(let model): return model.id
         case .cd(let model): return model.id
+        case .desktop(let model): return model.id
         }
     }
 }
@@ -835,6 +865,12 @@ private struct CustomColorSheetView: View {
             } else {
                 return Binding(get: { customColors.cdHifi }, set: { customColors.cdHifi = $0 })
             }
+        case .desktop(let model):
+            if model.style == .vinyl {
+                return Binding(get: { customColors.desktopVinyl }, set: { customColors.desktopVinyl = $0 })
+            } else {
+                return Binding(get: { customColors.desktopCover }, set: { customColors.desktopCover = $0 })
+            }
         }
     }
 
@@ -842,6 +878,7 @@ private struct CustomColorSheetView: View {
         switch target {
         case .vinyl, .vinylHorizontal: return WidgetCategory.vinyl.accentColor
         case .cd: return WidgetCategory.cd.accentColor
+        case .desktop: return WidgetCategory.desktop.accentColor
         }
     }
 
@@ -902,6 +939,8 @@ private struct CustomColorSheetView: View {
             VinylHorizontalModelPreview(model: model, live: live)
         case .cd(let model):
             CDModelPreview(model: model, animated: true, live: live)
+        case .desktop(let model):
+            DesktopWidgetModelPreview(model: model, animated: true, live: live)
         }
     }
 
@@ -914,6 +953,8 @@ private struct CustomColorSheetView: View {
             AppDelegate.shared?.launchVinylHorizontalWidget(model: model)
         case .cd(let model):
             AppDelegate.shared?.launchCDWidget(model: model)
+        case .desktop(let model):
+            AppDelegate.shared?.launchDesktopWidget(model: model)
         }
         onClose()
     }
@@ -979,6 +1020,11 @@ extension CDModel: GalleryStyleItem {
 }
 extension AlbumArtModel: GalleryStyleItem {
     var specialKind: SpecialStyleKind? { nil }
+}
+extension DesktopWidgetModel: GalleryStyleItem {
+    var specialKind: SpecialStyleKind? {
+        themeID == .adaptive ? .adaptive : (themeID == .custom ? .custom : nil)
+    }
 }
 
 // MARK: - Gallery card (spacious, hover-to-animate)
@@ -1754,13 +1800,14 @@ private struct VinylWidgetReplica: View {
 // MARK: - Category model
 
 enum WidgetCategory: String, Identifiable, CaseIterable {
-    case vinyl, cd, albumArt
+    case vinyl, cd, albumArt, desktop
     var id: String { rawValue }
     var title: String {
         switch self {
         case .vinyl: return "Vinyl"
         case .cd: return "CD Players"
         case .albumArt: return "Album Art"
+        case .desktop: return "Desktop"
         }
     }
     var icon: String {
@@ -1768,6 +1815,7 @@ enum WidgetCategory: String, Identifiable, CaseIterable {
         case .vinyl: return "record.circle"
         case .cd: return "opticaldisc"
         case .albumArt: return "photo.on.rectangle.angled"
+        case .desktop: return "macwindow"
         }
     }
     var widgetCount: Int {
@@ -1775,6 +1823,7 @@ enum WidgetCategory: String, Identifiable, CaseIterable {
         case .vinyl: return VinylStyle.all.count + VinylHorizontalModel.all.count
         case .cd: return CDModel.all.count
         case .albumArt: return AlbumArtModel.all.count
+        case .desktop: return DesktopWidgetModel.all.count
         }
     }
     var accentColor: Color { AMTheme.accent }

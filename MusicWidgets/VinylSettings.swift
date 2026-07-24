@@ -56,6 +56,7 @@ enum RecentWidgets {
     static func note(cd model: CDModel) { note("cd:\(model.id)") }
     static func note(albumArt model: AlbumArtModel) { note("albumart:\(model.id)") }
     static func note(vinylHorizontal model: VinylHorizontalModel) { note("vinylh:\(model.id)") }
+    static func note(desktop model: DesktopWidgetModel) { note("desktop:\(model.id)") }
 
     private static func note(_ entry: String) {
         var list = UserDefaults.standard.stringArray(forKey: key) ?? []
