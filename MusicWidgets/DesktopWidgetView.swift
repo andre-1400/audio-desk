@@ -3,10 +3,17 @@ import AppKit
 
 // MARK: - Window
 //
-// Sits at desktop-picture level (just above the real wallpaper, below the
-// Finder desktop icons) instead of WidgetWindow's own level (above icons,
-// meant to be dragged around). Full-screen on whichever display is main at
-// launch, not draggable — there's nowhere to drag a background to.
+// Originally sat at true desktop-picture level (CGWindowLevelForKey(.desktopWindow),
+// below the Finder desktop icons) — but windows at or below icon level
+// generally don't receive mouse clicks at all: the WindowServer routes
+// clicks at that layer to Finder's own desktop interactions (icon
+// selection, empty-space gestures), not through to us, which is exactly
+// why transport buttons/the close button read as clicks on empty desktop
+// instead. Same level as WidgetWindow now (above icons, proven to receive
+// clicks reliably by every other widget) — being full-screen and opaque,
+// it still fully covers the icons underneath, so nothing shows through;
+// this level just also makes it interactive. Not draggable — there's
+// nowhere to drag a background to.
 final class DesktopWidgetWindow: NSPanel {
     init(frame: NSRect) {
         super.init(
@@ -18,7 +25,7 @@ final class DesktopWidgetWindow: NSPanel {
         isOpaque = true
         backgroundColor = .black
         hasShadow = false
-        level = NSWindow.Level(Int(CGWindowLevelForKey(.desktopWindow)) + 1)
+        level = NSWindow.Level(Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         isMovableByWindowBackground = false
         hidesOnDeactivate = false
@@ -66,14 +73,14 @@ extension DesktopWidgetModel {
         DesktopWidgetForm(id: "desktop-vinyl", name: "Vinyl", subtitle: "Disc + tonearm, full screen",
                            icon: "record.circle",
                            models: [
-                            DesktopWidgetModel(id: "desktop-vinyl-adaptive", name: "Vinyl", subtitle: "Matches the album art, live", style: .vinyl, themeID: .adaptive),
-                            DesktopWidgetModel(id: "desktop-vinyl-custom", name: "Vinyl Custom", subtitle: "Pick your own exact colour", style: .vinyl, themeID: .custom)
+                            DesktopWidgetModel(id: "desktop-vinyl-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", style: .vinyl, themeID: .adaptive),
+                            DesktopWidgetModel(id: "desktop-vinyl-custom", name: "Custom", subtitle: "Pick your own exact colour", style: .vinyl, themeID: .custom)
                            ]),
         DesktopWidgetForm(id: "desktop-cover", name: "Cover", subtitle: "Full-screen album art",
                            icon: "photo",
                            models: [
-                            DesktopWidgetModel(id: "desktop-cover-adaptive", name: "Cover", subtitle: "Matches the album art, live", style: .cover, themeID: .adaptive),
-                            DesktopWidgetModel(id: "desktop-cover-custom", name: "Cover Custom", subtitle: "Pick your own exact colour", style: .cover, themeID: .custom)
+                            DesktopWidgetModel(id: "desktop-cover-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", style: .cover, themeID: .adaptive),
+                            DesktopWidgetModel(id: "desktop-cover-custom", name: "Custom", subtitle: "Pick your own exact colour", style: .cover, themeID: .custom)
                            ])
     ]
     static let all: [DesktopWidgetModel] = forms.flatMap { $0.models }
@@ -233,29 +240,42 @@ struct DesktopWidgetView: View {
     // MARK: - Vinyl layout — title/artist upper-left, huge disc + tonearm
 
     private func vinylLayout(in size: CGSize) -> some View {
-        let discDiameter = min(size.height * 0.8, size.width * 0.42)
+        // Proportional to the available canvas throughout, rather than
+        // fixed point sizes — the same layout code has to read sensibly at
+        // both a real display's size and the gallery preview's much
+        // smaller card, not just avoid literally clipping at each.
+        let discDiameter = min(size.height * 0.74, size.width * 0.4)
         let discScale = discDiameter / 272
+        let leadingPad = size.width * 0.045
+        let titleSize = size.height * 0.05
+        let subtitleSize = size.height * 0.024
+        let eyebrowSize = size.height * 0.016
 
         return ZStack {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: size.height * 0.012) {
+                Text("NOW PLAYING")
+                    .font(.system(size: eyebrowSize, weight: .bold))
+                    .tracking(2)
+                    .foregroundStyle(fgSecondary.opacity(0.8))
+                    .shadow(color: .black.opacity(0.4), radius: 6)
                 Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
-                    .font(.system(size: 46, weight: .bold))
+                    .font(.system(size: titleSize, weight: .bold))
                     .foregroundStyle(fgPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
                     .shadow(color: .black.opacity(0.4), radius: 10)
                 if !np.artistName.isEmpty {
                     Text(albumLine)
-                        .font(.system(size: 22, weight: .medium))
+                        .font(.system(size: subtitleSize, weight: .medium))
                         .foregroundStyle(fgSecondary)
                         .lineLimit(1)
                         .shadow(color: .black.opacity(0.4), radius: 8)
                 }
             }
             .frame(maxWidth: size.width * 0.5, alignment: .leading)
-            .padding(.leading, 56)
+            .padding(.leading, leadingPad)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .padding(.top, 64)
+            .padding(.top, size.height * 0.07)
 
             ZStack {
                 SpinningVinylView(
@@ -276,16 +296,19 @@ struct DesktopWidgetView: View {
             }
             .contentShape(Rectangle())
             .onTapGesture { togglePlayback() }
+            // Nudged toward centre rather than pinned near the right edge —
+            // a small shift, but it changes the overall balance of the
+            // composition instead of reading as "text left, disc right."
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .padding(.trailing, size.width * 0.06)
+            .padding(.trailing, size.width * 0.03)
 
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: size.height * 0.02) {
                 transportRow
                 scrubBar
-                    .frame(width: min(420, size.width * 0.32))
+                    .frame(width: size.width * 0.3)
             }
-            .padding(.leading, 56)
-            .padding(.bottom, 56)
+            .padding(.leading, leadingPad)
+            .padding(.bottom, size.height * 0.07)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
     }
@@ -574,7 +597,7 @@ struct DesktopWidgetModelPreview: View {
     var body: some View {
         GeometryReader { geo in
             let s = min(geo.size.width / previewBaseSize.width, geo.size.height / previewBaseSize.height)
-            DesktopWidgetView(
+            let view = DesktopWidgetView(
                 model: model, isPreview: true, previewSpinning: animated,
                 previewInfo: live.info, previewArt: live.art,
                 previewColours: model.themeID == .adaptive ? live.colours : nil
@@ -584,7 +607,16 @@ struct DesktopWidgetModelPreview: View {
                 .scaleEffect(s)
                 .frame(width: previewBaseSize.width * s, height: previewBaseSize.height * s)
                 .frame(width: geo.size.width, height: geo.size.height)
-                .drawingGroup()
+            // drawingGroup() flattens into a static cached texture — fine
+            // (cheap) for the resting state, but it was applied
+            // unconditionally here, which silently killed the hover-spin
+            // animation outright: every other preview in the app only
+            // flattens when NOT animated, exactly to avoid this.
+            if animated {
+                view
+            } else {
+                view.drawingGroup()
+            }
         }
     }
 }
