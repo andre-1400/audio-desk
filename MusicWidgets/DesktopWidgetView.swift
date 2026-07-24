@@ -29,7 +29,18 @@ final class DesktopWidgetWindow: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         isMovableByWindowBackground = false
         hidesOnDeactivate = false
-        acceptsMouseMovedEvents = true
+        // Off, unlike WidgetWindow — this flag makes AppKit deliver a
+        // mouseMoved event for every pixel of cursor travel even with no
+        // button down, which WidgetWindow wants for its small draggable
+        // panels. Desktop's window is the entire screen with a much
+        // heavier view tree (full disc + tonearm + shadows), so hit-testing
+        // that on every single mouse-moved event at full pointer frequency
+        // is real, sustained main-thread work — the likely cause of the
+        // spinning-cursor "not responding" state while hovering it. None of
+        // this window's own interactions need it: SwiftUI's .onHover close
+        // button uses AppKit tracking areas, which fire on cursor
+        // enter/exit regardless of this flag, not on continuous movement.
+        acceptsMouseMovedEvents = false
         ignoresMouseEvents = false
     }
 }
