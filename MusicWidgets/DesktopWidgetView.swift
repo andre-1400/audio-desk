@@ -317,7 +317,7 @@ struct DesktopWidgetView: View {
                 scrubBar
                     .frame(width: size.width * 0.32)
             }
-            .padding(.leading, leadingPad)
+            .padding(.leading, leadingPad + size.width * 0.1)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
     }
