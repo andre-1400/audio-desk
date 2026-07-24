@@ -244,12 +244,19 @@ struct DesktopWidgetView: View {
         // fixed point sizes — the same layout code has to read sensibly at
         // both a real display's size and the gallery preview's much
         // smaller card, not just avoid literally clipping at each.
-        let discDiameter = min(size.height * 0.74, size.width * 0.4)
+        // Smaller and pushed toward the right edge, leaving the whole left
+        // half of the screen clear for the text/transport column instead of
+        // the two competing for the same centre ground.
+        let discDiameter = min(size.height * 0.58, size.width * 0.3)
         let discScale = discDiameter / 272
         let leadingPad = size.width * 0.045
         let titleSize = size.height * 0.05
         let subtitleSize = size.height * 0.024
         let eyebrowSize = size.height * 0.016
+        // Transport icon size, proportional like everything else here — at
+        // fixed point sizes these read fine on a real display but badly
+        // oversized on the much smaller gallery-preview canvas.
+        let iconSize = min(28, size.height * 0.028)
 
         return ZStack {
             VStack(alignment: .leading, spacing: size.height * 0.012) {
@@ -296,16 +303,13 @@ struct DesktopWidgetView: View {
             }
             .contentShape(Rectangle())
             .onTapGesture { togglePlayback() }
-            // Nudged toward centre rather than pinned near the right edge —
-            // a small shift, but it changes the overall balance of the
-            // composition instead of reading as "text left, disc right."
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-            .padding(.trailing, size.width * 0.03)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+            .padding(.trailing, size.width * 0.08)
 
-            VStack(alignment: .leading, spacing: size.height * 0.02) {
-                transportRow
+            VStack(alignment: .leading, spacing: size.height * 0.024) {
+                transportRow(iconSize: iconSize)
                 scrubBar
-                    .frame(width: size.width * 0.3)
+                    .frame(width: size.width * 0.32)
             }
             .padding(.leading, leadingPad)
             .padding(.bottom, size.height * 0.07)
@@ -313,21 +317,57 @@ struct DesktopWidgetView: View {
         }
     }
 
-    /// Same geometry as every other vinyl style's tonearm — duplicated per
-    /// this codebase's established convention, scaled up here instead of
-    /// down. Purely decorative: no progress tracking, no track-change
-    /// choreography — the disc always just rests here, spinning or not.
+    /// Same overall geometry/footprint as every other vinyl style's tonearm
+    /// (90x180 frame, pivot at 68,16 — duplicated per this codebase's
+    /// established convention) but with real material shading, a grounding
+    /// cast shadow, and an offset headshell so the stylus actually reads as
+    /// touching the groove instead of floating over it. Blown up to the
+    /// disc's full desktop size makes flat, thin shapes read as a cutout
+    /// rather than hardware, which is what this reworks. Purely decorative:
+    /// no progress tracking, no track-change choreography — the disc
+    /// always just rests here, spinning or not.
     private var desktopTonearm: some View {
         ZStack {
+            // Cast shadow onto the record — grounds the assembly as
+            // something physically resting on the disc.
+            Ellipse()
+                .fill(Color.black.opacity(0.4))
+                .frame(width: 74, height: 24)
+                .blur(radius: 8)
+                .position(x: 40, y: 158)
+
+            // Counterweight drum behind the pivot — every real tonearm has
+            // one to balance the headshell; without it the pivot end looks
+            // unfinished at this size.
+            RoundedRectangle(cornerRadius: 7)
+                .fill(LinearGradient(colors: [Color(hex: "3a3a3a"), Color(hex: "0c0c0c")],
+                                     startPoint: .top, endPoint: .bottom))
+                .frame(width: 16, height: 22)
+                .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Color.white.opacity(0.18), lineWidth: 0.5))
+                .rotationEffect(.degrees(20))
+                .position(x: 84, y: 2)
+                .shadow(color: .black.opacity(0.5), radius: 2, y: 1)
+
+            // Arm rod — a brighter centre streak on top of the base
+            // gradient reads as a specular highlight along a round metal
+            // tube, plus a third, much softer/wider shadow layer under the
+            // existing two so it doesn't look pasted flat onto the disc.
             RoundedRectangle(cornerRadius: 4)
-                .fill(LinearGradient(colors: [Color(hex: "1c1c1e"), Color(hex: "606064"), Color(hex: "1c1c1e")],
+                .fill(LinearGradient(colors: [Color(hex: "1c1c1e"), Color(hex: "7c7c80"), Color(hex: "1c1c1e")],
                                      startPoint: .leading, endPoint: .trailing))
                 .frame(width: 8, height: 132)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(Color.white.opacity(0.35))
+                        .frame(width: 1.4, height: 122)
+                )
                 .rotationEffect(.degrees(20))
                 .position(x: 46, y: 85)
-                .shadow(color: .black.opacity(0.55), radius: 1.5, x: 1, y: 2)
-                .shadow(color: .black.opacity(0.32), radius: 5, x: 2, y: 5)
+                .shadow(color: .black.opacity(0.6), radius: 1.5, x: 1, y: 2)
+                .shadow(color: .black.opacity(0.35), radius: 5, x: 2, y: 5)
+                .shadow(color: .black.opacity(0.2), radius: 13, x: 3, y: 11)
 
+            // Pivot mount
             Circle()
                 .fill(LinearGradient(colors: [Color(hex: "38383c"), Color(hex: "222224"), Color(hex: "0e0e10")],
                                      startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -343,16 +383,41 @@ struct DesktopWidgetView: View {
                 .overlay(Circle().strokeBorder(Color.black.opacity(0.28), lineWidth: 0.5))
                 .position(x: 68, y: 16)
 
-            RoundedRectangle(cornerRadius: 3)
-                .fill(LinearGradient(colors: [Color(hex: "666666"), Color(hex: "222222")],
-                                     startPoint: .topLeading, endPoint: .bottomTrailing))
-                .frame(width: 18, height: 16)
-                .position(x: 24, y: 152)
+            // Headshell + stylus, tilted independently of the rod's own
+            // 20° angle — a real headshell sits at an offset angle from the
+            // arm tube so the stylus meets the groove tangentially instead
+            // of pointing straight down; without that offset it reads as a
+            // rod with a block taped to the end.
+            ZStack {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(LinearGradient(colors: [Color(hex: "7c7c7c"), Color(hex: "1e1e1e")],
+                                         startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .frame(width: 18, height: 16)
+                    .overlay(Circle().fill(Color(hex: "c23b3b")).frame(width: 4, height: 4).offset(x: 5, y: -3))
+                    .overlay(RoundedRectangle(cornerRadius: 3).strokeBorder(Color.white.opacity(0.15), lineWidth: 0.5))
+                    .position(x: 24, y: 150)
+                    .shadow(color: .black.opacity(0.5), radius: 2, x: 1, y: 2)
 
-            Rectangle()
-                .fill(LinearGradient(colors: [Color(hex: "bbbbbb"), Color(hex: "666666")], startPoint: .top, endPoint: .bottom))
-                .frame(width: 2, height: 8)
-                .position(x: 28, y: 164)
+                Rectangle()
+                    .fill(LinearGradient(colors: [Color(hex: "e2e2e2"), Color(hex: "555555")], startPoint: .top, endPoint: .bottom))
+                    .frame(width: 1.6, height: 11)
+                    .position(x: 27, y: 163)
+
+                // Stylus tip — a small contact shadow plus a bright glint
+                // is the one detail that reads as "touching the groove"
+                // rather than hovering just above the disc surface.
+                Ellipse()
+                    .fill(Color.black.opacity(0.45))
+                    .frame(width: 6, height: 2.2)
+                    .blur(radius: 1)
+                    .position(x: 27.5, y: 169.5)
+                Circle()
+                    .fill(Color.white.opacity(0.95))
+                    .frame(width: 1.8, height: 1.8)
+                    .shadow(color: .white.opacity(0.85), radius: 2)
+                    .position(x: 27, y: 168)
+            }
+            .rotationEffect(.degrees(-10), anchor: UnitPoint(x: 24.0 / 90.0, y: 150.0 / 180.0))
         }
         .frame(width: 90, height: 180)
     }
@@ -408,7 +473,7 @@ struct DesktopWidgetView: View {
 
             VStack(spacing: 18) {
                 scrubBar
-                transportRow
+                transportRow(iconSize: min(28, size.height * 0.028))
             }
             .frame(width: min(420, size.width * 0.3))
             .padding(.top, 6)
@@ -420,11 +485,15 @@ struct DesktopWidgetView: View {
 
     // MARK: - Shared transport + scrub bar
 
-    private var transportRow: some View {
-        HStack(spacing: 40) {
-            transportButton("backward.fill", size: 20, color: fgSecondary) { if !isPreview { detector.previousTrack() } }
-            transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 30, color: fgPrimary) { togglePlayback() }
-            transportButton("forward.fill", size: 20, color: fgSecondary) { if !isPreview { detector.nextTrack() } }
+    /// `iconSize` scales the whole row (skip icons, play icon, spacing, hit
+    /// target) together so it reads the same proportion on the small
+    /// gallery-preview canvas as on a real full screen, instead of using
+    /// fixed point sizes that only look right at one size.
+    private func transportRow(iconSize: CGFloat) -> some View {
+        HStack(spacing: iconSize * 2) {
+            transportButton("backward.fill", size: iconSize, color: fgSecondary) { if !isPreview { detector.previousTrack() } }
+            transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: iconSize * 1.5, color: fgPrimary) { togglePlayback() }
+            transportButton("forward.fill", size: iconSize, color: fgSecondary) { if !isPreview { detector.nextTrack() } }
         }
     }
 
@@ -433,8 +502,8 @@ struct DesktopWidgetView: View {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(color)
-                .shadow(color: .black.opacity(0.4), radius: 6)
-                .frame(width: size + 22, height: size + 22)
+                .shadow(color: .black.opacity(0.4), radius: size * 0.2)
+                .frame(width: size * 1.7, height: size * 1.7)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
