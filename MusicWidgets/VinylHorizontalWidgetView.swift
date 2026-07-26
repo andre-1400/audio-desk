@@ -55,6 +55,11 @@ struct VinylHorizontalWidgetView: View {
     var previewArt: NSImage? = nil
     var previewColours: ExtractedColours? = nil
     var previewBlurredArt: NSImage? = nil
+    // Gallery-grid tile for the Custom model only — shows a rainbow palette
+    // instead of whatever colour is actually saved, since the tile's job is
+    // to say "you can pick any colour," not to preview the current pick
+    // (that's what opening the colour sheet is for).
+    var usesRainbowPreview: Bool = false
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
@@ -98,21 +103,24 @@ struct VinylHorizontalWidgetView: View {
     private var effectiveArt: NSImage? { isPreview ? previewArt : displayedArt }
     // Custom never has album art to blur — always nil regardless of preview.
     private var effectiveBlurredBodyArt: NSImage? {
-        isCustom ? nil : (isPreview ? previewBlurredArt : blurredBodyArt)
+        (isCustom || usesRainbowPreview) ? nil : (isPreview ? previewBlurredArt : blurredBodyArt)
     }
 
     private var theme: WidgetThemePalette {
-        (isAdaptive || isCustom || isGhost)
+        if usesRainbowPreview { return WidgetThemeID.rainbowPreviewPalette(showBody: !isGhost) }
+        return (isAdaptive || isCustom || isGhost)
             ? WidgetThemeID.adaptivePalette(from: effectiveColours, showBody: !isGhost)
             : model.themeID.palette
     }
 
     /// Foreground colours picked for contrast against the body as drawn.
     private var fgPrimary: Color {
-        (isAdaptive || isCustom || isGhost) ? AdaptiveBody.primary(effectiveColours.dominant) : theme.trackTitle
+        if usesRainbowPreview { return theme.trackTitle }
+        return (isAdaptive || isCustom || isGhost) ? AdaptiveBody.primary(effectiveColours.dominant) : theme.trackTitle
     }
     private var fgSecondary: Color {
-        (isAdaptive || isCustom || isGhost) ? AdaptiveBody.secondary(effectiveColours.dominant) : theme.trackArtist
+        if usesRainbowPreview { return theme.trackArtist }
+        return (isAdaptive || isCustom || isGhost) ? AdaptiveBody.secondary(effectiveColours.dominant) : theme.trackArtist
     }
     private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
 
@@ -695,6 +703,9 @@ struct VinylHorizontalModelPreview: View {
     let model: VinylHorizontalModel
     var animated: Bool = false
     @ObservedObject var live: GalleryLiveTrack = GalleryLiveTrack()
+    // Gallery-grid tile only — set true by the caller for the Custom model,
+    // never by the colour-picker sheet's own live preview.
+    var usesRainbowPreview: Bool = false
 
     var body: some View {
         GeometryReader { geo in
@@ -707,7 +718,8 @@ struct VinylHorizontalModelPreview: View {
                 model: model, isPreview: true, animated: animated,
                 previewInfo: live.info, previewArt: live.art,
                 previewColours: (model.themeID == .adaptive || model.themeID == .ghost) ? live.colours : nil,
-                previewBlurredArt: model.themeID == .adaptive ? live.blurredArt : nil
+                previewBlurredArt: model.themeID == .adaptive ? live.blurredArt : nil,
+                usesRainbowPreview: usesRainbowPreview
             )
                 .frame(width: horizontalBaseSize.width, height: horizontalBaseSize.height)
                 .scaleEffect(s)

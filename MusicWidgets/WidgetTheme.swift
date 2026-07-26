@@ -235,6 +235,58 @@ extension WidgetThemeID {
     }
 }
 
+// MARK: - Rainbow preview palette (gallery-grid Custom tile only)
+//
+// The Custom tile used to just render whatever colour the user had already
+// saved, which looked identical to any other single-colour style and gave
+// no visual hint that the whole point of it is "pick your own." This is a
+// fixed multi-hue spectrum standing in for that — never used by the live
+// widget or by the colour-picker sheet's own preview, only the gallery
+// grid's Custom card, so it never fights with actually seeing your pick.
+extension WidgetThemeID {
+    static func rainbowPreviewPalette(showBody: Bool = true) -> WidgetThemePalette {
+        let spectrum: [Color] = [.red, .orange, .yellow, .green, .blue, .purple, .red]
+        let title = Color.white
+        let subtitle = Color.white.opacity(0.75)
+        return WidgetThemePalette(
+            showBody: showBody,
+            showBodyTexture: false,
+            widgetBodyGradient: spectrum,
+            widgetBorder: Color.white.opacity(0.2),
+            widgetTopSheen: Color.white.opacity(0.13),
+            albumArtLabelGradient: spectrum,
+            albumArtRingColor: Color.white.opacity(0.34),
+            trackPlayingDot: .white,
+            trackPausedDot: subtitle,
+            trackTitle: title,
+            trackArtist: subtitle,
+            trackIdle: Color.white.opacity(0.45),
+            screwGradient: spectrum,
+            shelfButtonBackground: Color.black.opacity(0.4),
+            shelfButtonRing: .white,
+            shelfButtonIcon: .white,
+            shelfPanelGradient: spectrum,
+            shelfOutline: Color.white.opacity(0.11),
+            queueBarText: title,
+            queueBarBackground: Color.black.opacity(0.4),
+            queueBarBorder: Color.white.opacity(0.09),
+            connectOverlayIcon: subtitle,
+            connectOverlayTitle: title,
+            connectOverlaySubtitle: subtitle,
+            connectOverlayBackground: Color.black.opacity(0.4),
+            connectOverlayBorder: Color.white.opacity(0.11),
+            sleeveCardGradient: spectrum,
+            sleeveCardBorder: Color.white.opacity(0.11),
+            sleeveNowText: title,
+            sleeveNowBackground: Color.black.opacity(0.4),
+            sleevePlaceholderOuter: Color.blue,
+            sleevePlaceholderMiddle: Color.black.opacity(0.4),
+            sleevePlaceholderInner: Color.purple,
+            sleevePlaceholderLetter: subtitle
+        )
+    }
+}
+
 // MARK: - Adaptive palette (live, built from the playing album's colours)
 
 extension WidgetThemeID {

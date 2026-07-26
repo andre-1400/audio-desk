@@ -122,6 +122,11 @@ struct DesktopWidgetView: View {
     var previewArt: NSImage? = nil
     var previewColours: ExtractedColours? = nil
     var previewBlurredArt: NSImage? = nil
+    // Gallery-grid tile for the Custom model only — shows a rainbow palette
+    // instead of whatever colour is actually saved, since the tile's job is
+    // to say "you can pick any colour," not to preview the current pick
+    // (that's what opening the colour sheet is for).
+    var usesRainbowPreview: Bool = false
     var onClose: (() -> Void)? = nil
 
     @StateObject private var detector = MusicDetector()
@@ -154,14 +159,16 @@ struct DesktopWidgetView: View {
     }
     private var effectiveArt: NSImage? { isPreview ? previewArt : displayedArt }
     private var effectiveBlurredArt: NSImage? { isPreview ? previewBlurredArt : blurredBodyArt }
-    private var theme: WidgetThemePalette { WidgetThemeID.adaptivePalette(from: effectiveColours) }
+    private var theme: WidgetThemePalette {
+        usesRainbowPreview ? WidgetThemeID.rainbowPreviewPalette() : WidgetThemeID.adaptivePalette(from: effectiveColours)
+    }
     private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
     private var trackKey: String {
         "\(detector.nowPlaying.trackName)|\(detector.nowPlaying.artistName)|\(detector.nowPlaying.albumName)"
     }
 
-    private var fgPrimary: Color { AdaptiveBody.primary(effectiveColours.dominant) }
-    private var fgSecondary: Color { AdaptiveBody.secondary(effectiveColours.dominant) }
+    private var fgPrimary: Color { usesRainbowPreview ? theme.trackTitle : AdaptiveBody.primary(effectiveColours.dominant) }
+    private var fgSecondary: Color { usesRainbowPreview ? theme.trackArtist : AdaptiveBody.secondary(effectiveColours.dominant) }
 
     private func togglePlayback() {
         guard !isPreview else { return }
@@ -665,6 +672,9 @@ struct DesktopWidgetModelPreview: View {
     let model: DesktopWidgetModel
     var animated: Bool = false
     @ObservedObject var live: GalleryLiveTrack = GalleryLiveTrack()
+    // Gallery-grid tile only — set true by the caller for the Custom model,
+    // never by the colour-picker sheet's own live preview.
+    var usesRainbowPreview: Bool = false
 
     /// The preview card is much smaller than a real screen, so it uses its
     /// own compact base size rather than trying to fake an actual display's
@@ -678,7 +688,8 @@ struct DesktopWidgetModelPreview: View {
             let view = DesktopWidgetView(
                 model: model, isPreview: true, previewSpinning: animated,
                 previewInfo: live.info, previewArt: live.art,
-                previewColours: model.themeID == .adaptive ? live.colours : nil
+                previewColours: model.themeID == .adaptive ? live.colours : nil,
+                usesRainbowPreview: usesRainbowPreview
             )
                 .frame(width: previewBaseSize.width, height: previewBaseSize.height)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))

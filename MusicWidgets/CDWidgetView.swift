@@ -198,6 +198,26 @@ extension CDMaterial {
             buttonAccent: Color(hex: "eef1f6")
         )
     }
+
+    // MARK: Rainbow preview — gallery-grid tile only, signals "pick any
+    // colour" instead of showing whatever's currently saved.
+    static let rainbowPreview: CDMaterial = {
+        let spectrum: [Color] = [.red, .orange, .yellow, .green, .blue, .purple, .red]
+        return CDMaterial(
+            housing: spectrum,
+            ring: [Color.white, Color.white.opacity(0.7), Color.white.opacity(0.4), Color.white],
+            accent: Color.white,
+            lidTint: Color.black.opacity(0.35),
+            lidOpacity: 0.28,
+            well: [Color.black.opacity(0.55), Color.black.opacity(0.7)],
+            panel: spectrum,
+            lcdBg: [Color.black.opacity(0.6), Color.black.opacity(0.75)],
+            lcd: Color.white,
+            subtitle: Color.white.opacity(0.85),
+            isLight: false,
+            buttonAccent: Color.white
+        )
+    }()
 }
 
 // MARK: - Phase machine
@@ -280,6 +300,11 @@ struct CDWidgetView: View {
     var previewArt: NSImage? = nil
     var previewColours: ExtractedColours? = nil
     var previewBlurredArt: NSImage? = nil
+    // Gallery-grid tile for the Custom model only — shows a rainbow material
+    // instead of whatever colour is actually saved, since the tile's job is
+    // to say "you can pick any colour," not to preview the current pick
+    // (that's what opening the colour sheet is for).
+    var usesRainbowPreview: Bool = false
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
@@ -309,12 +334,13 @@ struct CDWidgetView: View {
     private var effectiveDisplayedArt: NSImage? { isPreview ? previewArt : displayedArt }
     // Custom never has album art to blur — always nil regardless of preview.
     private var effectiveBlurredBodyArt: NSImage? {
-        model.isCustom ? nil : (isPreview ? previewBlurredArt : blurredBodyArt)
+        (model.isCustom || usesRainbowPreview) ? nil : (isPreview ? previewBlurredArt : blurredBodyArt)
     }
     private var customColour: ExtractedColours {
         (model.archetype == .discman ? customColors.cdDiscman : customColors.cdHifi).extractedColours
     }
     private var mat: CDMaterial {
+        if usesRainbowPreview { return .rainbowPreview }
         if model.isAdaptive { return .adaptive(from: effectiveColours) }
         if model.isCustom { return .adaptive(from: customColour) }
         return model.material

@@ -625,7 +625,7 @@ private struct GalleryDetail: View {
                                                     AppDelegate.shared?.launchVinylWidget(themeID: style.themeID)
                                                 }
                                             }) { animated in
-                                    VinylStylePreview(themeID: style.themeID, animated: animated, live: liveTrack)
+                                    VinylStylePreview(themeID: style.themeID, animated: animated, live: liveTrack, usesRainbowPreview: style.themeID == .custom)
                                 }
                             }
                         }
@@ -649,7 +649,7 @@ private struct GalleryDetail: View {
                                                 AppDelegate.shared?.launchVinylHorizontalWidget(model: model)
                                             }
                                         }) { animated in
-                                VinylHorizontalModelPreview(model: model, animated: animated, live: liveTrack)
+                                VinylHorizontalModelPreview(model: model, animated: animated, live: liveTrack, usesRainbowPreview: model.themeID == .custom)
                             }
                         }
                     } else if category == .cd {
@@ -673,7 +673,7 @@ private struct GalleryDetail: View {
                                                     AppDelegate.shared?.launchCDWidget(model: model)
                                                 }
                                             }) { animated in
-                                    CDModelPreview(model: model, animated: animated, live: liveTrack)
+                                    CDModelPreview(model: model, animated: animated, live: liveTrack, usesRainbowPreview: model.isCustom)
                                 }
                             }
                         }
@@ -710,7 +710,7 @@ private struct GalleryDetail: View {
                                                     AppDelegate.shared?.launchDesktopWidget(model: model)
                                                 }
                                             }) { animated in
-                                    DesktopWidgetModelPreview(model: model, animated: animated, live: liveTrack)
+                                    DesktopWidgetModelPreview(model: model, animated: animated, live: liveTrack, usesRainbowPreview: model.isCustom)
                                 }
                             }
                         }
@@ -1297,6 +1297,9 @@ struct CDModelPreview: View {
     let model: CDModel
     var animated: Bool = false
     @ObservedObject var live: GalleryLiveTrack = GalleryLiveTrack()
+    // Gallery-grid tile only — set true by the caller for the Custom model,
+    // never by the colour-picker sheet's own live preview.
+    var usesRainbowPreview: Bool = false
 
     var body: some View {
         GeometryReader { geo in
@@ -1318,7 +1321,8 @@ struct CDModelPreview: View {
             model: model, isPreview: true, previewSpinning: animated,
             previewInfo: live.info, previewArt: live.art,
             previewColours: model.isAdaptive ? live.colours : nil,
-            previewBlurredArt: model.isAdaptive ? live.blurredArt : nil
+            previewBlurredArt: model.isAdaptive ? live.blurredArt : nil,
+            usesRainbowPreview: usesRainbowPreview
         )
         if animated {
             view                       // live spin — don't flatten (drawingGroup re-rasterizes each frame)
@@ -1338,6 +1342,9 @@ struct VinylStylePreview: View {
     // don't pass one (e.g. OnboardingView) just get the static placeholder
     // look, unchanged.
     @ObservedObject var live: GalleryLiveTrack = GalleryLiveTrack()
+    // Gallery-grid tile only — set true by the caller for the Custom style,
+    // never by the colour-picker sheet's own live preview.
+    var usesRainbowPreview: Bool = false
     // Observed so this preview (grid tile or the picker sheet's own preview)
     // updates live as the user drags — CustomColorManager writes straight
     // through on every change, no separate draft/commit step.
@@ -1357,9 +1364,12 @@ struct VinylStylePreview: View {
 
     /// For Adaptive, the preview's whole palette tracks the real playing
     /// track's colours, same as the live widget. For Custom, it tracks the
-    /// user's own picked colour instead.
+    /// user's own picked colour instead — unless this is the gallery-grid
+    /// tile, which shows a fixed rainbow spectrum instead so it reads as
+    /// "pick any colour" rather than whatever's currently saved.
     private var resolvedPalette: WidgetThemePalette {
         if themeID == .custom {
+            if usesRainbowPreview { return WidgetThemeID.rainbowPreviewPalette() }
             return WidgetThemeID.adaptivePalette(from: customColors.vinyl.extractedColours)
         }
         guard themeID == .adaptive || themeID == .ghost, live.art != nil else { return themeID.palette }
