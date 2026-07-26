@@ -576,13 +576,9 @@ private struct GalleryDetail: View {
         VStack(spacing: 0) {
             // Header — large SF Pro title (not SF Rounded), HIG type ramp.
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(category.title)
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundStyle(Neu.text)
-                    Text("\(category.widgetCount) styles · hover to preview, click to place on your desktop")
-                        .font(.appSubheadline).foregroundStyle(Neu.subtext)
-                }
+                Text(category.title)
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(Neu.text)
                 Spacer()
                 // Widget size, right where you pick the widget — not
                 // meaningful for Desktop, which is always full screen.
@@ -1823,14 +1819,6 @@ enum WidgetCategory: String, Identifiable, CaseIterable {
         case .cd: return "opticaldisc"
         case .albumArt: return "photo.on.rectangle.angled"
         case .desktop: return "macwindow"
-        }
-    }
-    var widgetCount: Int {
-        switch self {
-        case .vinyl: return VinylStyle.all.count + VinylHorizontalModel.all.count
-        case .cd: return CDModel.all.count
-        case .albumArt: return AlbumArtModel.all.count
-        case .desktop: return DesktopWidgetModel.all.count
         }
     }
     var accentColor: Color { AMTheme.accent }
