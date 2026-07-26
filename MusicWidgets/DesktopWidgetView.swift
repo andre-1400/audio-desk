@@ -180,7 +180,8 @@ struct DesktopWidgetView: View {
 
                 if !isPreview {
                     closeButton
-                        .padding(24)
+                        .padding(.leading, 24)
+                        .padding(.top, 40)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .opacity(closeHovered ? 1 : 0)
                         .onHover { closeHovered = $0 }
@@ -256,9 +257,9 @@ struct DesktopWidgetView: View {
         Button(action: { onClose?() }) {
             Image(systemName: "xmark.circle.fill")
                 .symbolRenderingMode(.hierarchical)
-                .font(.system(size: 26))
-                .foregroundStyle(.white.opacity(0.85))
-                .shadow(color: .black.opacity(0.5), radius: 6)
+                .font(.system(size: 17))
+                .foregroundStyle(.white.opacity(0.45))
+                .shadow(color: .black.opacity(0.4), radius: 4)
         }
         .buttonStyle(.plain)
     }
