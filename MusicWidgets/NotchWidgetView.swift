@@ -206,7 +206,17 @@ struct NotchWidgetView: View {
             guard !isPreview else { return }
             hovering = isHovering
         }
-        .frame(maxWidth: .infinity, alignment: .top)
+        // maxHeight was missing here — without it, this view's actual
+        // height stayed whatever the previous .frame(width:,height:) call
+        // set (idleHeight, ~40-50pt), and since the window itself is
+        // ALWAYS a fixed expandedHeight (96pt, never resized — see
+        // NotchWidgetWindow's own doc comment), SwiftUI centred that
+        // shorter content vertically within the full window instead of
+        // anchoring it to the top. No amount of alignment tweaking inside
+        // idleContent itself could have fixed that: the content was
+        // correctly top-aligned within its own box, but that whole box
+        // was floating in the middle of a much taller, unrelated canvas.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear {
             guard !isPreview else { return }
             detector.start()
