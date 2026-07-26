@@ -425,26 +425,39 @@ private struct EqualizerBars: View {
                     .fill(color.opacity(animating ? 0.85 : 0.4))
                     .frame(width: 2.6, height: animating && phase ? barHeights[i] : pausedHeight)
                     // repeatForever applies to *any* change in `phase`,
-                    // including the transition into paused — which is what
-                    // was making the bars keep visibly bouncing between
-                    // their last playing height and pausedHeight instead of
-                    // settling, since that transition was using the same
-                    // endlessly-repeating curve as the playing state.
-                    // Conditioning the curve itself on `animating` gives
-                    // pausing a plain, one-shot settle instead.
+                    // including the transition into paused — an easeOut
+                    // curve there (tried previously) still isn't a plain
+                    // instant stop, and a still-in-flight repeatForever
+                    // animation on the layer isn't guaranteed to be fully
+                    // superseded by a new one-shot curve for the same
+                    // property. Using `nil` for the paused case is a real
+                    // "no animation at all" rather than a differently-
+                    // shaped one, guaranteeing an instant, motionless snap.
                     .animation(
                         animating
                             ? .easeInOut(duration: 0.42 + Double(i) * 0.08)
                                 .repeatForever(autoreverses: true)
                                 .delay(Double(i) * 0.11)
-                            : .easeOut(duration: 0.2),
+                            : nil,
                         value: phase
                     )
             }
         }
         .frame(height: 14, alignment: .bottom)
         .onAppear { phase = animating }
-        .onChange(of: animating) { _, isAnimating in phase = isAnimating }
+        .onChange(of: animating) { _, isAnimating in
+            if isAnimating {
+                phase = true
+            } else {
+                // Belt and braces: explicitly disable animation for this
+                // transaction too, not just via the nil curve above, so
+                // pausing can never pick up an ambient/inherited animation
+                // from somewhere else in the view tree.
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { phase = false }
+            }
+        }
     }
 }
 
