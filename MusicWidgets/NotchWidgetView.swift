@@ -76,7 +76,7 @@ struct NotchLayoutMetrics {
     /// of it that's actually visible, since its top (matching the notch's
     /// own row) sits over the display cutout and can't be seen regardless
     /// of what's drawn there.
-    let closedOverhang: CGFloat = 16
+    let closedOverhang: CGFloat = 20
 
     var closedHeight: CGFloat { notch.height + closedOverhang }
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
@@ -181,8 +181,15 @@ struct NotchWidgetView: View {
             } else if isActive {
                 // The closed pill's width matches the notch exactly, so
                 // anything drawn in it genuinely does sit under the cutout
-                // at the top — this one does need the padding.
+                // at the top — this one does need the padding. Explicitly
+                // framed to just the overhang band (rather than left to
+                // ZStack's default centring against the whole closedHeight,
+                // which was sitting lower than necessary) and top-aligned
+                // within it, so the art/bars sit as high as they safely can
+                // — right at the edge of the invisible line, not centred
+                // deeper into the visible strip below it.
                 idleContent
+                    .frame(width: metrics.notch.width, height: metrics.closedOverhang, alignment: .top)
                     .padding(.top, metrics.notch.height)
             }
         }
@@ -240,11 +247,15 @@ struct NotchWidgetView: View {
             .frame(width: 18, height: 18)
             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
 
-            Spacer(minLength: 4)
+            Spacer(minLength: metrics.notch.width * 0.1)
 
             EqualizerBars(animating: isPreview ? true : np.isPlaying)
         }
-        .padding(.horizontal, 10)
+        // Proportional to the notch's own width, not a fixed inset — a
+        // smaller inset here means more room for the Spacer to actually
+        // push the two apart, closer to the pill's own edges instead of
+        // both crowding toward the middle.
+        .padding(.horizontal, metrics.notch.width * 0.035)
     }
 
     // MARK: - Expanded: art on the left, title/artist/progress/transport
