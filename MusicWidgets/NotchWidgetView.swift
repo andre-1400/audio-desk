@@ -72,14 +72,19 @@ struct NotchLayoutMetrics {
     let leftWidth: CGFloat = 90
     let rightWidth: CGFloat = 260
     let expandedHeight: CGFloat = 96
-    /// How far the closed pill hangs below the real notch — the only part
-    /// of it that's actually visible, since its top (matching the notch's
-    /// own row) sits over the display cutout and can't be seen regardless
-    /// of what's drawn there.
-    let closedOverhang: CGFloat = 64
 
-    var closedHeight: CGFloat { notch.height + closedOverhang }
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
+
+    /// Idle now uses the *same* width as expanded — art on the left of the
+    /// notch, equalizer bars on the right, flanking it the way the
+    /// reference does, rather than both crammed into a pill only as wide
+    /// as the notch itself. Only a little taller than the notch itself:
+    /// unlike the earlier "hanging overhang" design, this content sits
+    /// beside the notch, not underneath it, so it doesn't need extra
+    /// height to escape the cutout — just enough for a comfortably-sized
+    /// icon.
+    var idleWidth: CGFloat { expandedWidth }
+    var idleHeight: CGFloat { notch.height + 14 }
 
     /// The one fixed window frame — big enough for the expanded state,
     /// centred on the notch, top edge flush with the screen's own top edge.
@@ -150,10 +155,9 @@ struct NotchWidgetView: View {
 
     // Idle + nothing playing: literally nothing drawn or hit-testable, a
     // zero-size frame matching the real notch's own footprint exactly —
-    // the background shape was previously drawn unconditionally at
-    // closedHeight (notch height + overhang) regardless of playback state,
-    // which is what made the notch look permanently, visibly taller than
-    // it really is even with nothing playing.
+    // the background shape was previously drawn unconditionally regardless
+    // of playback state, which made the notch look permanently, visibly
+    // taller than it really is even with nothing playing.
     private var isVisible: Bool { expanded || isActive }
 
     var body: some View {
@@ -179,23 +183,18 @@ struct NotchWidgetView: View {
                 // was clipping the transport row at the bottom.
                 expandedContent
             } else if isActive {
-                // The closed pill's width matches the notch exactly, so
-                // anything drawn in it genuinely does sit under the cutout
-                // at the top — this one does need the padding. Explicitly
-                // framed to just the overhang band (rather than left to
-                // ZStack's default centring against the whole closedHeight,
-                // which was sitting lower than necessary) and top-aligned
-                // within it, so the art/bars sit as high as they safely can
-                // — right at the edge of the invisible line, not centred
-                // deeper into the visible strip below it.
+                // Same reasoning as expandedContent now: art and the
+                // equalizer bars sit in their own columns to the left/right
+                // of an explicit notch-width gap, so neither is ever
+                // actually under the cutout — no padding needed to dodge
+                // it, and they can sit at the same height as the notch
+                // itself instead of hanging in an overhang below it.
                 idleContent
-                    .frame(width: metrics.notch.width, height: metrics.closedOverhang, alignment: .top)
-                    .padding(.top, metrics.notch.height)
             }
         }
         .frame(
-            width: expanded ? metrics.expandedWidth : (isActive ? metrics.notch.width : 0),
-            height: expanded ? metrics.expandedHeight : (isActive ? metrics.closedHeight : 0)
+            width: expanded ? metrics.expandedWidth : (isActive ? metrics.idleWidth : 0),
+            height: expanded ? metrics.expandedHeight : (isActive ? metrics.idleHeight : 0)
         )
         .contentShape(Rectangle())
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: expanded)
@@ -230,12 +229,16 @@ struct NotchWidgetView: View {
         }
     }
 
-    // MARK: - Idle: a small waveform glyph in the overhang below the
-    // notch, shown only while something's actually playing — same
-    // restraint as iPhone's Dynamic Island, no indicator at all when
-    // nothing's playing.
+    // MARK: - Idle: album art to the left of the notch, equalizer bars to
+    // the right — flanking it at the same height, the way the reference
+    // does, rather than both crammed together underneath it. Shown only
+    // while something's actually playing — same restraint as iPhone's
+    // Dynamic Island, no indicator at all when nothing's playing. Same
+    // notch-width gap technique as expandedContent: the art and bars sit
+    // in their own columns outside the notch's x-range entirely, so
+    // neither needs padding to dodge the cutout.
     private var idleContent: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 0) {
             Group {
                 if let art {
                     Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
@@ -246,18 +249,13 @@ struct NotchWidgetView: View {
             }
             .frame(width: 34, height: 34)
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .frame(width: metrics.leftWidth)
 
-            Spacer(minLength: 8)
+            Color.clear.frame(width: metrics.notch.width)
 
             EqualizerBars(animating: isPreview ? true : np.isPlaying)
+                .frame(width: metrics.rightWidth)
         }
-        // A previous pass here made this proportional to notch.width
-        // instead of a fixed inset, on the theory that padding was
-        // constraining the gap — it wasn't (the Spacer already expands to
-        // fill whatever's left regardless), so that change was invisible.
-        // Cut to a small fixed inset instead, freeing up as much width as
-        // possible for the Spacer to actually use.
-        .padding(.horizontal, 4)
     }
 
     // MARK: - Expanded: art on the left, title/artist/progress/transport
