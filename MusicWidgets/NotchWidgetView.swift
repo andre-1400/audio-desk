@@ -41,12 +41,28 @@ enum NotchDetector {
     /// into — so nothing rendered inside this rect can ever be seen. Every
     /// layout in this file treats it as a hard gap, never as drawable space.
     /// nil if this screen has no notch.
+    ///
+    /// Width is NOT derived from `right.minX - left.maxX` — those two rects
+    /// are "safe space available for a window right now," which shrinks or
+    /// grows with however many menu-bar items currently happen to be
+    /// visible, not the fixed physical camera-housing size (that's what
+    /// produced a gap spanning most of the screen: with few menu extras
+    /// present, both "safe" rects reported as reaching almost to the centre
+    /// of the display). The one thing that IS fixed is safeAreaInsets.top
+    /// (the notch's real height), so this uses that plus a conservative
+    /// constant width — deliberately narrower than the real notch on every
+    /// current model rather than wider, since a slightly-too-narrow gap
+    /// just leaves a sliver of unused black margin on each side, while a
+    /// slightly-too-wide one would mean drawing over the actual cutout
+    /// again.
+    private static let assumedNotchWidth: CGFloat = 180
+
     static func notchFrame(on screen: NSScreen) -> CGRect? {
-        guard let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea,
-              screen.safeAreaInsets.top > 0, right.minX > left.maxX else { return nil }
-        let width = right.minX - left.maxX
+        guard screen.auxiliaryTopLeftArea != nil, screen.auxiliaryTopRightArea != nil,
+              screen.safeAreaInsets.top > 0 else { return nil }
         let height = screen.safeAreaInsets.top
-        return CGRect(x: left.maxX, y: screen.frame.maxY - height, width: width, height: height)
+        let width = assumedNotchWidth
+        return CGRect(x: screen.frame.midX - width / 2, y: screen.frame.maxY - height, width: width, height: height)
     }
 }
 
