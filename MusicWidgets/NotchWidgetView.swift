@@ -83,20 +83,18 @@ struct NotchLayoutMetrics {
     // Locked in at commit 9d27cba was 48/64/+14 — scaled down ~0.8x here
     // (proportionally, not independently) per feedback that it read as too
     // bulky overall.
-    // User report: even at 38/51/+11, the idle pill still extended far
-    // enough past the real notch to visibly cut into other windows' own
-    // UI sitting in that same safe area (a browser tab strip, in the
-    // screenshot) — the actual physical notch is smaller than these
-    // values assumed. Cut hard toward "as close to the real notch's own
-    // footprint as possible" rather than another incremental trim.
-    let idleLeftWidth: CGFloat = 20
-    let idleRightWidth: CGFloat = 28
+    // Width reverted to 38/51 per feedback — that dimension read fine, it
+    // was the *height* that was still cutting into other windows' UI in
+    // that safe area (a browser tab strip). Cutting height further instead
+    // of width this time.
+    let idleLeftWidth: CGFloat = 38
+    let idleRightWidth: CGFloat = 51
     var idleWidth: CGFloat { idleLeftWidth + notch.width + idleRightWidth }
     /// Only a little taller than the notch itself — this content sits
     /// beside the notch, not underneath it, so it doesn't need extra
     /// height to escape the cutout, just enough for a comfortably-sized
     /// icon.
-    var idleHeight: CGFloat { notch.height + 6 }
+    var idleHeight: CGFloat { notch.height + 2 }
 
     /// The one fixed window frame — big enough for the expanded state,
     /// centred on the notch, top edge flush with the screen's own top edge.
