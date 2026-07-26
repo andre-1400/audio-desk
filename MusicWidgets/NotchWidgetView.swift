@@ -272,7 +272,7 @@ struct NotchWidgetView: View {
             // height — makes the art actually read as art instead of a
             // tiny thumbnail, and it's the natural size ceiling here since
             // idleHeight is the tighter of the two dimensions to work with.
-            .frame(width: metrics.idleHeight, height: metrics.idleHeight)
+            .frame(width: metrics.idleHeight * 0.8, height: metrics.idleHeight * 0.8)
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .frame(width: metrics.idleLeftWidth)
 
