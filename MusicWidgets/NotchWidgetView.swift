@@ -76,7 +76,7 @@ struct NotchLayoutMetrics {
     /// of it that's actually visible, since its top (matching the notch's
     /// own row) sits over the display cutout and can't be seen regardless
     /// of what's drawn there.
-    let closedOverhang: CGFloat = 36
+    let closedOverhang: CGFloat = 64
 
     var closedHeight: CGFloat { notch.height + closedOverhang }
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
@@ -240,12 +240,12 @@ struct NotchWidgetView: View {
                 if let art {
                     Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
                 } else {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(Color.white.opacity(0.15))
                 }
             }
-            .frame(width: 24, height: 24)
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .frame(width: 34, height: 34)
+            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
 
             Spacer(minLength: 8)
 
@@ -369,14 +369,14 @@ private struct EqualizerBars: View {
 
     @State private var phase = false
 
-    private let barHeights: [CGFloat] = [7, 16, 10, 13]
+    private let barHeights: [CGFloat] = [10, 24, 15, 19]
 
     var body: some View {
         HStack(alignment: .center, spacing: 2.5) {
             ForEach(barHeights.indices, id: \.self) { i in
                 Capsule()
                     .fill(Color.white.opacity(0.75))
-                    .frame(width: 2.2, height: animating && phase ? barHeights[i] : 3)
+                    .frame(width: 3.2, height: animating && phase ? barHeights[i] : 4)
                     .animation(
                         .easeInOut(duration: 0.42 + Double(i) * 0.08)
                             .repeatForever(autoreverses: true)
@@ -385,7 +385,7 @@ private struct EqualizerBars: View {
                     )
             }
         }
-        .frame(height: 18)
+        .frame(height: 28)
         .onAppear { phase = animating }
         .onChange(of: animating) { _, isAnimating in phase = isAnimating }
     }
