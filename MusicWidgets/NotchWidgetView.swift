@@ -80,14 +80,17 @@ struct NotchLayoutMetrics {
     /// "art left of the notch, bars right of the notch, explicit gap over
     /// it" structure but with much tighter columns, closer to how much
     /// room the reference actually gives the idle state.
-    let idleLeftWidth: CGFloat = 48
-    let idleRightWidth: CGFloat = 64
+    // Locked in at commit 9d27cba was 48/64/+14 — scaled down ~0.8x here
+    // (proportionally, not independently) per feedback that it read as too
+    // bulky overall.
+    let idleLeftWidth: CGFloat = 38
+    let idleRightWidth: CGFloat = 51
     var idleWidth: CGFloat { idleLeftWidth + notch.width + idleRightWidth }
     /// Only a little taller than the notch itself — this content sits
     /// beside the notch, not underneath it, so it doesn't need extra
     /// height to escape the cutout, just enough for a comfortably-sized
     /// icon.
-    var idleHeight: CGFloat { notch.height + 14 }
+    var idleHeight: CGFloat { notch.height + 11 }
 
     /// The one fixed window frame — big enough for the expanded state,
     /// centred on the notch, top edge flush with the screen's own top edge.
@@ -260,7 +263,7 @@ struct NotchWidgetView: View {
                         .fill(Color.white.opacity(0.15))
                 }
             }
-            .frame(width: 30, height: 30)
+            .frame(width: 24, height: 24)
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             .frame(width: metrics.idleLeftWidth)
 
@@ -387,14 +390,14 @@ private struct EqualizerBars: View {
 
     @State private var phase = false
 
-    private let barHeights: [CGFloat] = [10, 24, 15, 19]
+    private let barHeights: [CGFloat] = [8, 19, 12, 15]
 
     var body: some View {
         HStack(alignment: .center, spacing: 2.5) {
             ForEach(barHeights.indices, id: \.self) { i in
                 Capsule()
                     .fill(Color.white.opacity(0.75))
-                    .frame(width: 3.2, height: animating && phase ? barHeights[i] : 4)
+                    .frame(width: 2.6, height: animating && phase ? barHeights[i] : 3)
                     .animation(
                         .easeInOut(duration: 0.42 + Double(i) * 0.08)
                             .repeatForever(autoreverses: true)
@@ -403,7 +406,7 @@ private struct EqualizerBars: View {
                     )
             }
         }
-        .frame(height: 28)
+        .frame(height: 22)
         .onAppear { phase = animating }
         .onChange(of: animating) { _, isAnimating in phase = isAnimating }
     }
