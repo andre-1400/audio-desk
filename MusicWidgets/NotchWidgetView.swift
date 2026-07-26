@@ -76,7 +76,7 @@ struct NotchLayoutMetrics {
     /// of it that's actually visible, since its top (matching the notch's
     /// own row) sits over the display cutout and can't be seen regardless
     /// of what's drawn there.
-    let closedOverhang: CGFloat = 20
+    let closedOverhang: CGFloat = 36
 
     var closedHeight: CGFloat { notch.height + closedOverhang }
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
@@ -240,22 +240,24 @@ struct NotchWidgetView: View {
                 if let art {
                     Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
                 } else {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(Color.white.opacity(0.15))
                 }
             }
-            .frame(width: 18, height: 18)
-            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .frame(width: 24, height: 24)
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
 
-            Spacer(minLength: metrics.notch.width * 0.1)
+            Spacer(minLength: 8)
 
             EqualizerBars(animating: isPreview ? true : np.isPlaying)
         }
-        // Proportional to the notch's own width, not a fixed inset — a
-        // smaller inset here means more room for the Spacer to actually
-        // push the two apart, closer to the pill's own edges instead of
-        // both crowding toward the middle.
-        .padding(.horizontal, metrics.notch.width * 0.035)
+        // A previous pass here made this proportional to notch.width
+        // instead of a fixed inset, on the theory that padding was
+        // constraining the gap — it wasn't (the Spacer already expands to
+        // fill whatever's left regardless), so that change was invisible.
+        // Cut to a small fixed inset instead, freeing up as much width as
+        // possible for the Spacer to actually use.
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Expanded: art on the left, title/artist/progress/transport
@@ -367,7 +369,7 @@ private struct EqualizerBars: View {
 
     @State private var phase = false
 
-    private let barHeights: [CGFloat] = [5, 11, 7, 9]
+    private let barHeights: [CGFloat] = [7, 16, 10, 13]
 
     var body: some View {
         HStack(alignment: .center, spacing: 2.5) {
@@ -383,7 +385,7 @@ private struct EqualizerBars: View {
                     )
             }
         }
-        .frame(height: 12)
+        .frame(height: 18)
         .onAppear { phase = animating }
         .onChange(of: animating) { _, isAnimating in phase = isAnimating }
     }
