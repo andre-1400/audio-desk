@@ -57,17 +57,24 @@ enum NotchDetector {
 // zone actually is.
 struct NotchLayoutMetrics {
     let notch: CGRect
-    let leftWidth: CGFloat = 64
-    let rightWidth: CGFloat = 210
-    let idleWidth: CGFloat = 26
-    let expandedHeight: CGFloat = 48
+    let leftWidth: CGFloat = 74
+    let rightWidth: CGFloat = 250
+    /// Width of the *visible* idle pill, drawn only in the sliver right of
+    /// the notch — separate from the idle window's actual (much larger)
+    /// hit-testable frame below.
+    let idleVisibleWidth: CGFloat = 26
+    let expandedHeight: CGFloat = 78
 
-    /// Idle: a small standalone pill flush against the notch's right edge —
-    /// deliberately NOT centred on/overlapping the notch itself (which
-    /// would be invisible), and small enough that it only ever occupies
-    /// space that's otherwise unused right next to the cutout.
+    /// Idle window spans the notch's *entire* width plus the visible
+    /// sliver to its right — a window occupying that geometry still gets
+    /// mouse/hover events perfectly normally even though nothing drawn
+    /// over the notch itself is visible, so this makes "hover anywhere
+    /// near/over the notch" reliably trigger expansion instead of only a
+    /// thin strip off to one side, which was too small a target to hit
+    /// consistently at normal cursor speed.
     var idleFrame: CGRect {
-        CGRect(x: notch.maxX, y: notch.maxY - notch.height, width: idleWidth, height: notch.height)
+        CGRect(x: notch.minX, y: notch.maxY - notch.height,
+               width: notch.width + idleVisibleWidth, height: notch.height)
     }
 
     /// Expanded: spans from the left safe area, across the notch's own dead
@@ -182,37 +189,47 @@ struct NotchWidgetView: View {
         }
     }
 
-    // MARK: - Idle: a small pill flush against the notch's right edge,
-    // shown only while something's actually playing — same restraint as
-    // iPhone's Dynamic Island, no indicator at all when nothing's playing.
-    // Flat on the leading edge (butts against the notch), rounded on the
-    // trailing edge, so it reads as a small extension growing out of the
-    // notch rather than a separate floating chip.
+    // MARK: - Idle
+    //
+    // The window's own frame spans the whole notch (see idleFrame) so
+    // hovering anywhere near it reliably triggers expansion — but nothing
+    // can actually be SEEN over the notch itself, so only the trailing
+    // idleVisibleWidth-wide sliver ever draws anything: a small pill,
+    // shown only while something's actually playing (same restraint as
+    // iPhone's Dynamic Island — no indicator at all when nothing's
+    // playing), flat on the edge touching the notch and rounded on the
+    // outer edge so it reads as a small extension growing out of it.
     private var idleContent: some View {
-        ZStack {
-            if isActive {
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0, bottomLeadingRadius: 0,
-                    bottomTrailingRadius: 12, topTrailingRadius: 0,
-                    style: .continuous
-                )
-                .fill(Color.black)
-                Image(systemName: "waveform")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.6))
+        HStack(spacing: 0) {
+            Color.clear.frame(width: metrics.notch.width)
+
+            ZStack {
+                if isActive {
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 0, bottomLeadingRadius: 0,
+                        bottomTrailingRadius: 12, topTrailingRadius: 0,
+                        style: .continuous
+                    )
+                    .fill(Color.black)
+                    Image(systemName: "waveform")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
             }
+            .frame(width: metrics.idleVisibleWidth)
         }
     }
 
     // MARK: - Expanded: art on the left of the notch, title/artist/
-    // transport on the right — an explicit `notch.width`-wide gap sits
-    // between them with nothing drawn in it at all, since that space is a
-    // real cutout in the display and nothing rendered there is visible.
+    // progress/transport stacked on the right — an explicit
+    // `notch.width`-wide gap sits between them with nothing drawn in it at
+    // all, since that space is a real cutout in the display and nothing
+    // rendered there is visible.
     private var expandedContent: some View {
         HStack(spacing: 0) {
             ZStack {
                 UnevenRoundedRectangle(
-                    topLeadingRadius: 0, bottomLeadingRadius: 16,
+                    topLeadingRadius: 0, bottomLeadingRadius: 18,
                     bottomTrailingRadius: 0, topTrailingRadius: 0,
                     style: .continuous
                 )
@@ -222,12 +239,12 @@ struct NotchWidgetView: View {
                     if let art {
                         Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
                     } else {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(Color.white.opacity(0.15))
                     }
                 }
-                .frame(width: 32, height: 32)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .frame(width: 42, height: 42)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .frame(width: metrics.leftWidth)
 
@@ -235,41 +252,84 @@ struct NotchWidgetView: View {
                 .frame(width: metrics.notch.width)
                 .allowsHitTesting(false)
 
-            ZStack(alignment: .leading) {
+            ZStack {
                 UnevenRoundedRectangle(
                     topLeadingRadius: 0, bottomLeadingRadius: 0,
-                    bottomTrailingRadius: 16, topTrailingRadius: 0,
+                    bottomTrailingRadius: 18, topTrailingRadius: 0,
                     style: .continuous
                 )
                 .fill(Color.black)
 
-                HStack(spacing: 10) {
-                    VStack(alignment: .leading, spacing: 1) {
+                VStack(spacing: 5) {
+                    VStack(spacing: 1) {
                         Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.system(size: 12.5, weight: .bold))
                             .foregroundStyle(.white)
                             .lineLimit(1)
                         if !np.artistName.isEmpty {
                             Text(np.artistName)
-                                .font(.system(size: 9.5, weight: .medium))
+                                .font(.system(size: 10, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.6))
                                 .lineLimit(1)
                         }
                     }
-                    .frame(maxWidth: 78, alignment: .leading)
 
-                    Spacer(minLength: 4)
+                    progressRow
 
-                    HStack(spacing: 10) {
-                        transportButton("backward.fill", size: 11) { if !isPreview { detector.previousTrack() } }
-                        transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 13) { if !isPreview { detector.togglePlayback() } }
-                        transportButton("forward.fill", size: 11) { if !isPreview { detector.nextTrack() } }
+                    HStack(spacing: 22) {
+                        transportButton("backward.fill", size: 12) { if !isPreview { detector.previousTrack() } }
+                        transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15) { if !isPreview { detector.togglePlayback() } }
+                        transportButton("forward.fill", size: 12) { if !isPreview { detector.nextTrack() } }
                     }
                 }
-                .padding(.horizontal, 12)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
             }
             .frame(width: metrics.rightWidth)
         }
+    }
+
+    private var progressRow: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { context in
+            let duration = np.durationMillis ?? 0
+            let elapsed = elapsedMillis(at: context.date)
+            let remaining = max(0, duration - elapsed)
+            let fraction = duration > 0 ? min(1, max(0, Double(elapsed) / Double(duration))) : 0
+
+            VStack(spacing: 2) {
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.white.opacity(0.25)).frame(height: 3)
+                        Capsule().fill(Color.white).frame(width: max(2, geo.size.width * fraction), height: 3)
+                    }
+                }
+                .frame(height: 3)
+
+                HStack {
+                    Text(formatTime(elapsed))
+                    Spacer()
+                    Text("-" + formatTime(remaining))
+                }
+                .font(.system(size: 8.5, weight: .medium).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.55))
+            }
+        }
+        .opacity((np.durationMillis ?? 0) > 0 ? 1 : 0)
+    }
+
+    private func elapsedMillis(at date: Date) -> Int {
+        guard let pos = np.positionMillis else { return 0 }
+        var elapsed = Double(pos)
+        if np.isPlaying, let sampledAt = np.progressSampledAt {
+            elapsed += date.timeIntervalSince(sampledAt) * 1000
+        }
+        if let dur = np.durationMillis { elapsed = min(elapsed, Double(dur)) }
+        return max(0, Int(elapsed))
+    }
+
+    private func formatTime(_ millis: Int) -> String {
+        let totalSeconds = millis / 1000
+        return String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
 
     private func transportButton(_ symbol: String, size: CGFloat, action: @escaping () -> Void) -> some View {
