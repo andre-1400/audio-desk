@@ -359,7 +359,7 @@ struct DesktopWidgetView: View {
             // Its own full-width row spanning almost the entire screen,
             // independent of the disc/button column widths above it,
             // rather than matching the transport row's narrower measure.
-            scrubBar
+            scrubBar()
                 .frame(width: size.width * 0.88)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .padding(.bottom, size.height * 0.08)
@@ -464,6 +464,10 @@ struct DesktopWidgetView: View {
         let titleSize = min(30, size.height * 0.045)
         let subtitleSize = min(18, size.height * 0.027)
         let iconSize = min(28, size.height * 0.028)
+        // scrubBar's own sizing is fixed (tuned for a real screen), so it
+        // needs the same "min(1, ...)" treatment everything else here got —
+        // full size above ~500pt tall, shrinking below that.
+        let barScale = min(1, size.height / 500)
 
         return VStack(spacing: vSpacing) {
             Spacer(minLength: 0)
@@ -501,7 +505,7 @@ struct DesktopWidgetView: View {
             .frame(maxWidth: min(560, size.width * 0.6))
 
             VStack(spacing: vSpacing * 0.8) {
-                scrubBar
+                scrubBar(scale: barScale)
                 transportRow(iconSize: iconSize)
             }
             .frame(width: min(420, size.width * 0.3))
@@ -538,26 +542,34 @@ struct DesktopWidgetView: View {
         .disabled(isPreview)
     }
 
-    private var scrubBar: some View {
+    /// `scale` shrinks the bar height/dot/time-label font together — this
+    /// was the one shared piece vinylLayout/coverLayout's proportional
+    /// rework missed: fixed absolute sizes (22pt bar, 12pt dot, 12pt font)
+    /// added up to a fixed ~43pt block regardless of container size, which
+    /// overflowed the small gallery-preview card (190pt tall) even after
+    /// everything else there was made proportional, showing up as content
+    /// clipped at the top/bottom of the card. Defaults to 1 (unchanged, the
+    /// sizes this was always tuned for) for the real full-screen widget.
+    private func scrubBar(scale: CGFloat = 1) -> some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { context in
             let duration = np.durationMillis ?? 0
             let fraction = isScrubbing ? scrubProgress : progressFraction(at: context.date)
             let elapsed = isScrubbing ? Int(scrubProgress * Double(duration)) : elapsedMillis(at: context.date)
             let remaining = max(0, duration - elapsed)
-            VStack(spacing: 6) {
+            VStack(spacing: 6 * scale) {
                 GeometryReader { geo in
                     let width = geo.size.width
                     ZStack(alignment: .leading) {
-                        Capsule().fill(fgSecondary.opacity(0.3)).frame(height: isScrubbing ? 6 : 4)
-                        Capsule().fill(fgPrimary).frame(width: max(2, width * fraction), height: isScrubbing ? 6 : 4)
+                        Capsule().fill(fgSecondary.opacity(0.3)).frame(height: (isScrubbing ? 6 : 4) * scale)
+                        Capsule().fill(fgPrimary).frame(width: max(2, width * fraction), height: (isScrubbing ? 6 : 4) * scale)
                         Circle()
                             .fill(fgPrimary)
-                            .frame(width: 12, height: 12)
+                            .frame(width: 12 * scale, height: 12 * scale)
                             .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
-                            .offset(x: min(width - 12, max(0, width * fraction - 6)))
+                            .offset(x: min(width - 12 * scale, max(0, width * fraction - 6 * scale)))
                             .opacity(isScrubbing ? 1 : 0)
                     }
-                    .frame(height: 22)
+                    .frame(height: 22 * scale)
                     .contentShape(Rectangle())
                     .gesture(
                         isPreview ? nil : DragGesture(minimumDistance: 0)
@@ -568,7 +580,7 @@ struct DesktopWidgetView: View {
                             }
                     )
                 }
-                .frame(height: 22)
+                .frame(height: 22 * scale)
                 .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
 
                 HStack {
@@ -576,7 +588,7 @@ struct DesktopWidgetView: View {
                     Spacer()
                     Text("-" + formatTime(remaining))
                 }
-                .font(.system(size: 12, weight: .medium).monospacedDigit())
+                .font(.system(size: 12 * scale, weight: .medium).monospacedDigit())
                 .foregroundStyle(fgSecondary)
             }
         }
