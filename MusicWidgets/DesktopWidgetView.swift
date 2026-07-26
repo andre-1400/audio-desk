@@ -696,7 +696,16 @@ struct DesktopWidgetModelPreview: View {
 
     var body: some View {
         GeometryReader { geo in
-            let s = min(geo.size.width / previewBaseSize.width, geo.size.height / previewBaseSize.height)
+            // max, not min — this is a full-bleed background (the real
+            // widget has no silhouette/edges to preserve, unlike a CD or
+            // vinyl device), so it should always fully cover the card,
+            // cropping any small overflow, rather than "fit" scaling like
+            // every other family's preview. The card's actual live width is
+            // whatever the responsive grid gives it, which rarely matches
+            // previewBaseSize's exact 480:300 ratio — "fit" left a sliver of
+            // the surrounding card's own background visible above/below the
+            // scaled content in that gap; "fill" leaves no gap to show it in.
+            let s = max(geo.size.width / previewBaseSize.width, geo.size.height / previewBaseSize.height)
             let view = DesktopWidgetView(
                 model: model, isPreview: true, previewSpinning: animated,
                 previewInfo: live.info, previewArt: live.art,
@@ -708,6 +717,7 @@ struct DesktopWidgetModelPreview: View {
                 .scaleEffect(s)
                 .frame(width: previewBaseSize.width * s, height: previewBaseSize.height * s)
                 .frame(width: geo.size.width, height: geo.size.height)
+                .clipped()
             // drawingGroup() flattens into a static cached texture — fine
             // (cheap) for the resting state, but it was applied
             // unconditionally here, which silently killed the hover-spin
