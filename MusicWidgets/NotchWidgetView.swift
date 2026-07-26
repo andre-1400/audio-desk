@@ -71,7 +71,7 @@ struct NotchLayoutMetrics {
     let notch: CGRect
     let leftWidth: CGFloat = 90
     let rightWidth: CGFloat = 260
-    let expandedHeight: CGFloat = 86
+    let expandedHeight: CGFloat = 96
     /// How far the closed pill hangs below the real notch — the only part
     /// of it that's actually visible, since its top (matching the notch's
     /// own row) sits over the display cutout and can't be seen regardless
@@ -148,36 +148,51 @@ struct NotchWidgetView: View {
     private var expanded: Bool { isPreview ? previewExpanded : hovering }
     private var isActive: Bool { !np.trackName.isEmpty }
 
+    // Idle + nothing playing: literally nothing drawn or hit-testable, a
+    // zero-size frame matching the real notch's own footprint exactly —
+    // the background shape was previously drawn unconditionally at
+    // closedHeight (notch height + overhang) regardless of playback state,
+    // which is what made the notch look permanently, visibly taller than
+    // it really is even with nothing playing.
+    private var isVisible: Bool { expanded || isActive }
+
     var body: some View {
         ZStack {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: expanded ? 18 : 10,
-                bottomTrailingRadius: expanded ? 18 : 10,
-                topTrailingRadius: 0,
-                style: .continuous
-            )
-            .fill(Color.black)
-
-            // Padding every bit of content below the notch's own height,
-            // regardless of state or horizontal position, is what keeps it
-            // clear of the invisible cutout — simpler and more robust than
-            // carving an explicit gap out of the middle of the layout.
-            Group {
-                if expanded {
-                    expandedContent
-                } else if isActive {
-                    idleContent
-                }
+            if isVisible {
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: expanded ? 18 : 10,
+                    bottomTrailingRadius: expanded ? 18 : 10,
+                    topTrailingRadius: 0,
+                    style: .continuous
+                )
+                .fill(Color.black)
             }
-            .padding(.top, metrics.notch.height)
+
+            if expanded {
+                // No top padding here: the art column and the info column
+                // both sit entirely to the left/right of the notch's own
+                // x-range (see expandedContent's layout), never underneath
+                // it, so unlike the idle pill neither needs pushing down —
+                // doing that anyway was eating into the vertical space
+                // needed for title/artist/progress/transport, which is what
+                // was clipping the transport row at the bottom.
+                expandedContent
+            } else if isActive {
+                // The closed pill's width matches the notch exactly, so
+                // anything drawn in it genuinely does sit under the cutout
+                // at the top — this one does need the padding.
+                idleContent
+                    .padding(.top, metrics.notch.height)
+            }
         }
         .frame(
-            width: expanded ? metrics.expandedWidth : metrics.notch.width,
-            height: expanded ? metrics.expandedHeight : metrics.closedHeight
+            width: expanded ? metrics.expandedWidth : (isActive ? metrics.notch.width : 0),
+            height: expanded ? metrics.expandedHeight : (isActive ? metrics.closedHeight : 0)
         )
         .contentShape(Rectangle())
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: expanded)
+        .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isActive)
         .onHover { isHovering in
             guard !isPreview else { return }
             hovering = isHovering
