@@ -263,12 +263,17 @@ struct NotchWidgetView: View {
                 if let art {
                     Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
                 } else {
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(Color.white.opacity(0.15))
                 }
             }
-            .frame(width: 16, height: 16)
-            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            // Filling the full idleHeight edge to edge, rather than a small
+            // fixed 16pt icon floating in the middle of the available
+            // height — makes the art actually read as art instead of a
+            // tiny thumbnail, and it's the natural size ceiling here since
+            // idleHeight is the tighter of the two dimensions to work with.
+            .frame(width: metrics.idleHeight, height: metrics.idleHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             .frame(width: metrics.idleLeftWidth)
 
             Color.clear.frame(width: metrics.notch.width)
