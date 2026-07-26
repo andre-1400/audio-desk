@@ -401,63 +401,53 @@ struct NotchWidgetView: View {
 // MARK: - Idle equalizer glyph — a few bars bouncing at staggered, offset
 // speeds while playing (frozen flat when paused), the "sound wave" look
 // next to the small album art in the idle pill.
+// Two attempts at this via SwiftUI's implicit .animation(_:value:) both
+// still showed residual movement while paused — a repeatForever animation
+// already in flight on the layer isn't reliably fully superseded just by
+// changing what curve a later value change requests, no matter how that
+// curve is spelled (a different one-shot curve, or even nil). Rebuilt
+// without SwiftUI's animation system at all: TimelineView recomputes each
+// bar's height directly from wall-clock time every tick while playing, and
+// is literally `paused` (stops ticking) plus falls back to a hardcoded
+// constant the instant `animating` is false — a plain conditional
+// expression evaluated fresh each render, nothing left implicitly running
+// that could keep nudging the value afterward.
 private struct EqualizerBars: View {
     var animating: Bool = true
     var color: Color = .white
 
-    @State private var phase = false
-
     private let barHeights: [CGFloat] = [5, 12, 8, 10]
-    // Paused: all bars drop to this same small height instead of each
-    // holding its own frozen "random" height — motionless, uniform, just
-    // barely there rather than invisible.
+    private let minHeight: CGFloat = 3
+    // Paused: all bars drop to this same small height — motionless,
+    // uniform, just barely there rather than invisible.
     private let pausedHeight: CGFloat = 2
 
     var body: some View {
-        // Bottom-aligned rather than centred — bars should read as
-        // growing up from a shared baseline while playing, not floating
-        // around a shared centre line, and it's what makes the paused
-        // state actually look "low down" rather than centred in the
-        // available height.
-        HStack(alignment: .bottom, spacing: 2.5) {
-            ForEach(barHeights.indices, id: \.self) { i in
-                Capsule()
-                    .fill(color.opacity(animating ? 0.85 : 0.4))
-                    .frame(width: 2.6, height: animating && phase ? barHeights[i] : pausedHeight)
-                    // repeatForever applies to *any* change in `phase`,
-                    // including the transition into paused — an easeOut
-                    // curve there (tried previously) still isn't a plain
-                    // instant stop, and a still-in-flight repeatForever
-                    // animation on the layer isn't guaranteed to be fully
-                    // superseded by a new one-shot curve for the same
-                    // property. Using `nil` for the paused case is a real
-                    // "no animation at all" rather than a differently-
-                    // shaped one, guaranteeing an instant, motionless snap.
-                    .animation(
-                        animating
-                            ? .easeInOut(duration: 0.42 + Double(i) * 0.08)
-                                .repeatForever(autoreverses: true)
-                                .delay(Double(i) * 0.11)
-                            : nil,
-                        value: phase
-                    )
+        TimelineView(.animation(paused: !animating)) { context in
+            // Bottom-aligned rather than centred — bars should read as
+            // growing up from a shared baseline while playing, not
+            // floating around a shared centre line, and it's what makes
+            // the paused state actually look "low down" rather than
+            // centred in the available height.
+            HStack(alignment: .bottom, spacing: 2.5) {
+                ForEach(barHeights.indices, id: \.self) { i in
+                    Capsule()
+                        .fill(color.opacity(animating ? 0.85 : 0.4))
+                        .frame(width: 2.6, height: animating ? height(for: i, at: context.date) : pausedHeight)
+                }
             }
         }
         .frame(height: 14, alignment: .bottom)
-        .onAppear { phase = animating }
-        .onChange(of: animating) { _, isAnimating in
-            if isAnimating {
-                phase = true
-            } else {
-                // Belt and braces: explicitly disable animation for this
-                // transaction too, not just via the nil curve above, so
-                // pausing can never pick up an ambient/inherited animation
-                // from somewhere else in the view tree.
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) { phase = false }
-            }
-        }
+    }
+
+    /// A per-bar sine wave, each at its own speed/phase offset so they
+    /// don't move in lockstep — sampled fresh from wall-clock time, no
+    /// stored animation state to leave running.
+    private func height(for index: Int, at date: Date) -> CGFloat {
+        let speed = 3.4 + Double(index) * 0.7
+        let phaseOffset = Double(index) * 1.4
+        let wave = (sin(date.timeIntervalSinceReferenceDate * speed + phaseOffset) + 1) / 2
+        return minHeight + wave * (barHeights[index] - minHeight)
     }
 }
 
