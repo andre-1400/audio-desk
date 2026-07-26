@@ -317,13 +317,12 @@ struct DesktopWidgetView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             .padding(.trailing, size.width * 0.13)
 
-            // Nudged a touch below true vertical centre — dead centre read
-            // as slightly high once the disc/tonearm's own weight (which
-            // extends further above its centre than below) sat next to it.
+            // True vertical centre — same as the disc's own frame — so the
+            // two line up level with each other instead of the row sitting
+            // below the disc's centre.
             transportRow(iconSize: iconSize)
                 .padding(.leading, leadingPad + size.width * 0.1)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .offset(y: size.height * 0.04)
 
             // Its own full-width row spanning almost the entire screen,
             // independent of the disc/button column widths above it,
