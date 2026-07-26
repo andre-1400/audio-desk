@@ -237,7 +237,12 @@ struct DesktopWidgetView: View {
     private func backdrop(in size: CGSize) -> some View {
         ZStack {
             Color.black
-            if let art = effectiveArt {
+            // Custom mode always uses the chosen colour's own gradient here,
+            // never the blurred album art — otherwise the backdrop stayed
+            // tied to whatever's playing regardless of style, and picking a
+            // custom colour had nothing left to actually change once the
+            // album-art ring (the only other thing it touched) is gone.
+            if !isCustom, let art = effectiveArt {
                 Image(nsImage: art)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -317,7 +322,12 @@ struct DesktopWidgetView: View {
                     albumArt: effectiveArt,
                     vinylTint: theme.albumArtLabelGradient.first ?? Color(hex: "9B5523"),
                     albumArtLabelGradient: theme.albumArtLabelGradient,
-                    albumArtRingColor: theme.albumArtRingColor,
+                    // No ring around the album art here — in Custom mode
+                    // this was the only thing that actually changed colour
+                    // (everything else stayed tied to the adaptive palette),
+                    // which read as a stray coloured outline rather than the
+                    // disc actually reflecting the custom colour.
+                    albumArtRingColor: .clear,
                     labelDiameter: 125
                 )
                 .scaleEffect(discScale)
