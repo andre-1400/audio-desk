@@ -35,7 +35,13 @@ final class DesktopWidgetWindow: NSPanel {
         backgroundColor = .black
         hasShadow = false
         level = NSWindow.Level(Int(CGWindowLevelForKey(.dockWindow)) + 1)
-        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+        // No .canJoinAllSpaces — that made the window follow you into
+        // every Space, including another app's own full-screen Space
+        // (e.g. a full-screen Claude Code window), which isn't "the
+        // desktop" in any meaningful sense. Without it, the window stays
+        // put on whichever Space/desktop it was opened on, like a normal
+        // window would.
+        collectionBehavior = [.stationary, .ignoresCycle]
         isMovableByWindowBackground = false
         hidesOnDeactivate = false
         // Off, unlike WidgetWindow — this flag makes AppKit deliver a
