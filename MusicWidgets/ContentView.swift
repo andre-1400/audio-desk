@@ -189,7 +189,7 @@ private struct GallerySidebar: View {
                 }
             )) {
                 Section("Library") {
-                    ForEach(WidgetCategory.allCases) { cat in
+                    ForEach(WidgetCategory.availableCases) { cat in
                         Label(cat.title, systemImage: cat.icon)
                             .tag(cat)
                     }
@@ -555,6 +555,7 @@ private struct GalleryDetail: View {
     let detector: MusicDetector
     @ObservedObject private var activeWidget = ActiveWidgetState.shared
     @ObservedObject private var sizeM = WidgetSizeManager.shared
+    @ObservedObject private var notchState = NotchWidgetState.shared
     // Deduped (identity-only) live feed for preview cards — see
     // GalleryLiveTrack's own doc comment for why this is safe to observe
     // here despite the scroll-lag history with the raw detector.
@@ -581,8 +582,9 @@ private struct GalleryDetail: View {
                     .foregroundStyle(Neu.text)
                 Spacer()
                 // Widget size, right where you pick the widget — not
-                // meaningful for Desktop, which is always full screen.
-                if category != .desktop {
+                // meaningful for Desktop (always full screen) or Notch
+                // (sized to the physical notch, not user-adjustable).
+                if category != .desktop && category != .notch {
                     VStack(alignment: .trailing, spacing: 6) {
                         Text("SIZE")
                             .font(.system(size: 10, weight: .semibold)).tracking(1.2)
@@ -685,7 +687,7 @@ private struct GalleryDetail: View {
                                 AlbumArtModelPreview(model: model, live: liveTrack)
                             }
                         }
-                    } else {
+                    } else if category == .desktop {
                         ForEach(DesktopWidgetModel.forms) { form in
                             formSection(name: form.name,
                                         count: form.models.count, items: form.models) { model in
@@ -710,6 +712,24 @@ private struct GalleryDetail: View {
                                 }
                             }
                         }
+                    } else {
+                        // Notch — a single on/off toggle, not a style grid:
+                        // there's nothing to pick between, just enabled or
+                        // not, so this skips formSection's grouping/grid
+                        // machinery entirely and reuses GalleryCard directly.
+                        GalleryCard(title: "Now Playing", subtitle: "Shows up in your MacBook's notch",
+                                    accent: category.accentColor,
+                                    hovered: hoveredID == "notch",
+                                    active: notchState.isEnabled,
+                                    activeLabel: "Enabled",
+                                    placeLabel: notchState.isEnabled ? "Turn Off" : "Turn On",
+                                    placeIcon: notchState.isEnabled ? "xmark.circle" : "power",
+                                    onHover: { setHover("notch", $0) },
+                                    action: { notchState.isEnabled.toggle() }) { animated in
+                            NotchWidgetModelPreview(animated: animated, live: liveTrack)
+                        }
+                        .padding(.top, 4)
+                        .frame(maxWidth: 340, alignment: .leading)
                     }
                 }
                 .padding(.horizontal, 34)
@@ -1029,6 +1049,9 @@ private struct GalleryCard<P: View>: View {
     let accent: Color
     let hovered: Bool
     var active: Bool = false
+    // "On desktop" fits every placeable widget; Notch's card passes "Enabled"
+    // instead since it's never actually placed "on the desktop."
+    var activeLabel: String = "On desktop"
     // "Place" implies immediate placement, which is what every card does
     // except Custom — that one opens the colour picker first, so its cards
     // pass "Customize" instead.
@@ -1087,7 +1110,7 @@ private struct GalleryCard<P: View>: View {
                         HStack(spacing: 5) {
                             Circle().fill(Color(hex: "53e08a")).frame(width: 6, height: 6)
                                 .shadow(color: Color(hex: "53e08a").opacity(0.8), radius: 3)
-                            Text("On desktop").font(.system(size: 10.5, weight: .semibold))
+                            Text(activeLabel).font(.system(size: 10.5, weight: .semibold))
                         }
                         .foregroundStyle(Neu.text)
                         .padding(.horizontal, 10).padding(.vertical, 5)
@@ -1799,14 +1822,23 @@ private struct VinylWidgetReplica: View {
 // MARK: - Category model
 
 enum WidgetCategory: String, Identifiable, CaseIterable {
-    case vinyl, cd, albumArt, desktop
+    case vinyl, cd, albumArt, desktop, notch
     var id: String { rawValue }
+
+    /// Notch is only offered on hardware that actually has one — no fallback
+    /// pill on ordinary screens (per design decision), so it's simply
+    /// omitted from the sidebar everywhere else rather than shown disabled.
+    static var availableCases: [WidgetCategory] {
+        allCases.filter { $0 != .notch || NotchDetector.hasNotch }
+    }
+
     var title: String {
         switch self {
         case .vinyl: return "Vinyl"
         case .cd: return "CD Players"
         case .albumArt: return "Album Art"
         case .desktop: return "Desktop"
+        case .notch: return "Notch"
         }
     }
     var icon: String {
@@ -1815,6 +1847,7 @@ enum WidgetCategory: String, Identifiable, CaseIterable {
         case .cd: return "opticaldisc"
         case .albumArt: return "photo.on.rectangle.angled"
         case .desktop: return "macwindow"
+        case .notch: return "circle.grid.2x1.fill"
         }
     }
     var accentColor: Color { AMTheme.accent }

@@ -20,6 +20,7 @@
 		AA000702 /* HSVColorPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000703 /* HSVColorPickerView.swift */; };
 		AA000704 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000705 /* DesignSystem.swift */; };
 		AA000708 /* DesktopWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000709 /* DesktopWidgetView.swift */; };
+		AA00070A /* NotchWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00070B /* NotchWidgetView.swift */; };
 		AA000106 /* WidgetWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000116 /* WidgetWindow.swift */; };
 		AA000107 /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000117 /* WidgetTheme.swift */; };
 		AA000108 /* SongSwitchAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000118 /* SongSwitchAnimator.swift */; };
@@ -54,6 +55,7 @@
 		AA000703 /* HSVColorPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HSVColorPickerView.swift; sourceTree = "<group>"; };
 		AA000705 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		AA000709 /* DesktopWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopWidgetView.swift; sourceTree = "<group>"; };
+		AA00070B /* NotchWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchWidgetView.swift; sourceTree = "<group>"; };
 		AA000116 /* WidgetWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetWindow.swift; sourceTree = "<group>"; };
 		AA000117 /* WidgetTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTheme.swift; sourceTree = "<group>"; };
 		AA000118 /* SongSwitchAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongSwitchAnimator.swift; sourceTree = "<group>"; };
@@ -97,6 +99,7 @@
 				AA000703 /* HSVColorPickerView.swift */,
 				AA000705 /* DesignSystem.swift */,
 				AA000709 /* DesktopWidgetView.swift */,
+				AA00070B /* NotchWidgetView.swift */,
 				AA000116 /* WidgetWindow.swift */,
 				AA000117 /* WidgetTheme.swift */,
 				AA000118 /* SongSwitchAnimator.swift */,
@@ -217,6 +220,7 @@
 				AA000702 /* HSVColorPickerView.swift in Sources */,
 				AA000704 /* DesignSystem.swift in Sources */,
 				AA000708 /* DesktopWidgetView.swift in Sources */,
+				AA00070A /* NotchWidgetView.swift in Sources */,
 				AA000106 /* WidgetWindow.swift in Sources */,
 				AA000107 /* WidgetTheme.swift in Sources */,
 				AA000108 /* SongSwitchAnimator.swift in Sources */,

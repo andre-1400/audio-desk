@@ -27,6 +27,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var vinylHorizontalModel: VinylHorizontalModel?
     private var desktopWidgetWindow: DesktopWidgetWindow?
     private var desktopWidgetModel: DesktopWidgetModel?
+    private var notchWidgetWindow: NotchWidgetWindow?
 
     private var galleryWindow: NSWindow?
     private var statusItem: NSStatusItem?
@@ -71,6 +72,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             showGallery()
         }
+
+        // Independent of the above — not part of the exclusivity group.
+        // This also creates the window immediately if the setting was left
+        // on from a previous launch (the sink fires once on subscribe with
+        // the current value).
+        bindNotchWidgetState()
 
         // Live-update the active widget when size settings change.
         WidgetSizeManager.shared.$scale
@@ -929,6 +936,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         desktopWidgetModel = nil
+    }
+
+    // MARK: - Notch widget (independent — not part of the one-at-a-time
+    // exclusivity group every other widget follows). It's tiny, lives only
+    // at the very top of one specific screen, and is meant to keep running
+    // alongside whatever else is placed, so none of the launchXWidget
+    // functions above close it and it never touches ActiveWidgetState.
+    //
+    // NotchWidgetState.shared.isEnabled is the single source of truth (the
+    // gallery toggle reads/writes it directly, no AppDelegate round-trip
+    // needed for that) — this just mirrors it into an actual window
+    // existing or not, and is also how the persisted setting gets restored
+    // at launch.
+    private func bindNotchWidgetState() {
+        NotchWidgetState.shared.$isEnabled
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] enabled in
+                if enabled { self?.createNotchWindowIfNeeded() } else { self?.destroyNotchWindow() }
+            }
+            .store(in: &globalCancellables)
+    }
+
+    private func createNotchWindowIfNeeded() {
+        guard notchWidgetWindow == nil else { return }
+        guard let screen = NotchDetector.notchedScreen,
+              let frame = NotchDetector.notchFrame(on: screen) else {
+            NotchWidgetState.shared.isEnabled = false
+            return
+        }
+
+        let window = NotchWidgetWindow(notchFrame: frame)
+        let host = NSHostingView(rootView: NotchWidgetView(onExpandedChange: { [weak window] expanded in
+            window?.setExpanded(expanded)
+        }))
+        host.frame = window.contentView?.bounds ?? .zero
+        host.autoresizingMask = [.width, .height]
+        window.contentView?.addSubview(host)
+        window.orderFrontRegardless()
+
+        notchWidgetWindow = window
+    }
+
+    private func destroyNotchWindow() {
+        notchWidgetWindow?.orderOut(nil)
+        notchWidgetWindow = nil
     }
 }
 
