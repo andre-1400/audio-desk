@@ -274,6 +274,7 @@ struct NotchWidgetView: View {
             // idleHeight is the tighter of the two dimensions to work with.
             .frame(width: metrics.idleHeight * 0.8, height: metrics.idleHeight * 0.8)
             .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .padding(.leading, 6)
             .frame(width: metrics.idleLeftWidth)
 
             Color.clear.frame(width: metrics.notch.width)
