@@ -61,24 +61,17 @@ struct CDModel: Identifiable {
     var isCustom: Bool = false
 
     static let all: [CDModel] = [
-        // ===== Discman (portable) — Adaptive + Custom first, then a few basics =====
+        // ===== Discman (portable) — Adaptive + Custom only =====
         CDModel(id: "discman-adaptive", name: "Adaptive", subtitle: "Matches the album art, live",
                 archetype: .discman, material: .adaptivePlaceholder, isAdaptive: true),
         CDModel(id: "discman-custom", name: "Custom", subtitle: "Pick your own exact colour",
                 archetype: .discman, material: .adaptivePlaceholder, isCustom: true),
-        CDModel(id: "discman-silver", name: "Silver", subtitle: "Brushed silver", archetype: .discman, material: .silver),
-        CDModel(id: "discman-noir",   name: "Noir",   subtitle: "Stealth black",  archetype: .discman, material: .noir),
-        CDModel(id: "discman-ruby",   name: "Ruby",   subtitle: "Glossy red",     archetype: .discman, material: .ruby),
-        CDModel(id: "discman-ivory",  name: "Ivory",  subtitle: "Warm cream",     archetype: .discman, material: .ivory),
 
-        // ===== Hi-Fi deck (component) — Adaptive + Custom first, then a few basics =====
+        // ===== Hi-Fi deck (component) — Adaptive + Custom only =====
         CDModel(id: "hifi-adaptive", name: "Adaptive", subtitle: "Matches the album art, live",
                 archetype: .hifi, material: .adaptivePlaceholder, isAdaptive: true),
         CDModel(id: "hifi-custom",  name: "Custom",   subtitle: "Pick your own exact colour",
-                archetype: .hifi, material: .adaptivePlaceholder, isCustom: true),
-        CDModel(id: "hifi-aluminum", name: "Aluminum", subtitle: "Brushed aluminum", archetype: .hifi, material: .aluminum),
-        CDModel(id: "hifi-onyx",     name: "Onyx",     subtitle: "Matte black",     archetype: .hifi, material: .onyx),
-        CDModel(id: "hifi-navy",     name: "Navy",     subtitle: "Deep blue steel", archetype: .hifi, material: .navy)
+                archetype: .hifi, material: .adaptivePlaceholder, isCustom: true)
     ]
 }
 
@@ -101,69 +94,6 @@ extension CDModel {
 }
 
 extension CDMaterial {
-    static let silver = CDMaterial(
-        housing: [Color(hex: "262b33"), Color(hex: "171a20"), Color(hex: "0d0f13")],
-        ring: [Color(hex: "eef2f8"), Color(hex: "9aa3b0"), Color(hex: "4a5058"), Color(hex: "c8d0da")],
-        accent: Color(hex: "5fd8ff"), lidTint: Color(hex: "0a1018"), lidOpacity: 0.28,
-        well: [Color(hex: "0a0c10"), Color(hex: "04050a")],
-        panel: [Color(hex: "2a2f38"), Color(hex: "171b21")],
-        lcdBg: [Color(hex: "0a2a30"), Color(hex: "061a1e")], lcd: Color(hex: "67f0d8"),
-        subtitle: Color(hex: "8a94a2"), isLight: false)
-
-    static let noir = CDMaterial(
-        housing: [Color(hex: "1a1c20"), Color(hex: "101216"), Color(hex: "070809")],
-        ring: [Color(hex: "c8ccd2"), Color(hex: "7a8088"), Color(hex: "3a3f46"), Color(hex: "a6acb4")],
-        accent: Color(hex: "47c7e8"), lidTint: Color(hex: "05080c"), lidOpacity: 0.30,
-        well: [Color(hex: "08090c"), Color(hex: "030405")],
-        panel: [Color(hex: "222630"), Color(hex: "121519")],
-        lcdBg: [Color(hex: "07262b"), Color(hex: "04161a")], lcd: Color(hex: "58e6cf"),
-        subtitle: Color(hex: "7a828e"), isLight: false)
-
-    static let aluminum = CDMaterial(
-        housing: [Color(hex: "e8ebf0"), Color(hex: "d2d7df"), Color(hex: "b6bdc8")],
-        ring: [Color(hex: "ffffff"), Color(hex: "c8d0dc"), Color(hex: "9aa4b4"), Color(hex: "e6ebf2")],
-        accent: Color(hex: "3f9ad8"), lidTint: Color(hex: "dfe7f2"), lidOpacity: 0.22,
-        well: [Color(hex: "aeb6c2"), Color(hex: "868e9c")],
-        panel: [Color(hex: "f4f6fa"), Color(hex: "dce2ec")],
-        lcdBg: [Color(hex: "9fc0c4"), Color(hex: "84a8ac")], lcd: Color(hex: "10302e"),
-        subtitle: Color(hex: "6a7280"), isLight: true)
-
-    static let onyx = CDMaterial(
-        housing: [Color(hex: "26282c"), Color(hex: "17191c"), Color(hex: "0c0d0f")],
-        ring: [Color(hex: "d8dce2"), Color(hex: "8c929a"), Color(hex: "42474e"), Color(hex: "b4bac2")],
-        accent: Color(hex: "8affc8"), lidTint: Color(hex: "07080a"), lidOpacity: 0.28,
-        well: [Color(hex: "0a0b0d"), Color(hex: "030405")],
-        panel: [Color(hex: "2c2f34"), Color(hex: "16181b")],
-        lcdBg: [Color(hex: "06241c"), Color(hex: "041510")], lcd: Color(hex: "7dffc4"),
-        subtitle: Color(hex: "868d96"), isLight: false)
-
-    static let ruby = CDMaterial(
-        housing: [Color(hex: "c0303a"), Color(hex: "94202a"), Color(hex: "6a141c")],
-        ring: [Color(hex: "f4f0f0"), Color(hex: "c0b6b8"), Color(hex: "6a5e60"), Color(hex: "e0d6d8")],
-        accent: Color(hex: "ffd0c0"), lidTint: Color(hex: "2a0808"), lidOpacity: 0.28,
-        well: [Color(hex: "2a0a0c"), Color(hex: "160506")],
-        panel: [Color(hex: "a83038"), Color(hex: "7a1c24")],
-        lcdBg: [Color(hex: "2a0c0a"), Color(hex: "180604")], lcd: Color(hex: "ffb0a0"),
-        subtitle: Color(hex: "e0b0b0"), isLight: false)
-
-    static let ivory = CDMaterial(
-        housing: [Color(hex: "f4f1ea"), Color(hex: "e6e1d6"), Color(hex: "d4cdbe")],
-        ring: [Color(hex: "ffffff"), Color(hex: "d8d2c6"), Color(hex: "a89e8e"), Color(hex: "ece6da")],
-        accent: Color(hex: "d8954f"), lidTint: Color(hex: "efe8da"), lidOpacity: 0.22,
-        well: [Color(hex: "c0b8a8"), Color(hex: "9a9080")],
-        panel: [Color(hex: "faf7f0"), Color(hex: "e8e2d6")],
-        lcdBg: [Color(hex: "b8c4b0"), Color(hex: "9aa894")], lcd: Color(hex: "2a3420"),
-        subtitle: Color(hex: "8a8070"), isLight: true)
-
-    static let navy = CDMaterial(
-        housing: [Color(hex: "1f3358"), Color(hex: "152544"), Color(hex: "0c1830")],
-        ring: [Color(hex: "e6eeff"), Color(hex: "aac2e6"), Color(hex: "5e7aa4"), Color(hex: "cdddf4")],
-        accent: Color(hex: "7fc0ff"), lidTint: Color(hex: "08122a"), lidOpacity: 0.28,
-        well: [Color(hex: "0c1a36"), Color(hex: "06101f")],
-        panel: [Color(hex: "28406e"), Color(hex: "17284c")],
-        lcdBg: [Color(hex: "0a2040"), Color(hex: "06142c")], lcd: Color(hex: "a8d0ff"),
-        subtitle: Color(hex: "9ab0d0"), isLight: false)
-
     // MARK: Adaptive — colour tracks the currently playing album's art.
     // Neutral chrome ring, same as every other material (a real CD's clamp
     // ring doesn't change colour with the disc), everything else derived.

@@ -26,10 +26,7 @@ struct VinylHorizontalModel: Identifiable {
     static let all: [VinylHorizontalModel] = [
         VinylHorizontalModel(id: "hbar-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", themeID: .adaptive),
         VinylHorizontalModel(id: "hbar-custom", name: "Custom", subtitle: "Pick your own exact colour", themeID: .custom),
-        VinylHorizontalModel(id: "hbar-ghost", name: "Ghost", subtitle: "No body — just the disc and text", themeID: .ghost),
-        VinylHorizontalModel(id: "hbar-classic", name: "Classic", subtitle: "Warm wood & gold", themeID: .default),
-        VinylHorizontalModel(id: "hbar-obsidian", name: "Obsidian", subtitle: "Jet black & chrome", themeID: .obsidian),
-        VinylHorizontalModel(id: "hbar-pearl", name: "Pearl", subtitle: "Cream & terracotta", themeID: .pearl)
+        VinylHorizontalModel(id: "hbar-ghost", name: "Ghost", subtitle: "No body — just the disc and text", themeID: .ghost)
     ]
 }
 

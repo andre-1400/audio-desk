@@ -1274,11 +1274,7 @@ extension VinylStyle {
                   styles: [
                     VinylStyle(themeID: .adaptive, name: "Adaptive", subtitle: "Matches the album art, live"),
                     VinylStyle(themeID: .custom,   name: "Custom",   subtitle: "Pick your own exact colour"),
-                    VinylStyle(themeID: .ghost,    name: "Ghost",    subtitle: "No body — just the disc and text"),
-                    VinylStyle(themeID: .default,  name: "Classic",  subtitle: "Warm wood & gold"),
-                    VinylStyle(themeID: .obsidian, name: "Obsidian", subtitle: "Jet black & chrome"),
-                    VinylStyle(themeID: .pearl,    name: "Pearl",    subtitle: "Cream & terracotta"),
-                    VinylStyle(themeID: .midnight, name: "Midnight", subtitle: "Navy & steel")
+                    VinylStyle(themeID: .ghost,    name: "Ghost",    subtitle: "No body — just the disc and text")
                   ])
     ]
 

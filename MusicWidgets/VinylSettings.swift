@@ -143,11 +143,10 @@ struct VinylModelTraits {
 }
 
 extension WidgetThemeID {
-    // Every remaining style (Adaptive/Custom/Ghost/Classic/Obsidian/Pearl/
-    // Midnight) uses the plain default traits — the retro/studio-specific
-    // trait combos were only used by the styles removed in the big
-    // style-list trim. Ghost's "no housing" look comes from
-    // WidgetThemePalette.showBody, not from a trait.
+    // Every remaining style (Adaptive/Custom/Ghost) uses the plain default
+    // traits — the retro/studio-specific trait combos, and later every
+    // fixed prebuilt colourway, were removed. Ghost's "no housing" look
+    // comes from WidgetThemePalette.showBody, not from a trait.
     var traits: VinylModelTraits {
         VinylModelTraits()
     }

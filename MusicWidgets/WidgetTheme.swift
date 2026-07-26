@@ -3,10 +3,11 @@ import Foundation
 import Combine
 
 enum WidgetThemeID: String, CaseIterable {
+    // Not a user-facing gallery choice anymore (every fixed prebuilt
+    // colourway was removed) — kept only as the neutral base palette
+    // GeneratedThemeSpec.toWidgetThemePalette derives its fallback colours
+    // from.
     case `default` = "default"
-    case pearl = "pearl"
-    case obsidian = "obsidian"
-    case midnight = "midnight"
     // Live — colours track whatever's currently playing instead of a fixed palette
     case adaptive = "adaptive"
     // Fixed — colour picked once by the user via HSVColorPickerView, not tied
@@ -116,95 +117,6 @@ extension WidgetThemeID {
                 sleevePlaceholderMiddle: Color(hex: "1e1208"),
                 sleevePlaceholderInner: Color(hex: "3a2a1a"),
                 sleevePlaceholderLetter: Color(hex: "b89a60")
-            )
-
-        // MARK: Pearl (cream/ivory enclosure, warm terra cotta accents)
-        case .pearl:
-            return WidgetThemePalette(
-                showBody: true,
-                showBodyTexture: false,
-                widgetBodyGradient: [Color(hex: "f8f4ee"), Color(hex: "f0ebe0"), Color(hex: "e8e0d0"), Color(hex: "f0ebe0")],
-                widgetBorder: Color(hex: "c8a878").opacity(0.40),
-                widgetTopSheen: Color(hex: "ffffff").opacity(0.50),
-                albumArtLabelGradient: [Color(hex: "9B5523"), Color(hex: "6C3E1A"), Color(hex: "3a1a06")],
-                albumArtRingColor: Color(hex: "c8855a").opacity(0.40),
-                trackPlayingDot: Color(hex: "c8855a"),
-                trackPausedDot: Color(hex: "b09070"),
-                trackTitle: Color(hex: "3a2010"),
-                trackArtist: Color(hex: "7a5a40"),
-                trackIdle: Color(hex: "c0a888"),
-                screwGradient: [Color(hex: "d4b890"), Color(hex: "b09060"), Color(hex: "8a7050")],
-                shelfButtonBackground: Color(hex: "f0ebe0"),
-                shelfButtonRing: Color(hex: "c8a878"),
-                shelfButtonIcon: Color(hex: "8B5030"),
-                shelfPanelGradient: [Color(hex: "f8f4ee"), Color(hex: "f0ebe0"), Color(hex: "e8e0d0")],
-                shelfOutline: Color(hex: "c8a878").opacity(0.20),
-                queueBarText: Color(hex: "3a2010"),
-                queueBarBackground: Color(hex: "f0ebe0"),
-                queueBarBorder: Color(hex: "c8a878").opacity(0.15),
-                connectOverlayIcon: Color(hex: "b09070"),
-                connectOverlayTitle: Color(hex: "3a2010"),
-                connectOverlaySubtitle: Color(hex: "7a5a40"),
-                connectOverlayBackground: Color(hex: "f8f4ee"),
-                connectOverlayBorder: Color(hex: "c8a878").opacity(0.20),
-                sleeveCardGradient: [Color(hex: "f0ebe0"), Color(hex: "e8e0d0"), Color(hex: "e0d8c8")],
-                sleeveCardBorder: Color(hex: "c8a878").opacity(0.15),
-                sleeveNowText: Color(hex: "3a2010"),
-                sleeveNowBackground: Color(hex: "f0ebe0"),
-                sleevePlaceholderOuter: Color(hex: "e8e0d0"),
-                sleevePlaceholderMiddle: Color(hex: "f0ebe0"),
-                sleevePlaceholderInner: Color(hex: "e8ddd0"),
-                sleevePlaceholderLetter: Color(hex: "b09070")
-            )
-
-        // MARK: Obsidian (jet black enclosure, chrome/silver accents)
-        case .obsidian:
-            return WidgetThemePalette(
-                showBody: true,
-                showBodyTexture: true,
-                widgetBodyGradient: [Color(hex: "050505"), Color(hex: "020202"), Color(hex: "080808"), Color(hex: "020202")],
-                widgetBorder: Color(hex: "a0a0a0").opacity(0.22),
-                widgetTopSheen: Color(hex: "ffffff").opacity(0.06),
-                albumArtLabelGradient: [Color(hex: "1a1a1a"), Color(hex: "0d0d0d"), Color(hex: "050505")],
-                albumArtRingColor: Color(hex: "c0c0c0").opacity(0.22),
-                trackPlayingDot: Color(hex: "e0e0e0"),
-                trackPausedDot: Color(hex: "606060"),
-                trackTitle: Color(hex: "f0f0f0"),
-                trackArtist: Color(hex: "909090"),
-                trackIdle: Color(hex: "404040"),
-                screwGradient: [Color(hex: "d0d0d0"), Color(hex: "808080"), Color(hex: "303030")],
-                shelfButtonBackground: Color(hex: "080808"),
-                shelfButtonRing: Color(hex: "a0a0a0"),
-                shelfButtonIcon: Color(hex: "c0c0c0"),
-                shelfPanelGradient: [Color(hex: "050505"), Color(hex: "020202"), Color(hex: "080808")],
-                shelfOutline: Color(hex: "a0a0a0").opacity(0.12),
-                queueBarText: Color(hex: "f0f0f0"),
-                queueBarBackground: Color(hex: "080808"),
-                queueBarBorder: Color(hex: "a0a0a0").opacity(0.10),
-                connectOverlayIcon: Color(hex: "808080"),
-                connectOverlayTitle: Color(hex: "f0f0f0"),
-                connectOverlaySubtitle: Color(hex: "909090"),
-                connectOverlayBackground: Color(hex: "0e0e0e"),
-                connectOverlayBorder: Color(hex: "a0a0a0").opacity(0.12),
-                sleeveCardGradient: [Color(hex: "121212"), Color(hex: "080808"), Color(hex: "050505")],
-                sleeveCardBorder: Color(hex: "a0a0a0").opacity(0.10),
-                sleeveNowText: Color(hex: "f0f0f0"),
-                sleeveNowBackground: Color(hex: "080808"),
-                sleevePlaceholderOuter: Color(hex: "121212"),
-                sleevePlaceholderMiddle: Color(hex: "080808"),
-                sleevePlaceholderInner: Color(hex: "101010"),
-                sleevePlaceholderLetter: Color(hex: "909090")
-            )
-
-        case .midnight:
-            return makeVinylPalette(
-                texture: true,
-                body: ["12203a", "0c1828", "08101e", "0c1828"],
-                border: "8090b0", borderOpacity: 0.22, sheen: "ffffff", sheenOpacity: 0.06,
-                label: ["1a2840", "0e1828", "080f1c"], ring: "a0b0d0",
-                accent: "6a90d0", paused: "5a6a85",
-                title: "e0e8f5", artist: "8a98b5", idle: "405068",
-                screw: ["c0c8d8", "7888a0", "303a4a"], dark: true
             )
 
         // MARK: Adaptive — body colour tracks the currently playing album's
@@ -342,64 +254,6 @@ extension WidgetThemeID {
             sleevePlaceholderLetter: artist
         )
     }
-}
-
-// MARK: - Vinyl palette factory
-// Builds a full WidgetThemePalette from a small set of key colors so new
-// styles stay concise and consistent. Functionality is identical — this only
-// supplies color data to the existing renderer.
-private func makeVinylPalette(
-    texture: Bool,
-    body: [String],
-    border: String, borderOpacity: Double,
-    sheen: String, sheenOpacity: Double,
-    label: [String], ring: String,
-    accent: String, paused: String,
-    title: String, artist: String, idle: String,
-    screw: [String], dark: Bool,
-    showBody: Bool = true
-) -> WidgetThemePalette {
-    let bodyColors = body.map { Color(hex: $0) }
-    let labelColors = label.map { Color(hex: $0) }
-    let screwColors = screw.map { Color(hex: $0) }
-    let darkest = bodyColors.last ?? Color(hex: body[0])
-
-    return WidgetThemePalette(
-        showBody: showBody,
-        showBodyTexture: showBody && texture,
-        widgetBodyGradient: bodyColors,
-        widgetBorder: Color(hex: border).opacity(borderOpacity),
-        widgetTopSheen: Color(hex: sheen).opacity(sheenOpacity),
-        albumArtLabelGradient: labelColors,
-        albumArtRingColor: Color(hex: ring).opacity(0.32),
-        trackPlayingDot: Color(hex: accent),
-        trackPausedDot: Color(hex: paused),
-        trackTitle: Color(hex: title),
-        trackArtist: Color(hex: artist),
-        trackIdle: Color(hex: idle),
-        screwGradient: screwColors,
-        shelfButtonBackground: darkest,
-        shelfButtonRing: Color(hex: accent),
-        shelfButtonIcon: Color(hex: accent),
-        shelfPanelGradient: Array(bodyColors.prefix(3)),
-        shelfOutline: Color(hex: border).opacity(borderOpacity * 0.6),
-        queueBarText: Color(hex: title),
-        queueBarBackground: darkest,
-        queueBarBorder: Color(hex: border).opacity(borderOpacity * 0.5),
-        connectOverlayIcon: Color(hex: paused),
-        connectOverlayTitle: Color(hex: title),
-        connectOverlaySubtitle: Color(hex: artist),
-        connectOverlayBackground: bodyColors.count > 1 ? bodyColors[1] : darkest,
-        connectOverlayBorder: Color(hex: border).opacity(borderOpacity * 0.6),
-        sleeveCardGradient: Array(bodyColors.prefix(3)),
-        sleeveCardBorder: Color(hex: border).opacity(borderOpacity * 0.6),
-        sleeveNowText: Color(hex: title),
-        sleeveNowBackground: darkest,
-        sleevePlaceholderOuter: bodyColors.count > 1 ? bodyColors[1] : darkest,
-        sleevePlaceholderMiddle: bodyColors.count > 2 ? bodyColors[2] : darkest,
-        sleevePlaceholderInner: bodyColors[0],
-        sleevePlaceholderLetter: Color(hex: artist)
-    )
 }
 
 final class WidgetThemeManager: ObservableObject {
