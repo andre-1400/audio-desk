@@ -349,7 +349,7 @@ struct CDWidgetView: View {
     private var trackKey: String { "\(np.trackName)|\(np.artistName)|\(np.albumName)" }
 
     private var targetSpeed: Double {
-        if isPreview { return previewSpinning ? 760 : 0 }
+        if isPreview { return previewSpinning ? maxSpinSpeed : 0 }
         switch transition.phase {
         case .spinUp, .idle: return playing ? maxSpinSpeed : 0
         default: return 0
