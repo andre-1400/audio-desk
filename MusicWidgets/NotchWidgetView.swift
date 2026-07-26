@@ -83,14 +83,20 @@ struct NotchLayoutMetrics {
     // Locked in at commit 9d27cba was 48/64/+14 — scaled down ~0.8x here
     // (proportionally, not independently) per feedback that it read as too
     // bulky overall.
-    let idleLeftWidth: CGFloat = 38
-    let idleRightWidth: CGFloat = 51
+    // User report: even at 38/51/+11, the idle pill still extended far
+    // enough past the real notch to visibly cut into other windows' own
+    // UI sitting in that same safe area (a browser tab strip, in the
+    // screenshot) — the actual physical notch is smaller than these
+    // values assumed. Cut hard toward "as close to the real notch's own
+    // footprint as possible" rather than another incremental trim.
+    let idleLeftWidth: CGFloat = 20
+    let idleRightWidth: CGFloat = 28
     var idleWidth: CGFloat { idleLeftWidth + notch.width + idleRightWidth }
     /// Only a little taller than the notch itself — this content sits
     /// beside the notch, not underneath it, so it doesn't need extra
     /// height to escape the cutout, just enough for a comfortably-sized
     /// icon.
-    var idleHeight: CGFloat { notch.height + 11 }
+    var idleHeight: CGFloat { notch.height + 6 }
 
     /// The one fixed window frame — big enough for the expanded state,
     /// centred on the notch, top edge flush with the screen's own top edge.
@@ -259,12 +265,12 @@ struct NotchWidgetView: View {
                 if let art {
                     Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
                 } else {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
                         .fill(Color.white.opacity(0.15))
                 }
             }
-            .frame(width: 24, height: 24)
-            .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            .frame(width: 16, height: 16)
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
             .frame(width: metrics.idleLeftWidth)
 
             Color.clear.frame(width: metrics.notch.width)
@@ -390,14 +396,14 @@ private struct EqualizerBars: View {
 
     @State private var phase = false
 
-    private let barHeights: [CGFloat] = [8, 19, 12, 15]
+    private let barHeights: [CGFloat] = [5, 12, 8, 10]
 
     var body: some View {
         HStack(alignment: .center, spacing: 2.5) {
             ForEach(barHeights.indices, id: \.self) { i in
                 Capsule()
                     .fill(Color.white.opacity(0.75))
-                    .frame(width: 2.6, height: animating && phase ? barHeights[i] : 3)
+                    .frame(width: 2, height: animating && phase ? barHeights[i] : 2.5)
                     .animation(
                         .easeInOut(duration: 0.42 + Double(i) * 0.08)
                             .repeatForever(autoreverses: true)
@@ -406,7 +412,7 @@ private struct EqualizerBars: View {
                     )
             }
         }
-        .frame(height: 22)
+        .frame(height: 14)
         .onAppear { phase = animating }
         .onChange(of: animating) { _, isAnimating in phase = isAnimating }
     }
