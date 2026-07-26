@@ -94,7 +94,7 @@ struct NotchLayoutMetrics {
     /// beside the notch, not underneath it, so it doesn't need extra
     /// height to escape the cutout, just enough for a comfortably-sized
     /// icon.
-    var idleHeight: CGFloat { notch.height + 2 }
+    var idleHeight: CGFloat { notch.height }
 
     /// The one fixed window frame — big enough for the expanded state,
     /// centred on the notch, top edge flush with the screen's own top edge.
