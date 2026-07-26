@@ -266,10 +266,8 @@ struct DesktopWidgetView: View {
         let eyebrowSize = size.height * 0.016
         // Transport icon size, proportional like everything else here — at
         // fixed point sizes these read fine on a real display but badly
-        // oversized on the much smaller gallery-preview canvas. The cap
-        // also matters on its own: 28pt read as too big on a real screen
-        // too, not just the preview card.
-        let iconSize = min(22, size.height * 0.02)
+        // oversized on the much smaller gallery-preview canvas.
+        let iconSize = min(48, size.height * 0.048)
 
         return ZStack {
             VStack(alignment: .leading, spacing: size.height * 0.012) {
@@ -319,17 +317,21 @@ struct DesktopWidgetView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             .padding(.trailing, size.width * 0.13)
 
-            // Vertically centred — the same height as the disc — rather
-            // than pinned to the bottom edge, so the two sides read as one
-            // balanced row instead of the disc floating above an
-            // unrelated control strip.
-            VStack(alignment: .center, spacing: size.height * 0.024) {
-                transportRow(iconSize: iconSize)
-                scrubBar
-                    .frame(width: size.width * 0.32)
-            }
-            .padding(.leading, leadingPad + size.width * 0.1)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+            // Nudged a touch below true vertical centre — dead centre read
+            // as slightly high once the disc/tonearm's own weight (which
+            // extends further above its centre than below) sat next to it.
+            transportRow(iconSize: iconSize)
+                .padding(.leading, leadingPad + size.width * 0.1)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                .offset(y: size.height * 0.04)
+
+            // Its own full-width row spanning almost the entire screen,
+            // independent of the disc/button column widths above it,
+            // rather than matching the transport row's narrower measure.
+            scrubBar
+                .frame(width: size.width * 0.88)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, size.height * 0.08)
         }
     }
 
