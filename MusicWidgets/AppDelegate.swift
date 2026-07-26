@@ -904,7 +904,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             existing.setFrame(screenFrame, display: true)
             existing.orderFrontRegardless()
             existing.alphaValue = WidgetSettings.shared.widgetOpacity
-            NSApp.presentationOptions = [.autoHideDock]
             return
         }
 
@@ -919,15 +918,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         applyWindowPreferences()
         fadeIn(window)
-        // Auto-hides the Dock while this widget is up — a full-screen
-        // window still leaves the Dock's own strip on top of everything
-        // (it sits above our window level), which can cover the bottom of
-        // the progress bar on a large display. This is the same sanctioned,
-        // app-session-scoped API real full-screen apps use to hide the
-        // Dock, not a change to Finder/Dock's own persistent settings —
-        // it reverts automatically the moment presentationOptions is reset
-        // below, with no lasting effect after this widget closes.
-        NSApp.presentationOptions = [.autoHideDock]
     }
 
     func closeDesktopWidget() {
@@ -939,7 +929,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         desktopWidgetModel = nil
-        NSApp.presentationOptions = []
     }
 }
 

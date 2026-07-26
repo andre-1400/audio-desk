@@ -9,11 +9,20 @@ import AppKit
 // clicks at that layer to Finder's own desktop interactions (icon
 // selection, empty-space gestures), not through to us, which is exactly
 // why transport buttons/the close button read as clicks on empty desktop
-// instead. Same level as WidgetWindow now (above icons, proven to receive
-// clicks reliably by every other widget) — being full-screen and opaque,
-// it still fully covers the icons underneath, so nothing shows through;
-// this level just also makes it interactive. Not draggable — there's
-// nowhere to drag a background to.
+// instead.
+//
+// Raised further still, above the Dock's own window level (not just
+// WidgetWindow's icon-level+1) — NSApp.presentationOptions'
+// .autoHideDock only actually hides the Dock while the requesting app is
+// the active/frontmost app, which this one deliberately never becomes
+// (.nonactivatingPanel, so it never steals focus from whatever you were
+// using). Since that route can't work here, sitting above the Dock's
+// level instead means our opaque full-screen window simply covers it —
+// same visual/interaction result (nothing shows through, clicks near the
+// bottom go to us, not the Dock) without needing the app to activate.
+// Being full-screen and opaque, it likewise still fully covers the
+// desktop icons underneath. Not draggable — there's nowhere to drag a
+// background to.
 final class DesktopWidgetWindow: NSPanel {
     init(frame: NSRect) {
         super.init(
@@ -25,7 +34,7 @@ final class DesktopWidgetWindow: NSPanel {
         isOpaque = true
         backgroundColor = .black
         hasShadow = false
-        level = NSWindow.Level(Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        level = NSWindow.Level(Int(CGWindowLevelForKey(.dockWindow)) + 1)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         isMovableByWindowBackground = false
         hidesOnDeactivate = false
