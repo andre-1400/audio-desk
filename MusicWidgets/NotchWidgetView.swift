@@ -75,15 +75,18 @@ struct NotchLayoutMetrics {
 
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
 
-    /// Idle now uses the *same* width as expanded — art on the left of the
-    /// notch, equalizer bars on the right, flanking it the way the
-    /// reference does, rather than both crammed into a pill only as wide
-    /// as the notch itself. Only a little taller than the notch itself:
-    /// unlike the earlier "hanging overhang" design, this content sits
+    /// Idle's own, narrower flanking columns — using the full expanded
+    /// width made the idle pill read as too long; this keeps the same
+    /// "art left of the notch, bars right of the notch, explicit gap over
+    /// it" structure but with much tighter columns, closer to how much
+    /// room the reference actually gives the idle state.
+    let idleLeftWidth: CGFloat = 48
+    let idleRightWidth: CGFloat = 64
+    var idleWidth: CGFloat { idleLeftWidth + notch.width + idleRightWidth }
+    /// Only a little taller than the notch itself — this content sits
     /// beside the notch, not underneath it, so it doesn't need extra
-    /// height to escape the cutout — just enough for a comfortably-sized
+    /// height to escape the cutout, just enough for a comfortably-sized
     /// icon.
-    var idleWidth: CGFloat { expandedWidth }
     var idleHeight: CGFloat { notch.height + 14 }
 
     /// The one fixed window frame — big enough for the expanded state,
@@ -247,15 +250,22 @@ struct NotchWidgetView: View {
                         .fill(Color.white.opacity(0.15))
                 }
             }
-            .frame(width: 34, height: 34)
+            .frame(width: 30, height: 30)
             .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .frame(width: metrics.leftWidth)
+            .frame(width: metrics.idleLeftWidth)
 
             Color.clear.frame(width: metrics.notch.width)
 
             EqualizerBars(animating: isPreview ? true : np.isPlaying)
-                .frame(width: metrics.rightWidth)
+                .frame(width: metrics.idleRightWidth)
         }
+        // Explicitly top-aligned, rather than left to this HStack's default
+        // vertical centring within idleHeight — centring is what was
+        // still reading as "not raised up": if idleHeight ends up taller
+        // than the content itself for any reason, centring drops it toward
+        // the middle of that space instead of hugging the top edge, which
+        // is where it needs to sit to actually read as flanking the notch.
+        .frame(height: metrics.idleHeight, alignment: .top)
     }
 
     // MARK: - Expanded: art on the left, title/artist/progress/transport
