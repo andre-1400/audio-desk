@@ -225,6 +225,7 @@ final class MusicDetector: ObservableObject {
             return .spotify
         }
 
+         
         // Fallback when scripts return partial metadata in unknown states.
         if !spotify.nowPlaying.trackName.isEmpty && apple.nowPlaying.trackName.isEmpty { return .spotify }
         if !apple.nowPlaying.trackName.isEmpty && spotify.nowPlaying.trackName.isEmpty { return .appleMusic }
@@ -365,8 +366,12 @@ final class MusicDetector: ObservableObject {
             }
         }
 
-        // Poll immediately so the UI updates fast
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        // Poll immediately so the UI updates fast. detectionQueue.sync
+        // above already blocked until the AppleScript command itself
+        // finished, so there's no need for the longer delay this used to
+        // have — just a small buffer for the target app's own state to
+        // catch up.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             self?.pollNowPlaying()
         }
     }
@@ -395,11 +400,14 @@ final class MusicDetector: ObservableObject {
             }
         }
 
-        // Poll a couple of times so the new track shows up quickly.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        // Poll a couple of times so the new track shows up quickly — same
+        // reasoning as togglePlayback: the command has already completed
+        // by this point, so these just need to be short buffers, not a
+        // deliberate wait.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             self?.pollNowPlaying()
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             self?.pollNowPlaying()
         }
     }
@@ -438,7 +446,7 @@ final class MusicDetector: ObservableObject {
             progressSampledAt: nowPlaying.isPlaying ? Date() : nil
         )
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
             self?.pollNowPlaying()
         }
     }

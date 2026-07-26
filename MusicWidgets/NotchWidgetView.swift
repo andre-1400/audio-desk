@@ -423,11 +423,21 @@ private struct EqualizerBars: View {
             ForEach(barHeights.indices, id: \.self) { i in
                 Capsule()
                     .fill(color.opacity(animating ? 0.85 : 0.4))
-                    .frame(width: 2, height: animating && phase ? barHeights[i] : pausedHeight)
+                    .frame(width: 2.6, height: animating && phase ? barHeights[i] : pausedHeight)
+                    // repeatForever applies to *any* change in `phase`,
+                    // including the transition into paused — which is what
+                    // was making the bars keep visibly bouncing between
+                    // their last playing height and pausedHeight instead of
+                    // settling, since that transition was using the same
+                    // endlessly-repeating curve as the playing state.
+                    // Conditioning the curve itself on `animating` gives
+                    // pausing a plain, one-shot settle instead.
                     .animation(
-                        .easeInOut(duration: 0.42 + Double(i) * 0.08)
-                            .repeatForever(autoreverses: true)
-                            .delay(Double(i) * 0.11),
+                        animating
+                            ? .easeInOut(duration: 0.42 + Double(i) * 0.08)
+                                .repeatForever(autoreverses: true)
+                                .delay(Double(i) * 0.11)
+                            : .easeOut(duration: 0.2),
                         value: phase
                     )
             }
