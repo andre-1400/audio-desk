@@ -87,16 +87,15 @@ struct CDModel: Identifiable {
 struct CDForm: Identifiable {
     let id: String
     let name: String
-    let subtitle: String
     let icon: String
     let models: [CDModel]
 }
 
 extension CDModel {
     static let forms: [CDForm] = [
-        CDForm(id: "discman", name: "Discman", subtitle: "Portable pocket player", icon: "opticaldisc",
+        CDForm(id: "discman", name: "Discman", icon: "opticaldisc",
                models: all.filter { $0.archetype == .discman }),
-        CDForm(id: "hifi", name: "Hi-Fi Deck", subtitle: "Component shelf unit", icon: "hifispeaker",
+        CDForm(id: "hifi", name: "Hi-Fi Deck", icon: "hifispeaker",
                models: all.filter { $0.archetype == .hifi })
     ]
 }

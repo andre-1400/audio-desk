@@ -89,20 +89,19 @@ struct DesktopWidgetModel: Identifiable {
 struct DesktopWidgetForm: Identifiable {
     let id: String
     let name: String
-    let subtitle: String
     let icon: String
     let models: [DesktopWidgetModel]
 }
 
 extension DesktopWidgetModel {
     static let forms: [DesktopWidgetForm] = [
-        DesktopWidgetForm(id: "desktop-vinyl", name: "Vinyl", subtitle: "Disc + tonearm, full screen",
+        DesktopWidgetForm(id: "desktop-vinyl", name: "Vinyl",
                            icon: "record.circle",
                            models: [
                             DesktopWidgetModel(id: "desktop-vinyl-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", style: .vinyl, themeID: .adaptive),
                             DesktopWidgetModel(id: "desktop-vinyl-custom", name: "Custom", subtitle: "Pick your own exact colour", style: .vinyl, themeID: .custom)
                            ]),
-        DesktopWidgetForm(id: "desktop-cover", name: "Cover", subtitle: "Full-screen album art",
+        DesktopWidgetForm(id: "desktop-cover", name: "Album Art",
                            icon: "photo",
                            models: [
                             DesktopWidgetModel(id: "desktop-cover-adaptive", name: "Adaptive", subtitle: "Matches the album art, live", style: .cover, themeID: .adaptive),
@@ -450,9 +449,23 @@ struct DesktopWidgetView: View {
     // MARK: - Cover layout — big centred art, iOS-lock-screen style
 
     private func coverLayout(in size: CGSize) -> some View {
+        // Proportional throughout, same reasoning as vinylLayout — fixed
+        // point sizes (30pt title, 22pt spacing, a 40pt shadow blur) were
+        // tuned for a real screen and together added up to more vertical
+        // space than the small 480x300 preview canvas actually has, forcing
+        // both Spacers to collapse and the content to overflow/clip. That
+        // overflow, combined with a 40pt shadow blur being enormous next to
+        // a ~150pt-wide preview art square, is what showed up as a stray
+        // division line near the top of the card — one that a real full
+        // screen (with far more room and a proportionally tiny shadow)
+        // never produces.
         let artSide = min(size.height * 0.5, size.width * 0.34)
+        let vSpacing = size.height * 0.04
+        let titleSize = min(30, size.height * 0.045)
+        let subtitleSize = min(18, size.height * 0.027)
+        let iconSize = min(28, size.height * 0.028)
 
-        return VStack(spacing: 22) {
+        return VStack(spacing: vSpacing) {
             Spacer(minLength: 0)
 
             Group {
@@ -466,20 +479,20 @@ struct DesktopWidgetView: View {
             .frame(width: artSide, height: artSide)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white.opacity(0.14), lineWidth: 1))
-            .shadow(color: .black.opacity(0.55), radius: 40, x: 0, y: 20)
+            .shadow(color: .black.opacity(0.55), radius: artSide * 0.12, x: 0, y: artSide * 0.06)
             .contentShape(Rectangle())
             .onTapGesture { togglePlayback() }
 
-            VStack(spacing: 6) {
+            VStack(spacing: vSpacing * 0.27) {
                 Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.system(size: titleSize, weight: .bold))
                     .foregroundStyle(fgPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .shadow(color: .black.opacity(0.4), radius: 8)
                 if !np.artistName.isEmpty {
                     Text(np.artistName)
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.system(size: subtitleSize, weight: .medium))
                         .foregroundStyle(fgSecondary)
                         .lineLimit(1)
                         .shadow(color: .black.opacity(0.4), radius: 6)
@@ -487,12 +500,11 @@ struct DesktopWidgetView: View {
             }
             .frame(maxWidth: min(560, size.width * 0.6))
 
-            VStack(spacing: 18) {
+            VStack(spacing: vSpacing * 0.8) {
                 scrubBar
-                transportRow(iconSize: min(28, size.height * 0.028))
+                transportRow(iconSize: iconSize)
             }
             .frame(width: min(420, size.width * 0.3))
-            .padding(.top, 6)
 
             Spacer(minLength: 0)
         }

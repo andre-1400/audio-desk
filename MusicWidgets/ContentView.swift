@@ -605,7 +605,7 @@ private struct GalleryDetail: View {
                 VStack(alignment: .leading, spacing: 30) {
                     if category == .vinyl {
                         ForEach(VinylStyle.forms) { form in
-                            formSection(name: form.name, subtitle: form.subtitle,
+                            formSection(name: form.name,
                                         count: form.styles.count, items: form.styles) { style in
                                 GalleryCard(title: style.name, subtitle: style.subtitle,
                                             accent: category.accentColor,
@@ -629,7 +629,7 @@ private struct GalleryDetail: View {
                                 }
                             }
                         }
-                        formSection(name: "Horizontal", subtitle: "Disc + track info side by side",
+                        formSection(name: "Horizontal",
                                     count: VinylHorizontalModel.all.count, items: VinylHorizontalModel.all) { model in
                             GalleryCard(title: model.name, subtitle: model.subtitle,
                                         accent: category.accentColor,
@@ -654,7 +654,7 @@ private struct GalleryDetail: View {
                         }
                     } else if category == .cd {
                         ForEach(CDModel.forms) { form in
-                            formSection(name: form.name, subtitle: form.subtitle,
+                            formSection(name: form.name,
                                         count: form.models.count, items: form.models) { model in
                                 GalleryCard(title: model.name, subtitle: model.subtitle,
                                             accent: category.accentColor,
@@ -678,7 +678,7 @@ private struct GalleryDetail: View {
                             }
                         }
                     } else if category == .albumArt {
-                        formSection(name: "Album Art", subtitle: "Four takes on minimal",
+                        formSection(name: "Album Art",
                                     count: AlbumArtModel.all.count, items: AlbumArtModel.all) { model in
                             GalleryCard(title: model.name, subtitle: model.subtitle,
                                         accent: category.accentColor,
@@ -691,7 +691,7 @@ private struct GalleryDetail: View {
                         }
                     } else {
                         ForEach(DesktopWidgetModel.forms) { form in
-                            formSection(name: form.name, subtitle: form.subtitle,
+                            formSection(name: form.name,
                                         count: form.models.count, items: form.models) { model in
                                 GalleryCard(title: model.name, subtitle: model.subtitle,
                                             accent: category.accentColor,
@@ -745,7 +745,7 @@ private struct GalleryDetail: View {
 
     @ViewBuilder
     private func formSection<Item: Identifiable & GalleryStyleItem, Card: View>(
-        name: String, subtitle: String, count: Int,
+        name: String, count: Int,
         items: [Item],
         @ViewBuilder card: @escaping (Item) -> Card
     ) -> some View {
@@ -758,8 +758,6 @@ private struct GalleryDetail: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Text(name).font(.system(size: 16, weight: .bold)).foregroundStyle(Neu.text)
-                Text("·").foregroundStyle(Neu.subtext.opacity(0.6))
-                Text(subtitle).font(.system(size: 12)).foregroundStyle(Neu.subtext)
                 Spacer()
                 Text("\(count)")
                     .font(.system(size: 11, weight: .semibold)).foregroundStyle(Neu.subtext)
@@ -1269,14 +1267,13 @@ struct VinylStyle: Identifiable {
 struct VinylForm: Identifiable {
     let id: String
     let name: String
-    let subtitle: String
     let icon: String
     let styles: [VinylStyle]
 }
 
 extension VinylStyle {
     static let forms: [VinylForm] = [
-        VinylForm(id: "vinyl", name: "Vinyl", subtitle: "Adaptive by default, a few colours if you want a fixed one",
+        VinylForm(id: "vinyl", name: "Vinyl",
                   icon: "record.circle",
                   styles: [
                     VinylStyle(themeID: .adaptive, name: "Adaptive", subtitle: "Matches the album art, live"),
