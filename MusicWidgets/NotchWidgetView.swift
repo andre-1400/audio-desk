@@ -228,9 +228,23 @@ struct NotchWidgetView: View {
     // restraint as iPhone's Dynamic Island, no indicator at all when
     // nothing's playing.
     private var idleContent: some View {
-        Image(systemName: "waveform")
-            .font(.system(size: 9, weight: .bold))
-            .foregroundStyle(.white.opacity(0.6))
+        HStack(spacing: 4) {
+            Group {
+                if let art {
+                    Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.white.opacity(0.15))
+                }
+            }
+            .frame(width: 18, height: 18)
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+
+            Spacer(minLength: 4)
+
+            EqualizerBars(animating: isPreview ? true : np.isPlaying)
+        }
+        .padding(.horizontal, 10)
     }
 
     // MARK: - Expanded: art on the left, title/artist/progress/transport
@@ -331,6 +345,36 @@ struct NotchWidgetView: View {
         }
         .buttonStyle(.plain)
         .disabled(isPreview)
+    }
+}
+
+// MARK: - Idle equalizer glyph — a few bars bouncing at staggered, offset
+// speeds while playing (frozen flat when paused), the "sound wave" look
+// next to the small album art in the idle pill.
+private struct EqualizerBars: View {
+    var animating: Bool = true
+
+    @State private var phase = false
+
+    private let barHeights: [CGFloat] = [5, 11, 7, 9]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 2.5) {
+            ForEach(barHeights.indices, id: \.self) { i in
+                Capsule()
+                    .fill(Color.white.opacity(0.75))
+                    .frame(width: 2.2, height: animating && phase ? barHeights[i] : 3)
+                    .animation(
+                        .easeInOut(duration: 0.42 + Double(i) * 0.08)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(i) * 0.11),
+                        value: phase
+                    )
+            }
+        }
+        .frame(height: 12)
+        .onAppear { phase = animating }
+        .onChange(of: animating) { _, isAnimating in phase = isAnimating }
     }
 }
 
