@@ -150,16 +150,19 @@ struct NotchWidgetView: View {
     var previewExpanded: Bool = false
     var previewInfo: NowPlayingInfo? = nil
     var previewArt: NSImage? = nil
+    var previewColours: ExtractedColours? = nil
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
     @State private var displayedInfo: NowPlayingInfo = .empty
     @State private var displayedArt: NSImage?
+    @State private var extractedColours: ExtractedColours = .adaptivePreviewPlaceholder
     @State private var lastTrackKey = ""
     @State private var hovering = false
 
     private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
     private var art: NSImage? { isPreview ? previewArt : displayedArt }
+    private var waveColour: Color { isPreview ? (previewColours ?? .adaptivePreviewPlaceholder).dominant : extractedColours.dominant }
     private var expanded: Bool { isPreview ? previewExpanded : hovering }
     private var isActive: Bool { !np.trackName.isEmpty }
 
@@ -241,10 +244,13 @@ struct NotchWidgetView: View {
             lastTrackKey = key
             guard let url = live.albumArtURL, !url.isEmpty else {
                 displayedArt = nil
+                extractedColours = .adaptivePreviewPlaceholder
                 return
             }
             artFetcher.fetchArt(from: url, trackKey: key, forceRefresh: false) { image in
                 displayedArt = image
+                guard let image else { return }
+                extractedColours = ColourExtractor.extract(from: image)
             }
         }
     }
@@ -279,7 +285,7 @@ struct NotchWidgetView: View {
 
             Color.clear.frame(width: metrics.notch.width)
 
-            EqualizerBars(animating: isPreview ? true : np.isPlaying)
+            EqualizerBars(animating: isPreview ? true : np.isPlaying, color: waveColour)
                 .frame(width: metrics.idleRightWidth)
         }
         // Explicitly top-aligned, rather than left to this HStack's default
@@ -397,17 +403,27 @@ struct NotchWidgetView: View {
 // next to the small album art in the idle pill.
 private struct EqualizerBars: View {
     var animating: Bool = true
+    var color: Color = .white
 
     @State private var phase = false
 
     private let barHeights: [CGFloat] = [5, 12, 8, 10]
+    // Paused: all bars drop to this same small height instead of each
+    // holding its own frozen "random" height — motionless, uniform, just
+    // barely there rather than invisible.
+    private let pausedHeight: CGFloat = 2
 
     var body: some View {
-        HStack(alignment: .center, spacing: 2.5) {
+        // Bottom-aligned rather than centred — bars should read as
+        // growing up from a shared baseline while playing, not floating
+        // around a shared centre line, and it's what makes the paused
+        // state actually look "low down" rather than centred in the
+        // available height.
+        HStack(alignment: .bottom, spacing: 2.5) {
             ForEach(barHeights.indices, id: \.self) { i in
                 Capsule()
-                    .fill(Color.white.opacity(0.75))
-                    .frame(width: 2, height: animating && phase ? barHeights[i] : 2.5)
+                    .fill(color.opacity(animating ? 0.85 : 0.4))
+                    .frame(width: 2, height: animating && phase ? barHeights[i] : pausedHeight)
                     .animation(
                         .easeInOut(duration: 0.42 + Double(i) * 0.08)
                             .repeatForever(autoreverses: true)
@@ -416,7 +432,7 @@ private struct EqualizerBars: View {
                     )
             }
         }
-        .frame(height: 14)
+        .frame(height: 14, alignment: .bottom)
         .onAppear { phase = animating }
         .onChange(of: animating) { _, isAnimating in phase = isAnimating }
     }
@@ -440,7 +456,7 @@ struct NotchWidgetModelPreview: View {
         GeometryReader { geo in
             let s = min(geo.size.width / previewBaseSize.width, geo.size.height / previewBaseSize.height)
             NotchWidgetView(metrics: previewMetrics, isPreview: true, previewExpanded: animated,
-                             previewInfo: live.info, previewArt: live.art)
+                             previewInfo: live.info, previewArt: live.art, previewColours: live.colours)
                 .frame(width: previewMetrics.expandedWidth, height: previewMetrics.expandedHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .frame(width: previewBaseSize.width, height: previewBaseSize.height)
