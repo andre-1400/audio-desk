@@ -968,9 +968,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let metrics = NotchLayoutMetrics(notch: frame)
         let window = NotchWidgetWindow(metrics: metrics)
-        let host = NSHostingView(rootView: NotchWidgetView(metrics: metrics, onExpandedChange: { [weak window] expanded in
-            window?.setExpanded(expanded)
-        }))
+        let host = NSHostingView(rootView: NotchWidgetView(metrics: metrics))
         host.frame = window.contentView?.bounds ?? .zero
         host.autoresizingMask = [.width, .height]
         window.contentView?.addSubview(host)

@@ -37,69 +37,55 @@ enum NotchDetector {
 
     /// The physical notch's own rect, in AppKit's bottom-left-origin screen
     /// coordinate space. This is an actual cutout in the display panel — no
-    /// pixels exist there at all, not just an area macOS avoids drawing
-    /// into — so nothing rendered inside this rect can ever be seen. Every
-    /// layout in this file treats it as a hard gap, never as drawable space.
-    /// nil if this screen has no notch.
+    /// pixels exist there at all — so nothing rendered inside this rect can
+    /// ever be seen; every layout in this file keeps drawn content below it
+    /// rather than beside it (see NotchLayoutMetrics/NotchWidgetView).
     ///
-    /// Width is NOT derived from `right.minX - left.maxX` — those two rects
-    /// are "safe space available for a window right now," which shrinks or
-    /// grows with however many menu-bar items currently happen to be
-    /// visible, not the fixed physical camera-housing size (that's what
-    /// produced a gap spanning most of the screen: with few menu extras
-    /// present, both "safe" rects reported as reaching almost to the centre
-    /// of the display). The one thing that IS fixed is safeAreaInsets.top
-    /// (the notch's real height), so this uses that plus a conservative
-    /// constant width — deliberately narrower than the real notch on every
-    /// current model rather than wider, since a slightly-too-narrow gap
-    /// just leaves a sliver of unused black margin on each side, while a
-    /// slightly-too-wide one would mean drawing over the actual cutout
-    /// again.
-    private static let assumedNotchWidth: CGFloat = 180
-
+    /// Width comes from the widely-used BoringNotch project's own formula
+    /// (screen width minus both auxiliary areas' widths, +4) rather than
+    /// `right.minX - left.maxX`, which is what this used originally — that
+    /// version produced a gap spanning most of the screen. The two should
+    /// be equivalent if both auxiliary rects sit flush against their
+    /// respective screen edges, so evidently that assumption doesn't hold
+    /// here; this is the field-tested version instead of another guess.
     static func notchFrame(on screen: NSScreen) -> CGRect? {
-        guard screen.auxiliaryTopLeftArea != nil, screen.auxiliaryTopRightArea != nil,
+        guard let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea,
               screen.safeAreaInsets.top > 0 else { return nil }
+        let width = screen.frame.width - left.width - right.width + 4
         let height = screen.safeAreaInsets.top
-        let width = assumedNotchWidth
+        guard width > 0 else { return nil }
         return CGRect(x: screen.frame.midX - width / 2, y: screen.frame.maxY - height, width: width, height: height)
     }
 }
 
 // MARK: - Layout metrics
 //
-// One shared source for both the window's frames and the SwiftUI content's
-// piece widths, so they can never disagree about where the notch's dead
-// zone actually is.
+// Modelled on how BoringNotch actually does this (a single fixed window,
+// sized to the maximum/expanded footprint, created once and never moved or
+// resized — see NotchWidgetWindow below) rather than the earlier approach
+// here of animating the real NSWindow frame on hover, which is what made
+// hover detection unreliable: a window's own frame changing size mid-
+// animation is a much flakier hit-test target than a plain SwiftUI view
+// whose drawn size animates within an already-large, static window.
 struct NotchLayoutMetrics {
     let notch: CGRect
-    let leftWidth: CGFloat = 74
-    let rightWidth: CGFloat = 250
-    /// Width of the *visible* idle pill, drawn only in the sliver right of
-    /// the notch — separate from the idle window's actual (much larger)
-    /// hit-testable frame below.
-    let idleVisibleWidth: CGFloat = 26
-    let expandedHeight: CGFloat = 78
+    let leftWidth: CGFloat = 90
+    let rightWidth: CGFloat = 260
+    let expandedHeight: CGFloat = 86
+    /// How far the closed pill hangs below the real notch — the only part
+    /// of it that's actually visible, since its top (matching the notch's
+    /// own row) sits over the display cutout and can't be seen regardless
+    /// of what's drawn there.
+    let closedOverhang: CGFloat = 16
 
-    /// Idle window spans the notch's *entire* width plus the visible
-    /// sliver to its right — a window occupying that geometry still gets
-    /// mouse/hover events perfectly normally even though nothing drawn
-    /// over the notch itself is visible, so this makes "hover anywhere
-    /// near/over the notch" reliably trigger expansion instead of only a
-    /// thin strip off to one side, which was too small a target to hit
-    /// consistently at normal cursor speed.
-    var idleFrame: CGRect {
-        CGRect(x: notch.minX, y: notch.maxY - notch.height,
-               width: notch.width + idleVisibleWidth, height: notch.height)
-    }
+    var closedHeight: CGFloat { notch.height + closedOverhang }
+    var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
 
-    /// Expanded: spans from the left safe area, across the notch's own dead
-    /// zone, into the right safe area — the content drawn inside (see
-    /// NotchWidgetView) leaves an exact `notch.width`-wide gap in the
-    /// middle to match, so nothing ever renders where it can't be seen.
-    var expandedFrame: CGRect {
-        CGRect(x: notch.minX - leftWidth, y: notch.maxY - expandedHeight,
-               width: leftWidth + notch.width + rightWidth, height: expandedHeight)
+    /// The one fixed window frame — big enough for the expanded state,
+    /// centred on the notch, top edge flush with the screen's own top edge.
+    var windowFrame: CGRect {
+        CGRect(x: notch.midX - expandedWidth / 2, y: notch.maxY - expandedHeight,
+               width: expandedWidth, height: expandedHeight)
     }
 }
 
@@ -110,38 +96,35 @@ struct NotchLayoutMetrics {
 // very top of one specific screen, and is meant to run alongside whatever
 // else is placed).
 //
-// The window's own frame IS the interactive region at all times, rather
-// than sizing it to the maximum expanded size up front and hit-testing an
-// irregular shape within that. Idle, that frame is the small pill next to
-// the notch — space nothing else was using — so menu bar icons further out
-// are never blocked; only on hover does the frame grow to the full
-// expanded span, the same way iPhone's Dynamic Island expands over the
-// status bar, and shrinks back the moment the mouse leaves it.
+// Styling/behaviour here (style mask, window level, collection behaviour)
+// mirrors the BoringNotch project's own window setup, since that's a
+// widely-used, field-tested configuration for exactly this kind of
+// always-on-every-space, above-the-menu-bar utility panel.
 final class NotchWidgetWindow: NSPanel {
-    let metrics: NotchLayoutMetrics
-
     init(metrics: NotchLayoutMetrics) {
-        self.metrics = metrics
         super.init(
-            contentRect: metrics.idleFrame,
-            styleMask: [.borderless, .nonactivatingPanel],
+            contentRect: metrics.windowFrame,
+            styleMask: [.borderless, .nonactivatingPanel, .utilityWindow, .hudWindow],
             backing: .buffered,
             defer: false
         )
+        isFloatingPanel = true
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        // Above the menu bar — expanding needs to visually sit on top of it.
-        level = NSWindow.Level(Int(CGWindowLevelForKey(.mainMenuWindow)) + 1)
-        collectionBehavior = [.stationary, .ignoresCycle, .fullScreenAuxiliary]
-        isMovableByWindowBackground = false
+        isMovable = false
+        isReleasedWhenClosed = false
+        // Above the menu bar — the expanded state needs to visually sit on
+        // top of it, the same way iPhone's Dynamic Island covers the
+        // status bar.
+        level = NSWindow.Level(Int(CGWindowLevelForKey(.mainMenuWindow)) + 3)
+        collectionBehavior = [.fullScreenAuxiliary, .stationary, .canJoinAllSpaces, .ignoresCycle]
         hidesOnDeactivate = false
         ignoresMouseEvents = false
     }
 
-    func setExpanded(_ expanded: Bool) {
-        animator().setFrame(expanded ? metrics.expandedFrame : metrics.idleFrame, display: true)
-    }
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
 }
 
 // MARK: - Widget
@@ -152,7 +135,6 @@ struct NotchWidgetView: View {
     var previewExpanded: Bool = false
     var previewInfo: NowPlayingInfo? = nil
     var previewArt: NSImage? = nil
-    var onExpandedChange: ((Bool) -> Void)? = nil
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
@@ -167,19 +149,40 @@ struct NotchWidgetView: View {
     private var isActive: Bool { !np.trackName.isEmpty }
 
     var body: some View {
-        Group {
-            if expanded {
-                expandedContent
-            } else {
-                idleContent
+        ZStack {
+            UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: expanded ? 18 : 10,
+                bottomTrailingRadius: expanded ? 18 : 10,
+                topTrailingRadius: 0,
+                style: .continuous
+            )
+            .fill(Color.black)
+
+            // Padding every bit of content below the notch's own height,
+            // regardless of state or horizontal position, is what keeps it
+            // clear of the invisible cutout — simpler and more robust than
+            // carving an explicit gap out of the middle of the layout.
+            Group {
+                if expanded {
+                    expandedContent
+                } else if isActive {
+                    idleContent
+                }
             }
+            .padding(.top, metrics.notch.height)
         }
+        .frame(
+            width: expanded ? metrics.expandedWidth : metrics.notch.width,
+            height: expanded ? metrics.expandedHeight : metrics.closedHeight
+        )
+        .contentShape(Rectangle())
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: expanded)
         .onHover { isHovering in
             guard !isPreview else { return }
             hovering = isHovering
-            onExpandedChange?(isHovering)
         }
+        .frame(maxWidth: .infinity, alignment: .top)
         .onAppear {
             guard !isPreview else { return }
             detector.start()
@@ -205,102 +208,57 @@ struct NotchWidgetView: View {
         }
     }
 
-    // MARK: - Idle
-    //
-    // The window's own frame spans the whole notch (see idleFrame) so
-    // hovering anywhere near it reliably triggers expansion — but nothing
-    // can actually be SEEN over the notch itself, so only the trailing
-    // idleVisibleWidth-wide sliver ever draws anything: a small pill,
-    // shown only while something's actually playing (same restraint as
-    // iPhone's Dynamic Island — no indicator at all when nothing's
-    // playing), flat on the edge touching the notch and rounded on the
-    // outer edge so it reads as a small extension growing out of it.
+    // MARK: - Idle: a small waveform glyph in the overhang below the
+    // notch, shown only while something's actually playing — same
+    // restraint as iPhone's Dynamic Island, no indicator at all when
+    // nothing's playing.
     private var idleContent: some View {
-        HStack(spacing: 0) {
-            Color.clear.frame(width: metrics.notch.width)
-
-            ZStack {
-                if isActive {
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 0, bottomLeadingRadius: 0,
-                        bottomTrailingRadius: 12, topTrailingRadius: 0,
-                        style: .continuous
-                    )
-                    .fill(Color.black)
-                    Image(systemName: "waveform")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.6))
-                }
-            }
-            .frame(width: metrics.idleVisibleWidth)
-        }
+        Image(systemName: "waveform")
+            .font(.system(size: 9, weight: .bold))
+            .foregroundStyle(.white.opacity(0.6))
     }
 
-    // MARK: - Expanded: art on the left of the notch, title/artist/
-    // progress/transport stacked on the right — an explicit
-    // `notch.width`-wide gap sits between them with nothing drawn in it at
-    // all, since that space is a real cutout in the display and nothing
-    // rendered there is visible.
+    // MARK: - Expanded: art on the left, title/artist/progress/transport
+    // stacked on the right.
     private var expandedContent: some View {
         HStack(spacing: 0) {
-            ZStack {
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0, bottomLeadingRadius: 18,
-                    bottomTrailingRadius: 0, topTrailingRadius: 0,
-                    style: .continuous
-                )
-                .fill(Color.black)
-
-                Group {
-                    if let art {
-                        Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
-                    } else {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.white.opacity(0.15))
-                    }
+            Group {
+                if let art {
+                    Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
+                } else {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.white.opacity(0.15))
                 }
-                .frame(width: 42, height: 42)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
+            .frame(width: 42, height: 42)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .frame(width: metrics.leftWidth)
 
-            Color.clear
-                .frame(width: metrics.notch.width)
-                .allowsHitTesting(false)
+            Color.clear.frame(width: metrics.notch.width)
 
-            ZStack {
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0, bottomLeadingRadius: 0,
-                    bottomTrailingRadius: 18, topTrailingRadius: 0,
-                    style: .continuous
-                )
-                .fill(Color.black)
-
-                VStack(spacing: 5) {
-                    VStack(spacing: 1) {
-                        Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
-                            .font(.system(size: 12.5, weight: .bold))
-                            .foregroundStyle(.white)
+            VStack(spacing: 5) {
+                VStack(spacing: 1) {
+                    Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
+                        .font(.system(size: 12.5, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    if !np.artistName.isEmpty {
+                        Text(np.artistName)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
                             .lineLimit(1)
-                        if !np.artistName.isEmpty {
-                            Text(np.artistName)
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.6))
-                                .lineLimit(1)
-                        }
-                    }
-
-                    progressRow
-
-                    HStack(spacing: 22) {
-                        transportButton("backward.fill", size: 12) { if !isPreview { detector.previousTrack() } }
-                        transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15) { if !isPreview { detector.togglePlayback() } }
-                        transportButton("forward.fill", size: 12) { if !isPreview { detector.nextTrack() } }
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
+
+                progressRow
+
+                HStack(spacing: 22) {
+                    transportButton("backward.fill", size: 12) { if !isPreview { detector.previousTrack() } }
+                    transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15) { if !isPreview { detector.togglePlayback() } }
+                    transportButton("forward.fill", size: 12) { if !isPreview { detector.nextTrack() } }
+                }
             }
+            .padding(.horizontal, 14)
             .frame(width: metrics.rightWidth)
         }
     }
@@ -380,7 +338,7 @@ struct NotchWidgetModelPreview: View {
             let s = min(geo.size.width / previewBaseSize.width, geo.size.height / previewBaseSize.height)
             NotchWidgetView(metrics: previewMetrics, isPreview: true, previewExpanded: animated,
                              previewInfo: live.info, previewArt: live.art)
-                .frame(width: previewMetrics.expandedFrame.width, height: previewMetrics.expandedHeight)
+                .frame(width: previewMetrics.expandedWidth, height: previewMetrics.expandedHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 .frame(width: previewBaseSize.width, height: previewBaseSize.height)
                 .scaleEffect(s)
