@@ -51,7 +51,15 @@ final class MusicDetector: ObservableObject {
     }
 
     private var timer: Timer?
-    private let detectionQueue = DispatchQueue(label: "com.vinylwidget.music-detection", qos: .userInitiated)
+    // Shared across every MusicDetector instance (menu-bar status item plus
+    // whichever widget is active) rather than one queue per instance —
+    // NSAppleScript isn't documented as thread-safe, and two instances each
+    // running their own serial queue could still call executeAndReturnError
+    // concurrently on two different threads at once. Funnelling every
+    // instance's polling through one shared serial queue guarantees at most
+    // one AppleScript call is in flight app-wide, which is what actually
+    // needs to be true, not just serial-per-instance.
+    private static let detectionQueue = DispatchQueue(label: "com.vinylwidget.music-detection", qos: .userInitiated)
 
     // Used to resolve "both apps are playing" ties by the most recent state transition.
     private var lastSpotifyPlaybackState: PlayerPlaybackState = .stopped
@@ -81,7 +89,7 @@ final class MusicDetector: ObservableObject {
     }
 
     private func pollNowPlaying() {
-        detectionQueue.async { [weak self] in
+        Self.detectionQueue.async { [weak self] in
             guard let self else { return }
             let (newState, permissionDenied) = self.detectNowPlaying()
             DispatchQueue.main.async {
@@ -332,20 +340,28 @@ final class MusicDetector: ObservableObject {
     }
 
     func togglePlayback() {
-        switch nowPlaying.source {
-        case .spotify:
-            Self.executeAppleScript("tell application \"Spotify\" to playpause")
-        case .appleMusic:
-            Self.executeAppleScript("tell application \"Music\" to playpause")
-        case .none:
-            let fallbackSource = preferredToggleSourceFallback()
-            switch fallbackSource {
+        // Run on the same shared serial queue polling uses (blocking this
+        // call until its turn) — these commands run synchronously on
+        // whatever thread calls them (the main thread, from a button tap),
+        // which without this would be free to collide with a poll running
+        // concurrently on the background queue. NSAppleScript isn't
+        // documented as thread-safe against that kind of overlap.
+        Self.detectionQueue.sync {
+            switch nowPlaying.source {
             case .spotify:
                 Self.executeAppleScript("tell application \"Spotify\" to playpause")
             case .appleMusic:
                 Self.executeAppleScript("tell application \"Music\" to playpause")
             case .none:
-                break
+                let fallbackSource = preferredToggleSourceFallback()
+                switch fallbackSource {
+                case .spotify:
+                    Self.executeAppleScript("tell application \"Spotify\" to playpause")
+                case .appleMusic:
+                    Self.executeAppleScript("tell application \"Music\" to playpause")
+                case .none:
+                    break
+                }
             }
         }
 
@@ -368,13 +384,15 @@ final class MusicDetector: ObservableObject {
             ? preferredToggleSourceFallback()
             : nowPlaying.source
 
-        switch source {
-        case .spotify:
-            Self.executeAppleScript("tell application \"Spotify\" to \(spotify)")
-        case .appleMusic:
-            Self.executeAppleScript("tell application \"Music\" to \(appleMusic)")
-        case .none:
-            break
+        Self.detectionQueue.sync {
+            switch source {
+            case .spotify:
+                Self.executeAppleScript("tell application \"Spotify\" to \(spotify)")
+            case .appleMusic:
+                Self.executeAppleScript("tell application \"Music\" to \(appleMusic)")
+            case .none:
+                break
+            }
         }
 
         // Poll a couple of times so the new track shows up quickly.
@@ -392,12 +410,20 @@ final class MusicDetector: ObservableObject {
         let secondsLiteral = String(format: "%.3f", locale: Locale(identifier: "en_US_POSIX"), seconds)
 
         switch nowPlaying.source {
-        case .spotify:
-            Self.executeAppleScript("tell application \"Spotify\" to set player position to \(secondsLiteral)")
-        case .appleMusic:
-            Self.executeAppleScript("tell application \"Music\" to set player position to \(secondsLiteral)")
+        case .spotify, .appleMusic:
+            break
         case .none:
             return
+        }
+        Self.detectionQueue.sync {
+            switch nowPlaying.source {
+            case .spotify:
+                Self.executeAppleScript("tell application \"Spotify\" to set player position to \(secondsLiteral)")
+            case .appleMusic:
+                Self.executeAppleScript("tell application \"Music\" to set player position to \(secondsLiteral)")
+            case .none:
+                break
+            }
         }
 
         nowPlaying = NowPlayingInfo(
