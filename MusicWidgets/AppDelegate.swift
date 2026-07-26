@@ -966,8 +966,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        let window = NotchWidgetWindow(notchFrame: frame)
-        let host = NSHostingView(rootView: NotchWidgetView(onExpandedChange: { [weak window] expanded in
+        let metrics = NotchLayoutMetrics(notch: frame)
+        let window = NotchWidgetWindow(metrics: metrics)
+        let host = NSHostingView(rootView: NotchWidgetView(metrics: metrics, onExpandedChange: { [weak window] expanded in
             window?.setExpanded(expanded)
         }))
         host.frame = window.contentView?.bounds ?? .zero
