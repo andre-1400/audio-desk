@@ -688,36 +688,28 @@ struct DesktopWidgetModelPreview: View {
     // never by the colour-picker sheet's own live preview.
     var usesRainbowPreview: Bool = false
 
-    /// The preview card is much smaller than a real screen, so it uses its
-    /// own compact base size rather than trying to fake an actual display's
-    /// aspect ratio — this is a stand-in to show the look, not a literal
-    /// screen simulation.
-    private let previewBaseSize = CGSize(width: 480, height: 300)
-
     var body: some View {
         GeometryReader { geo in
-            // max, not min — this is a full-bleed background (the real
-            // widget has no silhouette/edges to preserve, unlike a CD or
-            // vinyl device), so it should always fully cover the card,
-            // cropping any small overflow, rather than "fit" scaling like
-            // every other family's preview. The card's actual live width is
-            // whatever the responsive grid gives it, which rarely matches
-            // previewBaseSize's exact 480:300 ratio — "fit" left a sliver of
-            // the surrounding card's own background visible above/below the
-            // scaled content in that gap; "fill" leaves no gap to show it in.
-            let s = max(geo.size.width / previewBaseSize.width, geo.size.height / previewBaseSize.height)
+            // Rendered directly at the card's own actual size, not scaled
+            // in from a fixed stand-in canvas — vinylLayout/coverLayout
+            // already compute every size proportionally from whatever
+            // `size` they're given, so there's no need to fake a fixed
+            // "mini screen" and fit/fill it into the card afterward. That
+            // scale-to-fit-or-fill step was the source of both previous
+            // bugs here: "fit" (min) left a gap showing the card's own
+            // background through where the fixed canvas's aspect didn't
+            // match the card's actual aspect; "fill" (max) fixed the gap
+            // but then cropped into the vinyl layout's left-anchored title/
+            // progress text instead. Sizing straight to geo has neither
+            // problem — nothing to fit or fill, no mismatch possible.
             let view = DesktopWidgetView(
                 model: model, isPreview: true, previewSpinning: animated,
                 previewInfo: live.info, previewArt: live.art,
                 previewColours: model.themeID == .adaptive ? live.colours : nil,
                 usesRainbowPreview: usesRainbowPreview
             )
-                .frame(width: previewBaseSize.width, height: previewBaseSize.height)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .scaleEffect(s)
-                .frame(width: previewBaseSize.width * s, height: previewBaseSize.height * s)
                 .frame(width: geo.size.width, height: geo.size.height)
-                .clipped()
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             // drawingGroup() flattens into a static cached texture — fine
             // (cheap) for the resting state, but it was applied
             // unconditionally here, which silently killed the hover-spin
