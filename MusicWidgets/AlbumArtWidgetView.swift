@@ -17,7 +17,15 @@ enum AlbumArtSize: String, CaseIterable, Identifiable {
         case .compact: return CGSize(width: 220, height: 220)
         case .circle:  return CGSize(width: 200, height: 200)
         case .mini:    return CGSize(width: 360, height: 84)
-        case .card:    return CGSize(width: 280, height: 360)
+        // Square, matching real album art's own near-universal 1:1 aspect
+        // ratio. This used to be a 280x360 portrait rectangle: with
+        // .aspectRatio(contentMode: .fill) on a square source image, a
+        // fill crop always trims exactly |width - height| off the frame's
+        // shorter side — 80pt of the artwork's left/right edges were being
+        // cut off to fill a frame that was 80pt taller than it was wide,
+        // which is what was clipping detail (like a corner sticker) near
+        // the art's edges. A square frame needs no crop at all.
+        case .card:    return CGSize(width: 320, height: 320)
         }
     }
 }
