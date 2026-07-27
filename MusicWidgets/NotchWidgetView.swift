@@ -320,7 +320,12 @@ struct NotchWidgetView: View {
             }
             .frame(width: metrics.expandedHeight - 20, height: metrics.expandedHeight - 20)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .frame(width: metrics.leftWidth)
+            // Hugging the trailing edge (the side next to the notch gap)
+            // instead of SwiftUI's default centring within the column —
+            // centring is what was leaving a wide, seemingly pointless gap
+            // between the art and the actual notch cutout.
+            .frame(width: metrics.leftWidth, alignment: .trailing)
+            .padding(.trailing, 10)
 
             Color.clear.frame(width: metrics.notch.width)
 
@@ -353,8 +358,12 @@ struct NotchWidgetView: View {
                 // instead of the two looking unrelated.
                 EqualizerBars(animating: isPreview ? true : np.isPlaying, color: waveColour)
             }
-            .padding(.horizontal, 18)
-            .frame(width: metrics.rightWidth)
+            .padding(.leading, 10)
+            .padding(.trailing, 18)
+            // Same fix as the art column, mirrored: hugging the leading
+            // edge (next to the gap) instead of being centred within the
+            // full rightWidth column.
+            .frame(width: metrics.rightWidth, alignment: .leading)
         }
     }
 
