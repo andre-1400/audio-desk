@@ -243,6 +243,20 @@ struct CDWidgetView: View {
     @State private var incomingArt: NSImage? = nil
     @State private var lastTrackKey: String = ""
     @State private var optimisticPlaying: Bool? = nil
+    // Progress-bar scrubbing — the one thing every sibling widget already
+    // had that this one didn't. Mirrors VinylHorizontalWidgetView's own
+    // scheme, duplicated rather than shared per this file's existing
+    // convention of keeping each widget self-contained. CD has no
+    // separate displayedInfo buffer the way some siblings do — `np` reads
+    // detector.nowPlaying directly — so the handoff window only needs to
+    // remember the progress/playing snapshot from the moment of the seek,
+    // not a whole NowPlayingInfo copy.
+    @State private var isScrubbing = false
+    @State private var scrubProgress: Double = 0
+    @State private var seekHandoffUntil: Date?
+    @State private var seekHandoffProgress: Double = 0
+    @State private var seekHandoffWasPlaying = false
+    private let seekHandoffSuppressionDuration = 0.45
     // Only ever read when model.isAdaptive; neutral grey/white rather than
     // the generic extraction-failure fallback so it reads as "will become
     // whatever's playing," not a fixed brown.
@@ -348,6 +362,146 @@ struct CDWidgetView: View {
                    onNext: { if !isPreview { detector.nextTrack() } })
     }
 
+    // MARK: Progress / scrub bar — the one thing CD was missing that
+    // every sibling widget already had.
+
+    private var scrubPrimary: Color { mat.isLight ? Color.black.opacity(0.85) : .white }
+    private var scrubSecondary: Color { mat.isLight ? Color.black.opacity(0.5) : Color.white.opacity(0.6) }
+
+    private var hasProgressData: Bool {
+        !np.trackName.isEmpty && (np.durationMillis ?? 0) > 0
+    }
+    private var canSeek: Bool {
+        !isPreview && !np.trackName.isEmpty && (np.durationMillis ?? 0) > 0
+    }
+
+    private var progressRow: some View {
+        TimelineView(.periodic(from: .now, by: 0.5)) { context in
+            let duration = np.durationMillis ?? 0
+            let fraction = displayFraction(at: context.date)
+            let elapsed = isScrubbing ? Int(scrubProgress * Double(duration)) : elapsedMillis(at: context.date)
+            let remaining = max(0, duration - elapsed)
+            HStack(spacing: 8) {
+                Text(formatTime(elapsed))
+                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                    .foregroundStyle(scrubSecondary)
+                scrubBar(fraction: fraction)
+                Text("-" + formatTime(remaining))
+                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                    .foregroundStyle(scrubSecondary)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .opacity(hasProgressData ? 1 : 0)
+    }
+
+    /// A thicker invisible hit-area than the visible bar, same proportions
+    /// as every other widget's own scrub bar. An NSView capture, not a
+    /// SwiftUI DragGesture: this widget's window is movable-by-background,
+    /// and AppKit decides that at mouse-down — too early for a gesture
+    /// callback to veto.
+    private func scrubBar(fraction: Double) -> some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            ZStack(alignment: .leading) {
+                Capsule().fill(scrubSecondary.opacity(0.4)).frame(height: isScrubbing ? 5 : 3)
+                Capsule().fill(scrubPrimary).frame(width: max(2, width * fraction), height: isScrubbing ? 5 : 3)
+                Circle()
+                    .fill(scrubPrimary)
+                    .frame(width: 9, height: 9)
+                    .shadow(color: .black.opacity(0.35), radius: 2, y: 1)
+                    .offset(x: min(width - 9, max(0, width * fraction - 4.5)))
+                    .opacity(isScrubbing ? 1 : 0)
+            }
+            .frame(height: 18)
+            .overlay {
+                if !isPreview {
+                    CDScrubDragCaptureView(
+                        onBegan: { handleScrubDrag(fraction: $0.x / width) },
+                        onMoved: { handleScrubDrag(fraction: $0.x / width) },
+                        onEnded: {
+                            handleScrubDrag(fraction: $0.x / width)
+                            commitScrub()
+                        },
+                        onCancelled: { endScrubSession() }
+                    )
+                }
+            }
+        }
+        .frame(height: 18)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
+    }
+
+    private func handleScrubDrag(fraction: Double) {
+        guard canSeek else { return }
+        if !isScrubbing {
+            setWidgetBackgroundDraggingEnabled(false)
+            isScrubbing = true
+        }
+        scrubProgress = min(1, max(0, fraction))
+    }
+
+    private func commitScrub() {
+        defer { endScrubSession() }
+        guard isScrubbing else { return }
+        commitSeek(toProgress: scrubProgress)
+    }
+
+    private func endScrubSession() {
+        isScrubbing = false
+        setWidgetBackgroundDraggingEnabled(true)
+    }
+
+    private func setWidgetBackgroundDraggingEnabled(_ enabled: Bool) {
+        guard let window = NSApp.windows.first(where: { $0 is WidgetWindow }) else { return }
+        window.isMovableByWindowBackground = enabled
+    }
+
+    /// No separate displayedInfo buffer here (np reads detector.nowPlaying
+    /// directly), so the handoff only needs to remember the progress/
+    /// playing snapshot from the moment of the seek, not a full copy of
+    /// NowPlayingInfo — used by displayFraction below to bridge the gap
+    /// until the player's own next poll confirms the new position.
+    private func commitSeek(toProgress progress: Double) {
+        guard canSeek, let duration = np.durationMillis else { return }
+        let targetMillis = Int((progress * Double(duration)).rounded())
+        seekHandoffProgress = progress
+        seekHandoffWasPlaying = np.isPlaying
+        seekHandoffUntil = Date().addingTimeInterval(seekHandoffSuppressionDuration)
+        detector.seek(toMillis: targetMillis)
+    }
+
+    private func displayFraction(at date: Date) -> Double {
+        if isScrubbing { return scrubProgress }
+        if let until = seekHandoffUntil {
+            if Date() < until, np.isPlaying == seekHandoffWasPlaying {
+                return seekHandoffProgress
+            }
+            seekHandoffUntil = nil
+        }
+        return progressFraction(at: date)
+    }
+
+    private func elapsedMillis(at date: Date) -> Int {
+        guard let pos = np.positionMillis else { return 0 }
+        var elapsed = Double(pos)
+        if np.isPlaying, let sampledAt = np.progressSampledAt {
+            elapsed += date.timeIntervalSince(sampledAt) * 1000
+        }
+        if let dur = np.durationMillis { elapsed = min(elapsed, Double(dur)) }
+        return max(0, Int(elapsed))
+    }
+
+    private func progressFraction(at date: Date) -> Double {
+        guard let dur = np.durationMillis, dur > 0 else { return 0 }
+        return min(1, max(0, Double(elapsedMillis(at: date)) / Double(dur)))
+    }
+
+    private func formatTime(_ millis: Int) -> String {
+        let totalSeconds = millis / 1000
+        return String(format: "%02d:%02d", totalSeconds / 60, totalSeconds % 60)
+    }
+
     private func brandBar(wide: Bool = false) -> some View {
         // Our own stylized disc-audio mark (logo-inspired, legally distinct).
         // No PWR/status-light indicator anymore — it read as leftover
@@ -388,8 +542,10 @@ struct CDWidgetView: View {
                 Spacer().frame(height: 16)
                 deck
                 HStack { lcd; Spacer(minLength: 0) }.padding(.top, 16).padding(.horizontal, 26)
-                Spacer(minLength: 22)
-                controls.padding(.bottom, 20).padding(.horizontal, 32)
+                Spacer(minLength: 12)
+                controls.padding(.horizontal, 32)
+                progressRow.padding(.top, 12).padding(.horizontal, 32)
+                Spacer(minLength: 0).frame(height: 20)
             }
             .frame(width: cardSize.width, height: cardSize.height)
         }
@@ -409,9 +565,10 @@ struct CDWidgetView: View {
                     // Title/artist + controls centred in the free space next
                     // to the deck, instead of pinned under the brand bar.
                     Spacer(minLength: 10)
-                    VStack(spacing: 16) {
+                    VStack(spacing: 12) {
                         lcd
                         controls
+                        progressRow.frame(width: 232)
                     }
                     Spacer(minLength: 10)
                 }
@@ -868,6 +1025,80 @@ struct CDDiscView: View {
                 .frame(width: ring, height: ring)
                 .overlay(Circle().strokeBorder(Color.black.opacity(0.18), lineWidth: 0.8))
             Circle().strokeBorder(Color.black.opacity(0.16), lineWidth: 1).frame(width: ring * 0.7, height: ring * 0.7)
+        }
+    }
+}
+
+/// Raw AppKit drag surface backing CDWidgetView's scrub bar — duplicated
+/// from VinylHorizontalWidgetView's own HScrubDragCaptureView rather than
+/// shared, per this codebase's existing convention of keeping each widget
+/// self-contained.
+private struct CDScrubDragCaptureView: NSViewRepresentable {
+    var onBegan: (CGPoint) -> Void
+    var onMoved: (CGPoint) -> Void
+    var onEnded: (CGPoint) -> Void
+    var onCancelled: () -> Void
+
+    func makeNSView(context: Context) -> CaptureView {
+        let view = CaptureView()
+        view.onBegan = onBegan
+        view.onMoved = onMoved
+        view.onEnded = onEnded
+        view.onCancelled = onCancelled
+        return view
+    }
+
+    func updateNSView(_ nsView: CaptureView, context: Context) {
+        nsView.onBegan = onBegan
+        nsView.onMoved = onMoved
+        nsView.onEnded = onEnded
+        nsView.onCancelled = onCancelled
+    }
+
+    final class CaptureView: NSView {
+        var onBegan: ((CGPoint) -> Void)?
+        var onMoved: ((CGPoint) -> Void)?
+        var onEnded: ((CGPoint) -> Void)?
+        var onCancelled: (() -> Void)?
+
+        private var isTrackingPress = false
+
+        override var isFlipped: Bool { true }
+        override var mouseDownCanMoveWindow: Bool { false }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            bounds.contains(point) ? self : nil
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            isTrackingPress = true
+            window?.isMovableByWindowBackground = false
+            onBegan?(localPoint(from: event))
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            guard isTrackingPress else { return }
+            onMoved?(localPoint(from: event))
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            guard isTrackingPress else { return }
+            isTrackingPress = false
+            onEnded?(localPoint(from: event))
+        }
+
+        override func viewWillMove(toWindow newWindow: NSWindow?) {
+            if newWindow == nil, isTrackingPress {
+                isTrackingPress = false
+                onCancelled?()
+            }
+            super.viewWillMove(toWindow: newWindow)
+        }
+
+        private func localPoint(from event: NSEvent) -> CGPoint {
+            convert(event.locationInWindow, from: nil)
         }
     }
 }
