@@ -339,10 +339,18 @@ struct DesktopWidgetView: View {
                 .scaleEffect(discScale)
                 .frame(width: discDiameter, height: discDiameter)
 
-                desktopTonearm
+                desktopTonearmRealisticView
+                    .rotationEffect(.degrees(desktopTonearmRealisticRestingAngle), anchor: desktopTonearmRealisticPivot)
                     .scaleEffect(discScale)
-                    .frame(width: 90 * discScale, height: 180 * discScale)
-                    .offset(x: discDiameter / 2 * 0.731, y: -discDiameter / 2 * 0.206)
+                    .frame(
+                        width: 90 * desktopTonearmRealisticScale * discScale,
+                        height: 180 * desktopTonearmRealisticScale * discScale
+                    )
+                    // Same derivation as VinylHorizontalWidgetView's
+                    // hTonearmRealisticView offset (0.738, -0.142) — this
+                    // asset's own pivot fraction/scale, same 0.9R,-0.75R
+                    // target position, independent of disc size.
+                    .offset(x: discDiameter / 2 * 0.738, y: -discDiameter / 2 * 0.142)
             }
             .contentShape(Rectangle())
             .onTapGesture { togglePlayback() }
@@ -435,6 +443,34 @@ struct DesktopWidgetView: View {
                 .position(x: 28, y: 164)
         }
         .frame(width: 90, height: 180)
+    }
+
+    // MARK: - Realistic tonearm (same asset/proportions as VinylWidgetView)
+    //
+    // Rolled out from the main vertical widget once its calibration there
+    // was confirmed. Purely decorative here too, same as desktopTonearm
+    // itself (no progress tracking) — a single fixed angle instead of the
+    // full angle/progress state machine.
+    private let desktopTonearmRealisticScale: CGFloat = 1.6
+    private let desktopTonearmRealisticRestingAngle: Double = -5.0
+
+    private var desktopTonearmRealisticPivot: UnitPoint {
+        UnitPoint(x: 470.0 / 720.0, y: 310.0 / 1456.0)
+    }
+
+    // discScale isn't in scope here (it's local to vinylLayout(in:)) — its
+    // own scaleEffect/frame is applied at the call site instead, same
+    // pattern the original desktopTonearm used.
+    private var desktopTonearmRealisticView: some View {
+        Image("TonearmRealistic")
+            .resizable()
+            .interpolation(.high)
+            .antialiased(true)
+            .aspectRatio(contentMode: .fit)
+            .frame(
+                width: 90 * desktopTonearmRealisticScale,
+                height: 180 * desktopTonearmRealisticScale
+            )
     }
 
     /// "Artist — Album", collapsing gracefully when either is missing.

@@ -289,21 +289,21 @@ struct VinylHorizontalWidgetView: View {
             .frame(width: discSize, height: discSize)
             .scaleEffect(discPulseScale)
 
-            hTonearm
-                .scaleEffect(hDiscScale)
-                .frame(width: 90 * hDiscScale, height: 180 * hDiscScale)
-                // Computed, not eyeballed: ZStack centres hTonearm's own
-                // frame-centre on the disc centre before this offset runs,
-                // which puts the joint (local 68,16) at (0.169,-0.544)*R
-                // from disc-centre for free. Solving offset = target - that
-                // inherent position puts the joint just outside the disc's
-                // edge (0.9R, -0.75R) with the needle landing ~2/3 of the
-                // way out — resting near the edge, not swept to the middle.
-                // No extra rotation here: the assembly's internal angles are
-                // already self-consistent (copied whole from the real
-                // widget) — rotating it around an off-centre anchor on top
-                // of that is what made it look detached/broken last time.
-                .offset(x: discRadius * 0.731, y: -discRadius * 0.206)
+            hTonearmRealisticView
+                .rotationEffect(.degrees(hTonearmRealisticRestingAngle), anchor: hTonearmRealisticPivot)
+                // Same derivation approach as the old vector hTonearm's
+                // offset comment (kept below on hTonearm itself, still
+                // used as the shape reference), redone for this asset's
+                // own pivot fraction (0.653, 0.213) and combined scale
+                // (VinylWidgetView's own 1.6x realistic enlargement,
+                // times this widget's hDiscScale): the ZStack centres
+                // this view's frame-centre on the disc centre first,
+                // which puts the pivot at roughly (0.162, -0.608)*R from
+                // disc-centre for free. Solving offset = target - that
+                // inherent position, keeping the same target the vector
+                // version used (pivot just outside the disc's edge,
+                // upper-right, at 0.9R, -0.75R) gives this offset.
+                .offset(x: discRadius * 0.738, y: -discRadius * 0.142)
         }
         .frame(width: hDiscContainerSize, height: hDiscContainerSize)
         .contentShape(Rectangle())
@@ -382,6 +382,41 @@ struct VinylHorizontalWidgetView: View {
                 .position(x: 28, y: 164)
         }
         .frame(width: 90, height: 180)
+    }
+
+    // MARK: - Realistic tonearm (same asset/proportions as VinylWidgetView)
+    //
+    // Rolled out from the main vertical widget once its calibration there
+    // was confirmed. This one is purely decorative (no progress tracking,
+    // matching hTonearm's own original design — that view never had a
+    // rotationEffect either, just its rod's own baked-in 20° tilt), so a
+    // single fixed angle is used rather than reusing the whole angle/
+    // progress state machine from VinylWidgetView.
+
+    // Mirrors VinylWidgetView's tonearmRealisticScale (1.6) — the extra
+    // enlargement the realistic art needs relative to the vector's own
+    // 90x180 box applies here too, before this widget's own hDiscScale is
+    // layered on top of it.
+    private let hTonearmRealisticScale: CGFloat = 1.6
+    // Mirrors VinylWidgetView's tonearmRealisticStartAngle — a "resting
+    // near the edge, about to play" pose, the same semantic the vector
+    // hTonearm's untouched natural orientation was going for.
+    private let hTonearmRealisticRestingAngle: Double = -5.0
+
+    private var hTonearmRealisticPivot: UnitPoint {
+        UnitPoint(x: 470.0 / 720.0, y: 310.0 / 1456.0)
+    }
+
+    private var hTonearmRealisticView: some View {
+        Image("TonearmRealistic")
+            .resizable()
+            .interpolation(.high)
+            .antialiased(true)
+            .aspectRatio(contentMode: .fit)
+            .frame(
+                width: 90 * hTonearmRealisticScale * hDiscScale,
+                height: 180 * hTonearmRealisticScale * hDiscScale
+            )
     }
 
     // MARK: - Track info + controls (right side)

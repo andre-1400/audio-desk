@@ -1480,9 +1480,9 @@ private struct VinylWidgetReplica: View {
             }
 
             // === Tonearm (cued onto the record) ===
-            tonearmView
-                .rotationEffect(.degrees(-6), anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0))
-                .offset(x: 115, y: -137)
+            tonearmReplicaRealisticView
+                .rotationEffect(.degrees(-5), anchor: tonearmReplicaRealisticPivot)
+                .offset(x: tonearmReplicaRealisticOffset.x, y: tonearmReplicaRealisticOffset.y)
         }
         .frame(width: 384, height: 516)
     }
@@ -1726,6 +1726,40 @@ private struct VinylWidgetReplica: View {
             }
         }
         .frame(width: 90, height: 180)
+    }
+
+    // MARK: Realistic tonearm (same asset/proportions as VinylWidgetView)
+    //
+    // Rolled out from the main live widget once its calibration there was
+    // confirmed. Same 90x180/384x516 geometry as that widget (this is a
+    // static replica of it), so the same scale/pivot/offset numbers apply
+    // directly rather than needing their own re-derivation. Fixed at -5°
+    // (matching VinylWidgetView's own tonearmRealisticStartAngle) instead
+    // of the old vector's -6°, since this replica is a static "cued onto
+    // the record" pose, not progress-tracking.
+    private let tonearmReplicaRealisticScale: CGFloat = 1.6
+
+    private var tonearmReplicaRealisticPivot: UnitPoint {
+        UnitPoint(x: 470.0 / 720.0, y: 310.0 / 1456.0)
+    }
+
+    private var tonearmReplicaRealisticOffset: CGPoint {
+        let pivotFromCenterX = tonearmReplicaRealisticPivot.x * 90 - 45
+        let pivotFromCenterY = tonearmReplicaRealisticPivot.y * 180 - 90
+        let growth = tonearmReplicaRealisticScale - 1
+        return CGPoint(
+            x: 115 - pivotFromCenterX * growth,
+            y: -137 - pivotFromCenterY * growth
+        )
+    }
+
+    private var tonearmReplicaRealisticView: some View {
+        Image("TonearmRealistic")
+            .resizable()
+            .interpolation(.high)
+            .antialiased(true)
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 90 * tonearmReplicaRealisticScale, height: 180 * tonearmReplicaRealisticScale)
     }
 
     // MARK: Track info placeholder (mirrors the live widget's integrated panel)

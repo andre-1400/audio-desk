@@ -420,27 +420,20 @@ struct VinylWidgetView: View {
             // gesture was removed. Seeking is still available via the
             // scrub bar in the track panel below.
             TimelineView(.animation) { context in
-                // Trying the AI-generated realistic tonearm art only on
-                // the Adaptive theme for now, so it can be reviewed
-                // before deciding whether to roll it out to the other
-                // themes/widgets that share the vector tonearmView.
-                Group {
-                    if themeManager.themeID == .adaptive {
-                        tonearmRealisticView
-                            .rotationEffect(
-                                .degrees(tonearmRealisticAngle(at: context.date)),
-                                anchor: tonearmRealisticPivot
-                            )
-                            .offset(x: tonearmRealisticOffset.x, y: tonearmRealisticOffset.y)
-                    } else {
-                        tonearmView
-                            .rotationEffect(
-                                .degrees(tonearmAngle(at: context.date)),
-                                anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0)
-                            )
-                            .offset(x: 115, y: -137)
-                    }
-                }
+                // Rolled out to every theme now that the realistic art's
+                // proportions/calibration were confirmed on Adaptive —
+                // same tonearmRealisticView/Pivot/Offset/Angle used
+                // regardless of theme, replacing the vector tonearmView
+                // everywhere in this file. tonearmView itself is left
+                // in place (unused here) since VinylHorizontalWidgetView
+                // still reuses its exact geometry for its own scaled-down
+                // hTonearm.
+                tonearmRealisticView
+                    .rotationEffect(
+                        .degrees(tonearmRealisticAngle(at: context.date)),
+                        anchor: tonearmRealisticPivot
+                    )
+                    .offset(x: tonearmRealisticOffset.x, y: tonearmRealisticOffset.y)
             }
             .animation(.spring(response: 1.2, dampingFraction: 0.7), value: animator.tonearmShouldRest)
         }
