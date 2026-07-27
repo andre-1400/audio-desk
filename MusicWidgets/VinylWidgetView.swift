@@ -149,10 +149,13 @@ struct VinylWidgetView: View {
     // percent = 100 gives startAngle ≈ -1°, endAngle ≈ 12° — a 7°
     // down-shift of the previous range, keeping the same ~13° span since
     // nothing suggested the *span* itself was wrong, only where it sits.
-    // The 140% figure is an estimate, not a measurement, so this may
-    // still need another small correction once seen.
+    // The 140% figure was an estimate, not a measurement — confirmed
+    // close but needing one more small nudge: at -1° the needle was near
+    // the edge but not quite touching it. Moved out another 4° (-1 -> -5)
+    // to sit right at the disc's edge at song start; endAngle untouched
+    // since only the start was flagged this round.
     private let tonearmRealisticRestAngle = -22.0
-    private let tonearmRealisticStartAngle = -1.0
+    private let tonearmRealisticStartAngle = -5.0
     private let tonearmRealisticEndAngle = 12.0
     private let tonearmMaxSeekProgress = 0.98
     private let tonearmPlaybackTransitionDuration: TimeInterval = 0.42
