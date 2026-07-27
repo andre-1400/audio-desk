@@ -311,14 +311,20 @@ struct NotchWidgetView: View {
         .frame(height: metrics.idleHeight, alignment: .top)
     }
 
-    // MARK: - Expanded: art on the left, title/artist/progress/transport
-    // stacked on the right.
+    // MARK: - Expanded: everything dropped below the physical notch's own
+    // vertical strip, not sitting beside it. The notch is only as tall as
+    // notch.height at the very top of this view — below that line the
+    // cutout doesn't exist and the full width is real, usable space, so
+    // there's no reason to keep reserving a notch-width gap down the
+    // entire card the way idleContent (which genuinely sits level with
+    // the cutout) has to. Art and the text/controls block now sit right
+    // next to each other, only pushed down far enough to clear the notch.
+    private var expandedArtSize: CGFloat {
+        metrics.expandedHeight - metrics.notch.height - 16
+    }
+
     private var expandedContent: some View {
-        HStack(spacing: 0) {
-            // Filling most of expandedHeight (a fixed margin, not a fixed
-            // size) instead of a small 42pt square floating in a much
-            // bigger column — same "make it actually fill the space"
-            // treatment the idle art already got.
+        HStack(spacing: 14) {
             Group {
                 if let art {
                     Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
@@ -327,21 +333,9 @@ struct NotchWidgetView: View {
                         .fill(Color.white.opacity(0.15))
                 }
             }
-            .frame(width: metrics.expandedHeight - 20, height: metrics.expandedHeight - 20)
+            .frame(width: expandedArtSize, height: expandedArtSize)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            // Hugging the trailing edge (the side next to the notch gap)
-            // instead of SwiftUI's default centring within the column —
-            // centring is what was leaving a wide, seemingly pointless gap
-            // between the art and the actual notch cutout.
-            .frame(width: metrics.leftWidth, alignment: .trailing)
-            .padding(.trailing, 10)
 
-            Color.clear.frame(width: metrics.notch.width)
-
-            // Title/artist/progress/transport read as one centred block
-            // spanning the available width (matching the reference), with
-            // the equalizer kept as a slim, separate accent hugging the
-            // far-right edge instead of squeezing into the same column.
             HStack(spacing: 10) {
                 VStack(spacing: 7) {
                     VStack(spacing: 2) {
@@ -371,10 +365,14 @@ struct NotchWidgetView: View {
                 EqualizerBars(animating: isPreview ? true : np.isPlaying, color: waveColour)
                     .frame(width: 18)
             }
-            .padding(.leading, 14)
-            .padding(.trailing, 16)
-            .frame(width: metrics.rightWidth, alignment: .leading)
         }
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity, alignment: .center)
+        // The one number that actually matters here: push the whole row
+        // down past the physical cutout's own height, plus a little
+        // breathing room, instead of starting flush with the top like the
+        // idle pill (which has to stay level with the notch) does.
+        .padding(.top, metrics.notch.height + 10)
     }
 
     private var progressRow: some View {
