@@ -80,11 +80,15 @@ struct NotchLayoutMetrics {
     // shrinking to fit, and so the transport row has room to not clip.
     let leftWidth: CGFloat = 20
     let rightWidth: CGFloat = 150
-    // Bumped from 152: the album art (sized to fill nearly the whole row
-    // height) was landing flush against the card's bottom edge, close to
-    // clipping. This adds slack below the content instead of stretching
-    // the art itself further.
-    let expandedHeight: CGFloat = 172
+    // Trimmed from 172 to 136 to cut the leftover bottom black space once
+    // the content's top padding got raised in later rounds — the -36 here
+    // exactly cancels the "-36" that used to be subtracted separately in
+    // expandedArtSize's own formula, so the art's actual computed size
+    // (and the content's vertical position, driven by notch.height - 33
+    // in expandedContent, untouched here) comes out byte-for-byte
+    // identical to before. Only the leftover slack below the content
+    // shrinks, nothing else moves or resizes.
+    let expandedHeight: CGFloat = 136
 
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
 
@@ -332,8 +336,11 @@ struct NotchWidgetView: View {
     // sitting flush against the card's bottom edge, and that extra room
     // should go to breathing space below the content, not to inflating
     // the art size further (it was already the right size).
+    // No "-36" here anymore — that's now baked into expandedHeight itself
+    // (172 -> 136), so this computes the exact same art size as before on
+    // any hardware, regardless of the actual notch.height.
     private var expandedArtSize: CGFloat {
-        metrics.expandedHeight - metrics.notch.height - 36
+        metrics.expandedHeight - metrics.notch.height
     }
 
     private var expandedContent: some View {
