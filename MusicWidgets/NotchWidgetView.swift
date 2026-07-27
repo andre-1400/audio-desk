@@ -178,19 +178,20 @@ struct NotchWidgetView: View {
     // taller than it really is even with nothing playing.
     private var isVisible: Bool { expanded || isActive }
 
+    // Shared by both the background fill and the clip below, so the two
+    // can never disagree about where the corner curve actually is.
+    private var backgroundShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 0,
+            bottomLeadingRadius: expanded ? 28 : 16,
+            bottomTrailingRadius: expanded ? 28 : 16,
+            topTrailingRadius: 0,
+            style: .continuous
+        )
+    }
+
     var body: some View {
         ZStack {
-            if isVisible {
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: expanded ? 28 : 16,
-                    bottomTrailingRadius: expanded ? 28 : 16,
-                    topTrailingRadius: 0,
-                    style: .continuous
-                )
-                .fill(Color.black)
-            }
-
             if expanded {
                 // No top padding here: the art column and the info column
                 // both sit entirely to the left/right of the notch's own
@@ -214,6 +215,14 @@ struct NotchWidgetView: View {
             width: expanded ? metrics.expandedWidth : (isActive ? metrics.idleWidth : 0),
             height: expanded ? metrics.expandedHeight : (isActive ? metrics.idleHeight : 0)
         )
+        // Background AND clip use the exact same shape, so content (album
+        // art, equalizer bars, anything near an edge) can never poke past
+        // the rounded corner and make it read as jagged/deformed — before
+        // this, the black rounded-rect was only a fill sitting behind the
+        // content, with nothing actually masking the content itself to
+        // that same curve.
+        .background(isVisible ? backgroundShape.fill(Color.black) : backgroundShape.fill(Color.clear))
+        .clipShape(backgroundShape)
         .contentShape(Rectangle())
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: expanded)
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isActive)
