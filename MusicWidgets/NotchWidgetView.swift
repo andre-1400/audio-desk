@@ -386,9 +386,9 @@ struct NotchWidgetView: View {
         }
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .center)
-        // Raised again per feedback ("even more") from notch.height - 20
-        // to notch.height - 40.
-        .padding(.top, metrics.notch.height - 40)
+        // Nudged back down slightly ("a tiny bit lower") from
+        // notch.height - 40 to notch.height - 33.
+        .padding(.top, metrics.notch.height - 33)
     }
 
     private var progressRow: some View {
