@@ -348,17 +348,18 @@ struct VinylWidgetView: View {
                                 .degrees(tonearmAngle(at: context.date)),
                                 anchor: tonearmRealisticPivot
                             )
+                            .offset(x: tonearmRealisticOffset.x, y: tonearmRealisticOffset.y)
                     } else {
                         tonearmView
                             .rotationEffect(
                                 .degrees(tonearmAngle(at: context.date)),
                                 anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0)
                             )
+                            .offset(x: 115, y: -137)
                     }
                 }
             }
             .animation(.spring(response: 1.2, dampingFraction: 0.7), value: animator.tonearmShouldRest)
-            .offset(x: 115, y: -137)
         }
         .frame(width: 384, height: 516)
         .coordinateSpace(name: "widget")
@@ -1096,15 +1097,42 @@ struct VinylWidgetView: View {
     // tool's own image preview renders transparent PNGs against a flat
     // grey matte that's easy to mistake for "it didn't work."
     //
-    // Pivot location (470, 310) and the 90x180 frame/offset below were
-    // read directly off the cleaned image with a debug coordinate grid
-    // overlaid (composited over solid colour, not judged from the raw
-    // preview) — the image's own aspect ratio (720:1456 ≈ 1:2.02) is
-    // close enough to the vector tonearm's (90:180 = 1:2) that reusing
-    // the exact same outer frame and offset as tonearmView lines the new
-    // art up over the platter correctly with no separate tuning needed.
+    // Pivot location (470, 310), read directly off the cleaned image with
+    // a debug coordinate grid overlaid (composited over solid colour, not
+    // judged from the raw preview).
     private var tonearmRealisticPivot: UnitPoint {
         UnitPoint(x: 470.0 / 720.0, y: 310.0 / 1456.0)
+    }
+
+    // Reusing tonearmView's exact 90x180 frame made the arm read as much
+    // too short to reach the record — per feedback, the stylus should
+    // land around the disc's 4-o'clock position when playing, which needs
+    // a noticeably longer arm than the vector one's own proportions
+    // happened to need. Scaling the whole image up instead of just
+    // stretching it keeps the object's own proportions (rod thickness,
+    // headshell size, etc.) correct.
+    //
+    // Growing the frame around its own centre would drag the pivot itself
+    // sideways/down along with it, since the pivot isn't at the frame's
+    // centre — tonearmRealisticOffset below cancels exactly that drift
+    // (derived from how far the pivot sits from centre in the original
+    // 90x180 box, scaled by the same factor) so the pivot stays anchored
+    // in the same spot relative to the platter as before, and only the
+    // arm's reach grows.
+    private let tonearmRealisticScale: CGFloat = 1.8
+
+    private var tonearmRealisticSize: CGSize {
+        CGSize(width: 90 * tonearmRealisticScale, height: 180 * tonearmRealisticScale)
+    }
+
+    private var tonearmRealisticOffset: CGPoint {
+        let pivotFromCenterX = tonearmRealisticPivot.x * 90 - 45
+        let pivotFromCenterY = tonearmRealisticPivot.y * 180 - 90
+        let growth = tonearmRealisticScale - 1
+        return CGPoint(
+            x: 115 - pivotFromCenterX * growth,
+            y: -137 - pivotFromCenterY * growth
+        )
     }
 
     private var tonearmRealisticView: some View {
@@ -1113,7 +1141,7 @@ struct VinylWidgetView: View {
             .interpolation(.high)
             .antialiased(true)
             .aspectRatio(contentMode: .fit)
-            .frame(width: 90, height: 180)
+            .frame(width: tonearmRealisticSize.width, height: tonearmRealisticSize.height)
     }
 
     // MARK: - Track Info (modern, sits directly on the body — no card)
