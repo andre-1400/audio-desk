@@ -163,7 +163,7 @@ private struct GallerySidebar: View {
                     .foregroundStyle(AMTheme.accent)
                     .frame(width: 28, height: 28)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("MusicWidgets").font(.system(size: 15, weight: .semibold)).foregroundStyle(Neu.text)
+                    Text("MusicWidgets").font(.appTitle).foregroundStyle(Neu.text)
                     Text("Desktop players").font(.appCaption).foregroundStyle(Neu.subtext)
                 }
                 Spacer(minLength: 0)
@@ -552,10 +552,16 @@ private struct GalleryDetail: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header — large SF Pro title (not SF Rounded), HIG type ramp.
+            // Header — a genuine large title (the appLargeTitle token),
+            // matching the scale/weight Music, Podcasts, and Mail use for
+            // their own library page headers, with the slight negative
+            // tracking SF Pro Display wants at large sizes. Extra top
+            // clearance gives it room to breathe the way a real large-title
+            // page does, instead of sitting flush under the titlebar.
             HStack(alignment: .firstTextBaseline) {
                 Text(category.title)
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.appLargeTitle)
+                    .tracking(-0.4)
                     .foregroundStyle(Neu.text)
                 Spacer()
                 // Widget size, right where you pick the widget — not
@@ -571,9 +577,9 @@ private struct GalleryDetail: View {
                     }
                 }
             }
-            .padding(.horizontal, 32)
-            .padding(.top, 28)
-            .padding(.bottom, 20)
+            .padding(.horizontal, 34)
+            .padding(.top, 36)
+            .padding(.bottom, 26)
 
             // Grid (grouped by form)
             ScrollView(.vertical, showsIndicators: false) {
@@ -748,9 +754,13 @@ private struct GalleryDetail: View {
         let special = items.filter { $0.isSpecialStyle }
         let prebuilt = items.filter { !$0.isSpecialStyle }
 
-        VStack(alignment: .leading, spacing: 14) {
+        // A real collection header (appCollectionTitle) instead of the old
+        // ad-hoc 16pt — one clear step below the page's own large title,
+        // the same "sub-heading" hierarchy Photos/Music use for their own
+        // collection groupings within a library page.
+        VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 8) {
-                Text(name).font(.system(size: 16, weight: .bold)).foregroundStyle(Neu.text)
+                Text(name).font(.appCollectionTitle).foregroundStyle(Neu.text)
                 Spacer()
                 Text("\(count)")
                     .font(.system(size: 11, weight: .semibold)).foregroundStyle(Neu.subtext)

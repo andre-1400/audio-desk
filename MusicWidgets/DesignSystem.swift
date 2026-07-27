@@ -92,8 +92,14 @@ extension View {
 // default design) rather than SF Rounded, matching Music/Finder/Settings.
 
 extension Font {
-    /// Big screen title (e.g. the gallery category header).
-    static let appLargeTitle = Font.system(size: 26, weight: .bold)
+    /// Big screen title (the gallery category header) — genuinely large,
+    /// matching the scale Music/Podcasts/Mail use for their own library
+    /// page titles, not just a slightly-bigger body size.
+    static let appLargeTitle = Font.system(size: 34, weight: .bold)
+    /// A collection/form header within a page (e.g. "Vinyl", "Horizontal")
+    /// — one clear step below the page's own large title, but still a
+    /// real heading, the way Photos/Music sub-collection headers read.
+    static let appCollectionTitle = Font.system(size: 20, weight: .bold)
     /// Section / group title.
     static let appTitle = Font.system(size: 15, weight: .semibold)
     /// Emphasised row/card title.
