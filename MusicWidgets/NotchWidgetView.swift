@@ -69,13 +69,18 @@ enum NotchDetector {
 // whose drawn size animates within an already-large, static window.
 struct NotchLayoutMetrics {
     let notch: CGRect
-    // Bigger overall footprint per feedback that the layout/proportions
-    // (not colour) were the main thing to fix — the art in particular was
-    // small and floating in a lot of empty column space rather than
-    // actually filling it the way the reference's does.
-    let leftWidth: CGFloat = 110
-    let rightWidth: CGFloat = 280
-    let expandedHeight: CGFloat = 112
+    // Now that expandedContent drops below the notch and centres art +
+    // text/controls as a single row (no more left/right column split
+    // around a gap), leftWidth/rightWidth just set the overall card width.
+    // Narrowed per feedback that the card read as too long horizontally —
+    // the old, wider values were sized for the column-split layout and
+    // were stretching the progress bar absurdly wide once that layout was
+    // dropped. Height increased so the album art (which needs to sit
+    // entirely below notch.height now) can actually be bigger instead of
+    // shrinking to fit, and so the transport row has room to not clip.
+    let leftWidth: CGFloat = 20
+    let rightWidth: CGFloat = 150
+    let expandedHeight: CGFloat = 152
 
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
 
@@ -360,7 +365,12 @@ struct NotchWidgetView: View {
                         transportButton("forward.fill", size: 13) { if !isPreview { detector.nextTrack() } }
                     }
                 }
-                .frame(maxWidth: .infinity)
+                // A bounded width instead of maxWidth: .infinity — with the
+                // card narrowed and the notch-gap removed, infinity let
+                // this block (and the progress bar inside it) stretch out
+                // absurdly wide since there was suddenly a lot of leftover
+                // horizontal space with nothing else claiming it.
+                .frame(width: 190)
 
                 EqualizerBars(animating: isPreview ? true : np.isPlaying, color: waveColour)
                     .frame(width: 18)
