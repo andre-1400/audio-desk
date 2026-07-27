@@ -190,6 +190,23 @@ struct VinylWidgetView: View {
         ].joined(separator: "|")
     }
 
+    /// Whether the tonearm's angle is actually changing frame-to-frame
+    /// right now — only true while genuinely playing (progress advancing)
+    /// or mid a song-switch transition. Everything else (rest, paused,
+    /// scrubbing) is a constant angle. Used to pause the tonearm's
+    /// TimelineView the rest of the time, the same way SpinningVinylView
+    /// already pauses its own disc rotation when not spinning (see its
+    /// `paused: freezeRotation || (!isPlaying && spinDownStartDate == nil)`).
+    /// Without this, the realistic tonearm image was being fully rotated/
+    /// resampled every single frame even while just sitting idle on the
+    /// desktop — a real, measurable cost now that it's a raster image
+    /// instead of cheap vector shapes.
+    private var tonearmActivelyMoving: Bool {
+        guard !animator.tonearmShouldRest, !displayedNowPlaying.trackName.isEmpty, !isScrubbing else { return false }
+        if tonearmPlaybackTransition != nil { return true }
+        return displayedNowPlaying.isPlaying
+    }
+
     /// Tonearm angle — overridden during song switch animation
     private func tonearmAngle(at date: Date) -> Double {
         if animator.tonearmShouldRest {
@@ -419,7 +436,11 @@ struct VinylWidgetView: View {
             // also covering draggable background around it), so the seek
             // gesture was removed. Seeking is still available via the
             // scrub bar in the track panel below.
-            TimelineView(.animation) { context in
+            // Paused whenever the angle is actually constant (see
+            // tonearmActivelyMoving) instead of ticking on every display
+            // refresh regardless of state — this was the real lag source
+            // once the tonearm became a raster image.
+            TimelineView(.animation(paused: !tonearmActivelyMoving)) { context in
                 // Rolled out to every theme now that the realistic art's
                 // proportions/calibration were confirmed on Adaptive —
                 // same tonearmRealisticView/Pivot/Offset/Angle used
