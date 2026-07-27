@@ -172,6 +172,12 @@ struct NotchWidgetView: View {
     @State private var extractedColours: ExtractedColours = .adaptivePreviewPlaceholder
     @State private var lastTrackKey = ""
     @State private var hovering = false
+    // Scrubbing state for the interactive progress bar — same pattern as
+    // DesktopWidgetView's own progress bar.
+    @State private var isScrubbing = false
+    @State private var scrubProgress: Double = 0
+    @State private var seekHandoffUntil: Date?
+    private let seekHandoffSuppressionDuration = 0.45
 
     private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
     private var art: NSImage? { isPreview ? previewArt : displayedArt }
@@ -274,6 +280,7 @@ struct NotchWidgetView: View {
         }
         .onChange(of: detector.nowPlaying) { _, live in
             guard !isPreview else { return }
+            guard !shouldSuppressSeekHandoffUpdate(from: live) else { return }
             displayedInfo = live
             let key = "\(live.trackName)|\(live.artistName)|\(live.albumName)"
             guard key != lastTrackKey else { return }
@@ -410,21 +417,47 @@ struct NotchWidgetView: View {
         .padding(.bottom, 10)
     }
 
+    private var canSeek: Bool {
+        !isPreview && !np.trackName.isEmpty && (np.durationMillis ?? 0) > 0
+    }
+
+    // Interactive — same drag-to-scrub pattern as DesktopWidgetView's own
+    // progress bar: a thumb that only appears while dragging, a slightly
+    // thicker track while scrubbing, and the actual seek committed on
+    // release (not on every drag delta, which would spam AppleScript).
     private var progressRow: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { context in
             let duration = np.durationMillis ?? 0
-            let elapsed = elapsedMillis(at: context.date)
+            let fraction = isScrubbing ? scrubProgress : (duration > 0 ? min(1, max(0, Double(elapsedMillis(at: context.date)) / Double(duration))) : 0)
+            let elapsed = isScrubbing ? Int(scrubProgress * Double(duration)) : elapsedMillis(at: context.date)
             let remaining = max(0, duration - elapsed)
-            let fraction = duration > 0 ? min(1, max(0, Double(elapsed) / Double(duration))) : 0
 
             VStack(spacing: 2) {
                 GeometryReader { geo in
+                    let width = geo.size.width
                     ZStack(alignment: .leading) {
-                        Capsule().fill(Color.white.opacity(0.25)).frame(height: 3)
-                        Capsule().fill(Color.white).frame(width: max(2, geo.size.width * fraction), height: 3)
+                        Capsule().fill(Color.white.opacity(0.25)).frame(height: isScrubbing ? 5 : 3)
+                        Capsule().fill(Color.white).frame(width: max(2, width * fraction), height: isScrubbing ? 5 : 3)
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 9, height: 9)
+                            .shadow(color: .black.opacity(0.4), radius: 2, y: 1)
+                            .offset(x: min(width - 9, max(0, width * fraction - 4.5)))
+                            .opacity(isScrubbing ? 1 : 0)
                     }
+                    .frame(height: 12)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        canSeek ? DragGesture(minimumDistance: 0)
+                            .onChanged { drag in handleScrubDrag(fraction: drag.location.x / width) }
+                            .onEnded { drag in
+                                handleScrubDrag(fraction: drag.location.x / width)
+                                commitScrub()
+                            } : nil
+                    )
                 }
-                .frame(height: 3)
+                .frame(height: 12)
+                .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
 
                 HStack {
                     Text(formatTime(elapsed))
@@ -436,6 +469,51 @@ struct NotchWidgetView: View {
             }
         }
         .opacity((np.durationMillis ?? 0) > 0 ? 1 : 0)
+    }
+
+    private func handleScrubDrag(fraction: Double) {
+        guard canSeek else { return }
+        isScrubbing = true
+        scrubProgress = min(1, max(0, fraction))
+    }
+
+    private func commitScrub() {
+        defer { isScrubbing = false }
+        guard isScrubbing, canSeek, let durationMillis = np.durationMillis else { return }
+        let targetMillis = Int((scrubProgress * Double(durationMillis)).rounded())
+        let sampledAt = np.isPlaying ? Date() : nil
+        seekHandoffUntil = Date().addingTimeInterval(seekHandoffSuppressionDuration)
+
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            displayedInfo = NowPlayingInfo(
+                trackName: displayedInfo.trackName,
+                artistName: displayedInfo.artistName,
+                albumName: displayedInfo.albumName,
+                albumArtURL: displayedInfo.albumArtURL,
+                isPlaying: displayedInfo.isPlaying,
+                source: displayedInfo.source,
+                positionMillis: targetMillis,
+                durationMillis: displayedInfo.durationMillis,
+                progressSampledAt: sampledAt
+            )
+        }
+        detector.seek(toMillis: targetMillis)
+    }
+
+    private func shouldSuppressSeekHandoffUpdate(from live: NowPlayingInfo) -> Bool {
+        guard let seekHandoffUntil else { return false }
+        let now = Date()
+        guard now < seekHandoffUntil else {
+            self.seekHandoffUntil = nil
+            return false
+        }
+        if live.isPlaying != displayedInfo.isPlaying {
+            self.seekHandoffUntil = nil
+            return false
+        }
+        return true
     }
 
     private func elapsedMillis(at date: Date) -> Int {
