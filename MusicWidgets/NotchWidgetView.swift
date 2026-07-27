@@ -399,12 +399,11 @@ struct NotchWidgetView: View {
         }
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .center)
-        // Nudged back down slightly ("a tiny bit lower") from
-        // notch.height - 40 to notch.height - 33.
-        // UNCHANGED — this is the only thing that sets how far down the
-        // content sits, and it must stay exactly as-is so the art and
-        // track titles keep clearing the physical notch.
-        .padding(.top, metrics.notch.height - 33)
+        // Moved down a bunch per feedback — on the user's actual hardware
+        // the content was still getting covered by the physical notch at
+        // notch.height - 33. Raised the clearance from -33 to +15 (a 48pt
+        // jump down).
+        .padding(.top, metrics.notch.height + 15)
         // The card hugs this content now (see body's height: nil), so
         // this is literally the margin between the transport buttons /
         // album art and the card's bottom edge.
