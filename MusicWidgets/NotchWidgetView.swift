@@ -261,7 +261,11 @@ struct NotchWidgetView: View {
             // trackpad, the same feedback macOS gives for things like
             // Dock magnification or Force Click previews.
             if isHovering && !hovering {
-                NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+                // .levelChange reads as a noticeably sharper, more
+                // pronounced click than .generic (it's the same pattern
+                // AppKit uses for slider/stepper detents snapping into
+                // place) — switched per feedback that .generic felt weak.
+                NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
             }
             hovering = isHovering
         }
