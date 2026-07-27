@@ -337,11 +337,25 @@ struct VinylWidgetView: View {
             // gesture was removed. Seeking is still available via the
             // scrub bar in the track panel below.
             TimelineView(.animation) { context in
-                tonearmView
-                    .rotationEffect(
-                        .degrees(tonearmAngle(at: context.date)),
-                        anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0)
-                    )
+                // Trying the AI-generated realistic tonearm art only on
+                // the Adaptive theme for now, so it can be reviewed
+                // before deciding whether to roll it out to the other
+                // themes/widgets that share the vector tonearmView.
+                Group {
+                    if themeManager.themeID == .adaptive {
+                        tonearmRealisticView
+                            .rotationEffect(
+                                .degrees(tonearmAngle(at: context.date)),
+                                anchor: tonearmRealisticPivot
+                            )
+                    } else {
+                        tonearmView
+                            .rotationEffect(
+                                .degrees(tonearmAngle(at: context.date)),
+                                anchor: UnitPoint(x: 68.0 / 90.0, y: 16.0 / 180.0)
+                            )
+                    }
+                }
             }
             .animation(.spring(response: 1.2, dampingFraction: 0.7), value: animator.tonearmShouldRest)
             .offset(x: 115, y: -137)
@@ -1058,6 +1072,39 @@ struct VinylWidgetView: View {
             }
         }
         .frame(width: 90, height: 180)
+    }
+
+    // MARK: - Tonearm (AI-generated realistic art, Adaptive theme only)
+    //
+    // The source PNG (Gemini-generated) came back with a checkerboard
+    // pattern drawn in as literal opaque pixels instead of real alpha —
+    // confirmed by inspecting the file: alpha was 255 everywhere. That
+    // checkerboard was almost certainly what read as "pixelated" once
+    // composited. Stripped it out via a border flood-fill (matching the
+    // two checker tile tones) into real per-pixel alpha, then feathered
+    // the resulting silhouette edge with a light Gaussian blur so the
+    // flood-fill boundary doesn't look jagged. The asset is stored at
+    // roughly 8x the display size (720x1456 for a 90x180pt frame), so
+    // .interpolation(.high) downsampling further smooths any residual
+    // raster noise instead of showing it at native pixel size.
+    //
+    // Pivot location (0.701, 0.2095) and the 90x180 frame/offset below
+    // were read directly off the cleaned image with a debug coordinate
+    // grid overlaid — the image's own aspect ratio (720:1456 ≈ 1:2.02)
+    // is close enough to the vector tonearm's (90:180 = 1:2) that reusing
+    // the exact same outer frame and offset as tonearmView lines the new
+    // art up over the platter correctly with no separate tuning needed.
+    private var tonearmRealisticPivot: UnitPoint {
+        UnitPoint(x: 505.0 / 720.0, y: 305.0 / 1456.0)
+    }
+
+    private var tonearmRealisticView: some View {
+        Image("TonearmRealistic")
+            .resizable()
+            .interpolation(.high)
+            .antialiased(true)
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 90, height: 180)
     }
 
     // MARK: - Track Info (modern, sits directly on the body — no card)
