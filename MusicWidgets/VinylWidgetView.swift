@@ -1076,26 +1076,28 @@ struct VinylWidgetView: View {
 
     // MARK: - Tonearm (AI-generated realistic art, Adaptive theme only)
     //
-    // The source PNG (Gemini-generated) came back with a checkerboard
-    // pattern drawn in as literal opaque pixels instead of real alpha —
-    // confirmed by inspecting the file: alpha was 255 everywhere. That
-    // checkerboard was almost certainly what read as "pixelated" once
-    // composited. Stripped it out via a border flood-fill (matching the
-    // two checker tile tones) into real per-pixel alpha, then feathered
-    // the resulting silhouette edge with a light Gaussian blur so the
-    // flood-fill boundary doesn't look jagged. The asset is stored at
-    // roughly 8x the display size (720x1456 for a 90x180pt frame), so
-    // .interpolation(.high) downsampling further smooths any residual
-    // raster noise instead of showing it at native pixel size.
+    // Second-generation asset: black/carbon-fiber finish with a curved
+    // (not straight) arm, replacing the first silver/straight attempt in
+    // this same imageset slot. Same checkerboard-alpha problem as the
+    // first version (Gemini drew a fake-transparency checker pattern in
+    // as literal opaque pixels — confirmed via alpha=255 everywhere in
+    // the raw file) and the same fix: a border flood-fill into real alpha
+    // plus a light Gaussian blur on just the alpha channel to feather the
+    // silhouette edge. This version's checkerboard had soft/anti-aliased
+    // tile edges rather than two crisp tones, so the flood-fill match had
+    // to use a brightness threshold (>=140) instead of two exact values —
+    // safe here since the black/carbon tonearm's own tones (~35-90) sit
+    // nowhere near that range.
     //
-    // Pivot location (0.701, 0.2095) and the 90x180 frame/offset below
-    // were read directly off the cleaned image with a debug coordinate
-    // grid overlaid — the image's own aspect ratio (720:1456 ≈ 1:2.02)
-    // is close enough to the vector tonearm's (90:180 = 1:2) that reusing
-    // the exact same outer frame and offset as tonearmView lines the new
-    // art up over the platter correctly with no separate tuning needed.
+    // Pivot location (480, 305) and the 90x180 frame/offset below were
+    // read directly off the cleaned image with a debug coordinate grid
+    // overlaid, same process as the first version — the image's own
+    // aspect ratio (720:1456 ≈ 1:2.02) is close enough to the vector
+    // tonearm's (90:180 = 1:2) that reusing the exact same outer frame
+    // and offset as tonearmView lines the new art up over the platter
+    // correctly with no separate tuning needed.
     private var tonearmRealisticPivot: UnitPoint {
-        UnitPoint(x: 505.0 / 720.0, y: 305.0 / 1456.0)
+        UnitPoint(x: 480.0 / 720.0, y: 305.0 / 1456.0)
     }
 
     private var tonearmRealisticView: some View {
