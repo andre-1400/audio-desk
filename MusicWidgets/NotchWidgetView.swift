@@ -80,7 +80,11 @@ struct NotchLayoutMetrics {
     // shrinking to fit, and so the transport row has room to not clip.
     let leftWidth: CGFloat = 20
     let rightWidth: CGFloat = 150
-    let expandedHeight: CGFloat = 152
+    // Bumped from 152: the album art (sized to fill nearly the whole row
+    // height) was landing flush against the card's bottom edge, close to
+    // clipping. This adds slack below the content instead of stretching
+    // the art itself further.
+    let expandedHeight: CGFloat = 172
 
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
 
@@ -324,8 +328,12 @@ struct NotchWidgetView: View {
     // entire card the way idleContent (which genuinely sits level with
     // the cutout) has to. Art and the text/controls block now sit right
     // next to each other, only pushed down far enough to clear the notch.
+    // Margin bumped from 16 to 36 — expandedHeight grew to fix the art
+    // sitting flush against the card's bottom edge, and that extra room
+    // should go to breathing space below the content, not to inflating
+    // the art size further (it was already the right size).
     private var expandedArtSize: CGFloat {
-        metrics.expandedHeight - metrics.notch.height - 16
+        metrics.expandedHeight - metrics.notch.height - 36
     }
 
     private var expandedContent: some View {
