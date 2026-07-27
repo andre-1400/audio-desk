@@ -249,23 +249,44 @@ final class MusicDetector: ObservableObject {
     /// as transient (e.g. the target app is launching/quitting mid-poll).
     private static let automationDeniedErrorNumber = -1743
 
+    /// NSAppleScript.executeAndReturnError has no cancellation/timeout API
+    /// of its own — if Spotify/Music is hung (beachballing, relaunching
+    /// mid-call), this call just blocks forever. Every call site here goes
+    /// through detectionQueue (either .sync from a transport button tap or
+    /// .async from the polling timer), so an indefinite hang wasn't just
+    /// slow, it could freeze the *next* transport tap too, since .sync
+    /// callers share that same serial queue. Running the actual call on a
+    /// separate queue and bounding how long we wait on it means a hung
+    /// target app can no longer stall the caller past this timeout — the
+    /// background call is simply abandoned (there's no way to force-kill
+    /// it once started) and treated as a plain failure.
+    private static let scriptTimeoutSeconds: TimeInterval = 5
+
     @discardableResult
     private static func executeAppleScript(_ source: String) -> ScriptOutcome {
         guard let script = NSAppleScript(source: source) else {
             return .otherError
         }
 
-        var error: NSDictionary?
-        let result = script.executeAndReturnError(&error)
-        if let error {
-            let errorNumber = (error[NSAppleScript.errorNumber] as? NSNumber)?.intValue
-            return errorNumber == automationDeniedErrorNumber ? .permissionDenied : .otherError
+        let semaphore = DispatchSemaphore(value: 0)
+        var outcome: ScriptOutcome = .otherError
+        let execQueue = DispatchQueue(label: "com.vinylwidget.applescript-exec", qos: .userInitiated)
+        execQueue.async {
+            var error: NSDictionary?
+            let result = script.executeAndReturnError(&error)
+            if let error {
+                let errorNumber = (error[NSAppleScript.errorNumber] as? NSNumber)?.intValue
+                outcome = errorNumber == automationDeniedErrorNumber ? .permissionDenied : .otherError
+            } else if let text = result.stringValue {
+                outcome = .success(text)
+            }
+            semaphore.signal()
         }
 
-        guard let text = result.stringValue else {
+        guard semaphore.wait(timeout: .now() + scriptTimeoutSeconds) == .success else {
             return .otherError
         }
-        return .success(text)
+        return outcome
     }
 
     private static func parseNowPlayingResponse(_ response: String, source: MusicSource) -> ParsedNowPlaying {

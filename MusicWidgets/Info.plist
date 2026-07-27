@@ -30,5 +30,7 @@
 	<string>MusicWidgets needs access to control Spotify and Apple Music to display what's playing.</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

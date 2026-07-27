@@ -435,6 +435,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             o.alphaValue = s.widgetOpacity
         }
+        // The Notch widget was silently exempt from opacity/click-through
+        // entirely (it isn't in activeWidgetWindows, by design — it's meant
+        // to run independently of the other widgets' hide-on-pause/manual-
+        // hide behavior, which that shared array also drives, so adding it
+        // there would've been a bigger behavior change than asked for).
+        // Window-layer changes deliberately don't apply here at all: the
+        // Notch window needs to stay pinned just above the menu bar
+        // (mainMenu + 3, set once at creation) to overlay it like Dynamic
+        // Island — floating or dropping to desktop level would break that
+        // entirely, the same reasoning that already exempts the full-
+        // screen Desktop widget from level changes.
+        if let n = notchWidgetWindow {
+            n.ignoresMouseEvents = s.clickThrough
+            if n.isVisible { n.alphaValue = s.widgetOpacity }
+        }
     }
 
     private func fadeIn(_ window: NSWindow) {
@@ -978,6 +993,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.orderFrontRegardless()
 
         notchWidgetWindow = window
+        applyWindowPreferences()
     }
 
     private func destroyNotchWindow() {

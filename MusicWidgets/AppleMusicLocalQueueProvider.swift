@@ -143,13 +143,32 @@ final class AppleMusicLocalQueueProvider {
         return "apple-meta:\(normalizedTrack)|\(normalizedArtist)|\(normalizedAlbum)"
     }
 
+    // Same reasoning as MusicDetector's own executeAppleScript: no built-in
+    // cancellation/timeout, so a hung target app would otherwise block
+    // whatever called this indefinitely. Bounded the same way — run on a
+    // separate queue, cap how long the caller waits.
+    private static let scriptTimeoutSeconds: TimeInterval = 5
+
     @discardableResult
     private static func executeAppleScript(_ source: String) -> String? {
         guard let script = NSAppleScript(source: source) else { return nil }
-        var error: NSDictionary?
-        let result = script.executeAndReturnError(&error)
-        if error != nil { return nil }
-        return result.stringValue
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var outcome: String?
+        let execQueue = DispatchQueue(label: "com.vinylwidget.applemusic-queue-exec", qos: .userInitiated)
+        execQueue.async {
+            var error: NSDictionary?
+            let result = script.executeAndReturnError(&error)
+            if error == nil {
+                outcome = result.stringValue
+            }
+            semaphore.signal()
+        }
+
+        guard semaphore.wait(timeout: .now() + scriptTimeoutSeconds) == .success else {
+            return nil
+        }
+        return outcome
     }
 
     private static let appleLocalQueueScript = """
