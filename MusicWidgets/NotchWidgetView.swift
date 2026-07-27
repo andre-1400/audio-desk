@@ -80,11 +80,27 @@ struct NotchLayoutMetrics {
     // shrinking to fit, and so the transport row has room to not clip.
     let leftWidth: CGFloat = 20
     let rightWidth: CGFloat = 150
-    // Bumped from 152: the album art (sized to fill nearly the whole row
-    // height) was landing flush against the card's bottom edge, close to
-    // clipping. This adds slack below the content instead of stretching
-    // the art itself further.
-    let expandedHeight: CGFloat = 172
+
+    /// How far the expanded row's top edge sits below the notch — the
+    /// single source of truth shared by both the content's own top padding
+    /// and expandedHeight below, so the two can never drift apart the way
+    /// they did when expandedHeight was a flat constant and the top
+    /// clearance kept changing underneath it, leaving a growing dead zone
+    /// of empty black space at the bottom.
+    var expandedTopClearance: CGFloat { notch.height - 33 }
+    /// Fixed rather than derived from expandedHeight — this used to be
+    /// "whatever's left of expandedHeight" which meant trimming the
+    /// card's height also shrank the art. Keeping it fixed means the art
+    /// stays the size that was already confirmed to look right.
+    let expandedArtSize: CGFloat = 100
+    /// Small breathing room below the content, not the ~69pt of leftover
+    /// black space the old flat 172 constant left once the content got
+    /// raised — the whole point of this change.
+    let expandedBottomMargin: CGFloat = 14
+
+    var expandedHeight: CGFloat {
+        expandedTopClearance + expandedArtSize + expandedBottomMargin
+    }
 
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
 
@@ -328,14 +344,6 @@ struct NotchWidgetView: View {
     // entire card the way idleContent (which genuinely sits level with
     // the cutout) has to. Art and the text/controls block now sit right
     // next to each other, only pushed down far enough to clear the notch.
-    // Margin bumped from 16 to 36 — expandedHeight grew to fix the art
-    // sitting flush against the card's bottom edge, and that extra room
-    // should go to breathing space below the content, not to inflating
-    // the art size further (it was already the right size).
-    private var expandedArtSize: CGFloat {
-        metrics.expandedHeight - metrics.notch.height - 36
-    }
-
     private var expandedContent: some View {
         HStack(spacing: 14) {
             Group {
@@ -346,7 +354,7 @@ struct NotchWidgetView: View {
                         .fill(Color.white.opacity(0.15))
                 }
             }
-            .frame(width: expandedArtSize, height: expandedArtSize)
+            .frame(width: metrics.expandedArtSize, height: metrics.expandedArtSize)
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
             HStack(spacing: 10) {
@@ -386,9 +394,10 @@ struct NotchWidgetView: View {
         }
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .center)
-        // Nudged back down slightly ("a tiny bit lower") from
-        // notch.height - 40 to notch.height - 33.
-        .padding(.top, metrics.notch.height - 33)
+        // Reads from the same expandedTopClearance metrics.expandedHeight
+        // is now built from, so the card's height and the content's
+        // actual vertical position can't drift apart again.
+        .padding(.top, metrics.expandedTopClearance)
     }
 
     private var progressRow: some View {
