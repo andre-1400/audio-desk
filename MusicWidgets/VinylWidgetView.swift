@@ -131,15 +131,20 @@ struct VinylWidgetView: View {
     // Separate angle range for the realistic art (Adaptive theme only) —
     // its pivot-to-tip vector isn't drawn at the same baseline tilt as
     // the vector tonearm's own shapes, so the same degrees value doesn't
-    // land the same place on the record. Feedback was that the needle
-    // wasn't even landing on the disc at the start of a song, i.e. it
-    // needed MORE inward rotation than -8° at start — shifted the whole
-    // range +14° (same 22° sweep, just rotated further onto the platter)
-    // as a reasoned first pass. This is unverified on-screen and will
-    // likely need another round of tuning once seen.
+    // land the same place on the record.
+    //
+    // First pass shifted the whole range +14° (start -8->6, end 14->28)
+    // since the needle wasn't landing on the disc at all at start. That
+    // fixed the start but overshot the end — feedback (with a screenshot
+    // near the end of a song) showed the needle sitting on the album art
+    // label in the centre, past the vinyl's outer groove area entirely.
+    // Pulled endAngle back down (28->19) to stop short of the label,
+    // shrinking the sweep from 22° to 13° rather than shifting the whole
+    // range again, since the start position was confirmed correct and
+    // shouldn't move.
     private let tonearmRealisticRestAngle = -22.0
     private let tonearmRealisticStartAngle = 6.0
-    private let tonearmRealisticEndAngle = 28.0
+    private let tonearmRealisticEndAngle = 19.0
     private let tonearmMaxSeekProgress = 0.98
     private let tonearmPlaybackTransitionDuration: TimeInterval = 0.42
     private let seekHandoffSuppressionDuration = 0.45
