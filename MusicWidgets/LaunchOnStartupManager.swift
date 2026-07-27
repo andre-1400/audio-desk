@@ -15,13 +15,13 @@ final class LaunchOnStartupManager: ObservableObject {
         switch SMAppService.mainApp.status {
         case .enabled:
             isEnabled = true
-            statusMessage = "MusicWidgets will open automatically when you log in."
+            statusMessage = "\"name\" will open automatically when you log in."
         case .notRegistered:
             isEnabled = false
-            statusMessage = "MusicWidgets will not open automatically when you log in."
+            statusMessage = "\"name\" will not open automatically when you log in."
         case .requiresApproval:
             isEnabled = false
-            statusMessage = "Approve MusicWidgets in System Settings to enable startup."
+            statusMessage = "Approve \"name\" in System Settings to enable startup."
         case .notFound:
             isEnabled = false
             statusMessage = "Launch On Startup is unavailable for this build."

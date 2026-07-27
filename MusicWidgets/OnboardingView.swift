@@ -108,13 +108,15 @@ struct OnboardingView: View {
             VStack(spacing: 28) {
                 Spacer()
 
+                // Placeholder mark — swap for the real logo once the app
+                // is renamed; "logo" stands in for it everywhere for now.
                 ZStack {
                     RoundedRectangle(cornerRadius: 30, style: .continuous)
                         .fill(AMTheme.gradient)
                         .frame(width: 104, height: 104)
                         .shadow(color: AMTheme.accent.opacity(0.4), radius: 16, y: 8)
-                    Image(systemName: "music.note")
-                        .font(.system(size: 44, weight: .semibold))
+                    Text("logo")
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(AMTheme.onAccent)
                 }
 
@@ -129,7 +131,7 @@ struct OnboardingView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
                     .frame(height: 70)
 
-                Text("Welcome to MusicWidgets")
+                Text("Welcome to \"name\"")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Neu.subtext)
 

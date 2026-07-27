@@ -178,12 +178,14 @@ private struct GallerySidebar: View {
             // Brand header — a restrained app mark, no heavy accent gradient
             // tile (that read as an Android splash chip).
             HStack(spacing: 10) {
-                Image(systemName: "music.note.list")
-                    .font(.system(size: 18, weight: .semibold))
+                // Placeholder mark — "logo" stands in for the real app icon
+                // everywhere in-app until the rebrand's actual logo exists.
+                Text("logo")
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(AMTheme.accent)
                     .frame(width: 28, height: 28)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("MusicWidgets").font(.appTitle).foregroundStyle(Neu.text)
+                    Text("\"name\"").font(.appTitle).foregroundStyle(Neu.text)
                     Text("Desktop players").font(.appCaption).foregroundStyle(Neu.subtext)
                 }
                 Spacer(minLength: 0)
@@ -240,7 +242,7 @@ private struct GallerySidebar: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 8)
 
-                Text("MusicWidgets \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
+                Text("\"name\" \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
                     .font(.appCaption)
                     .foregroundStyle(Neu.subtext.opacity(0.7))
                     .padding(.horizontal, 18)
@@ -1485,7 +1487,7 @@ private struct VinylWidgetReplica: View {
 
                 if traits.hasTransportControls {
                     VStack(spacing: 9) {
-                        RetroVFDDisplay(title: "NOW PLAYING", subtitle: "MusicWidgets")
+                        RetroVFDDisplay(title: "NOW PLAYING", subtitle: "\"name\"")
                         transportControls
                     }
                     .padding(.top, 10)
