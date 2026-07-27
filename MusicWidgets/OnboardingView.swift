@@ -86,8 +86,7 @@ struct WelcomeTipsCard: View {
 /// pattern (macOS/iOS Setup Assistant) instead of a multi-step widget-setup
 /// quiz. Picking a widget is exactly as fast from the gallery grid itself,
 /// so there's nothing to front-load here; this is purely a one-time,
-/// one-tap-to-dismiss welcome. Brand switching moved to Settings ("App
-/// Style"), since that was previously only reachable from here.
+/// one-tap-to-dismiss welcome.
 struct OnboardingView: View {
     let onFinish: () -> Void
 

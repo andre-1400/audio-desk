@@ -1,30 +1,19 @@
 import SwiftUI
 import Combine
 
-// MARK: - Brand (which music service look the app wears)
-
-enum Brand: String { case appleMusic, spotify }
-
-final class BrandManager: ObservableObject {
-    static let shared = BrandManager()
-    private let key = "brand.v1"
-    @Published var brand: Brand {
-        didSet { UserDefaults.standard.set(brand.rawValue, forKey: key) }
-    }
-    private init() {
-        brand = Brand(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .appleMusic
-    }
-}
-
 // MARK: - Theme
-// Apple Music = clean white + signature red.  Spotify = black + Spotify green.
-// Values are computed from the current brand so the whole UI reskins live.
+//
+// One unified native look — no app-chrome "brand" skin anymore (the old
+// Apple Music/Spotify dual-theme, and the Brand/BrandManager types that
+// drove it, were removed entirely per explicit redesign request). The
+// window now just follows the system's own light/dark appearance, the
+// way every native Mac app does, instead of a manually-picked skin.
 
 // Design tokens, repointed to native macOS semantics (Phase 1 redesign).
 // The names stay so the hundreds of existing call sites are untouched; only
 // the resolved values change — from hand-picked hex fills to system semantic
-// colours and materials that adapt to the active NSAppearance (which the
-// brand still drives: Apple Music = aqua/light, Spotify = darkAqua/dark).
+// colours and materials that adapt to the active NSAppearance (now just the
+// system's own light/dark mode, not a brand toggle).
 enum Neu {
     // Primary / secondary label colours — the system's, so they track
     // appearance, accessibility contrast, and vibrancy automatically.
@@ -46,11 +35,17 @@ enum Neu {
 }
 
 // Signature accent (red for Apple Music, green for Spotify) + the colour that reads on top of it.
+// Kept as a thin namespace (not just `Color.accentColor` inline everywhere)
+// so the many existing call sites (sidebar tint, gallery card badges,
+// onboarding chrome) don't all need editing individually — every one of
+// them now resolves to the system's own accent colour (system blue on any
+// default Mac, and correctly follows the user's own accent choice if
+// they've customised it in System Settings, exactly like Mail/Notes/
+// System Settings itself do).
 enum AMTheme {
-    private static var spotify: Bool { BrandManager.shared.brand == .spotify }
-    static var accent: Color      { spotify ? Color(hex: "1db954") : Color(hex: "fa233b") }
-    static var accentLight: Color { spotify ? Color(hex: "1ed760") : Color(hex: "fb5c74") }
-    static var onAccent: Color    { spotify ? Color(hex: "000000") : Color(hex: "ffffff") }
+    static var accent: Color { .accentColor }
+    static var accentLight: Color { Color.accentColor.opacity(0.65) }
+    static var onAccent: Color { .white }
     static var gradient: LinearGradient {
         LinearGradient(colors: [accentLight, accent], startPoint: .top, endPoint: .bottom)
     }
@@ -86,7 +81,6 @@ enum OnboardingGate {
 
 struct ContentView: View {
     @State private var showOnboarding = OnboardingGate.shouldShow
-    @ObservedObject private var brandM = BrandManager.shared   // reskin whole tree on brand change
 
     var body: some View {
         ZStack {
@@ -105,8 +99,9 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 820, minHeight: 600)
-        .preferredColorScheme(brandM.brand == .spotify ? .dark : .light)
-        .animation(.easeInOut(duration: 0.3), value: brandM.brand)
+        // No .preferredColorScheme override anymore — the window just
+        // follows the system's own light/dark appearance, like every
+        // native Mac app, instead of a brand-driven light/dark pick.
     }
 }
 
@@ -178,10 +173,10 @@ private struct GallerySidebar: View {
             .padding(.bottom, 14)
 
             // Native sidebar list — system selection highlight, hover, row
-            // metrics, exactly like Finder/Music. Tint is pinned to the
-            // brand accent (not left to the user's system accent colour) —
-            // the same way Music/Podcasts/News hard-brand their own sidebar
-            // selection regardless of System Settings.
+            // metrics, exactly like Finder/Music. Tint reads AMTheme.accent,
+            // which is just .accentColor now — system blue on any default
+            // Mac, correctly following the user's own accent colour choice
+            // if they've customised it in System Settings.
             List(selection: Binding(
                 get: { category },
                 set: { new in
@@ -232,11 +227,6 @@ struct SettingsView: View {
     @ObservedObject private var sizeM = WidgetSizeManager.shared
     @ObservedObject private var settings = WidgetSettings.shared
     @StateObject private var startup = LaunchOnStartupManager()
-    // Observed (not a stored `let`) so switching brand right here, in an
-    // already-open sheet, live-updates every accent-tinted control below —
-    // this is now the only place to change brand since onboarding no
-    // longer asks (see OnboardingView's new welcome-screen-only flow).
-    @ObservedObject private var brandM = BrandManager.shared
 
     private var accent: Color { AMTheme.accent }
 
@@ -261,19 +251,6 @@ struct SettingsView: View {
             // System Settings, replacing the hand-drawn "block" cards.
             Form {
                 Section {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("App Style").font(.appBody).foregroundStyle(Neu.text)
-                        Text("Recolours the whole app to match")
-                            .font(.appCaption).foregroundStyle(Neu.subtext)
-                        NeuSegmented(options: ["Apple Music", "Spotify"],
-                                     selected: brandM.brand == .appleMusic ? 0 : 1) { i in
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                brandM.brand = i == 0 ? .appleMusic : .spotify
-                            }
-                        }
-                    }
-                    .padding(.vertical, 4)
-
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Widget Size").font(.appBody).foregroundStyle(Neu.text)
                         Text("Anywhere from icon-sized to over half the screen")

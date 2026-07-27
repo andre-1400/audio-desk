@@ -117,26 +117,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .removeDuplicates()
             .sink { [weak self] playing in self?.handlePlaybackChange(playing) }
             .store(in: &globalCancellables)
-
-        // Keep the gallery window chrome matching the chosen brand (Apple Music light / Spotify dark).
-        BrandManager.shared.$brand
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] brand in self?.applyBrandToGallery(brand) }
-            .store(in: &globalCancellables)
-    }
-
-    private func applyBrandToGallery(_ brand: Brand) {
-        guard let win = galleryWindow else { return }
-        // Only the appearance is set per brand now — this drives whether the
-        // window's native materials render light or dark. The background
-        // stays clear so the SwiftUI VisualEffectBlur provides the vibrancy.
-        switch brand {
-        case .spotify:
-            win.appearance = NSAppearance(named: .darkAqua)
-        case .appleMusic:
-            win.appearance = NSAppearance(named: .aqua)
-        }
-        win.backgroundColor = .clear
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -481,8 +461,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             win.minSize = NSSize(width: 820, height: 600)
             win.contentView = NSHostingView(rootView: ContentView())
             win.center()
+            // win.appearance stays nil (unset) — the window just follows
+            // NSApp's own effective appearance (the system's light/dark
+            // mode), the native default every Mac app gets automatically,
+            // instead of the old brand toggle forcing aqua/darkAqua.
             galleryWindow = win
-            applyBrandToGallery(BrandManager.shared.brand)
         }
         NSApp.activate(ignoringOtherApps: true)
         guard let win = galleryWindow else { return }
