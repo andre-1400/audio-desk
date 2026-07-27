@@ -183,8 +183,8 @@ struct NotchWidgetView: View {
             if isVisible {
                 UnevenRoundedRectangle(
                     topLeadingRadius: 0,
-                    bottomLeadingRadius: expanded ? 18 : 10,
-                    bottomTrailingRadius: expanded ? 18 : 10,
+                    bottomLeadingRadius: expanded ? 28 : 16,
+                    bottomTrailingRadius: expanded ? 28 : 16,
                     topTrailingRadius: 0,
                     style: .continuous
                 )
