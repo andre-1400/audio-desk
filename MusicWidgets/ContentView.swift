@@ -149,6 +149,26 @@ struct GalleryRoot: View {
 
 // MARK: - Sidebar
 
+/// A small drawn silhouette of a MacBook's camera notch — flat top edge,
+/// rounded only at the two bottom corners — for the sidebar's Notch row.
+/// Sized/inset to sit in the same visual box a system symbol glyph would
+/// (List row icons are laid out assuming roughly an 18x18pt slot), and
+/// tinted via `.foregroundStyle` like any symbol so it still follows the
+/// row's own selected/unselected colour automatically.
+private struct NotchGlyph: View {
+    var body: some View {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 0,
+            bottomLeadingRadius: 4,
+            bottomTrailingRadius: 4,
+            topTrailingRadius: 0,
+            style: .continuous
+        )
+        .frame(width: 17, height: 10)
+        .frame(width: 18, height: 18)
+    }
+}
+
 private struct GallerySidebar: View {
     @Binding var category: WidgetCategory
     let onSettings: () -> Void
@@ -185,8 +205,21 @@ private struct GallerySidebar: View {
             )) {
                 Section("Library") {
                     ForEach(WidgetCategory.availableCases) { cat in
-                        Label(cat.title, systemImage: cat.icon)
+                        // No SF Symbol actually looks like a MacBook notch
+                        // (the closest, circle.grid.2x1.fill, is just two
+                        // dots) — drawn directly instead so it reads as an
+                        // actual notch silhouette.
+                        if cat == .notch {
+                            Label {
+                                Text(cat.title)
+                            } icon: {
+                                NotchGlyph()
+                            }
                             .tag(cat)
+                        } else {
+                            Label(cat.title, systemImage: cat.icon)
+                                .tag(cat)
+                        }
                     }
                 }
             }
