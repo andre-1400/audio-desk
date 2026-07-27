@@ -270,13 +270,12 @@ struct SettingsView: View {
             HStack {
                 Text("Settings").font(.appTitle).foregroundStyle(Neu.text)
                 Spacer()
-                Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .symbolRenderingMode(.hierarchical)
-                        .font(.system(size: 20))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+                // A real labelled "Close" button — this sheet had no other
+                // dismiss control, so the X icon button is replaced here
+                // rather than just removed outright.
+                Button("Close", action: onClose)
+                    .buttonStyle(.bordered)
+                    .controlSize(.regular)
             }
             .padding(.horizontal, 20)
             .padding(.top, 18)
@@ -920,20 +919,14 @@ private struct CustomColorSheetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Custom Colour").font(.system(size: 18, weight: .bold)).foregroundStyle(Neu.text)
-                    Text("Full control — pick the exact colour this widget's body should be")
-                        .font(.appCaption).foregroundStyle(Neu.subtext)
-                }
-                Spacer()
-                Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .symbolRenderingMode(.hierarchical)
-                        .font(.system(size: 20))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
+            // No header close (X) button — the "Close" button below is the
+            // only dismiss affordance now, per redesign request to remove
+            // redundant X close icons from app chrome in favour of a real
+            // labelled button.
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Custom Colour").font(.system(size: 18, weight: .bold)).foregroundStyle(Neu.text)
+                Text("Full control — pick the exact colour this widget's body should be")
+                    .font(.appCaption).foregroundStyle(Neu.subtext)
             }
 
             preview
