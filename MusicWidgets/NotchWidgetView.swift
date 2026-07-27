@@ -380,10 +380,10 @@ struct NotchWidgetView: View {
 
                     progressRow
 
-                    HStack(spacing: 26) {
-                        transportButton("backward.fill", size: 13) { if !isPreview { detector.previousTrack() } }
-                        transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 17) { if !isPreview { detector.togglePlayback() } }
-                        transportButton("forward.fill", size: 13) { if !isPreview { detector.nextTrack() } }
+                    HStack(spacing: 18) {
+                        transportButton("backward.fill", size: 14, prominent: false) { if !isPreview { detector.previousTrack() } }
+                        transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 22, prominent: true) { if !isPreview { detector.togglePlayback() } }
+                        transportButton("forward.fill", size: 14, prominent: false) { if !isPreview { detector.nextTrack() } }
                     }
                 }
                 // A bounded width instead of maxWidth: .infinity — with the
@@ -453,16 +453,16 @@ struct NotchWidgetView: View {
         return String(format: "%d:%02d", totalSeconds / 60, totalSeconds % 60)
     }
 
-    private func transportButton(_ symbol: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+    // Matches ContentView's own transportControls exactly — Apple Music's
+    // mini-player styling: bare glyphs with no background chip, skip
+    // buttons smaller and muted (secondary), play/pause larger and fully
+    // opaque (primary), not three same-size, same-weight icons in circles.
+    private func transportButton(_ symbol: String, size: CGFloat, prominent: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: size + 12, height: size + 12)
-                // A soft circular chip behind each icon instead of a bare
-                // glyph floating on the background — reads as an actual
-                // button, not just decoration.
-                .background(Circle().fill(Color.white.opacity(0.12)))
+                .foregroundStyle(prominent ? .white : .white.opacity(0.6))
+                .frame(width: 30, height: 30)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
