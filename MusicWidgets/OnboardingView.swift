@@ -101,7 +101,7 @@ struct OnboardingView: View {
             // ContentView's own window vibrancy, plus a soft ambient glow
             // for atmosphere; that's the closest this app can get to
             // Apple's own blurred "Hello" backdrop without a bespoke image.
-            RadialGradient(colors: [AMTheme.accent.opacity(0.16), .clear],
+            RadialGradient(colors: [AMTheme.accent.opacity(0.09), .clear],
                            center: .center, startRadius: 40, endRadius: 440)
                 .ignoresSafeArea()
 

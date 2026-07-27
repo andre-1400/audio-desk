@@ -1153,19 +1153,18 @@ private struct GalleryCard<P: View>: View {
                     preview(hovered)
                         .frame(height: 190)
                         .frame(maxWidth: .infinity)
-                        .background(
-                            ZStack {
-                                if !transparentPreview {
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(.quaternary.opacity(0.4))
-                                    if special {
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(RadialGradient(colors: [accent.opacity(0.14), .clear],
-                                                                 center: .center, startRadius: 4, endRadius: 200))
-                                    }
-                                }
+                        .background {
+                            // Special cards' accent glow removed — with a
+                            // border + badge already marking them out, a
+                            // radial tint behind every Adaptive/Custom/Ghost
+                            // card in every category (many at once, across
+                            // the whole grid) was a big contributor to the
+                            // app reading as too blue overall.
+                            if !transparentPreview {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .fill(.quaternary.opacity(0.4))
                             }
-                        )
+                        }
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     if hovered {
@@ -1200,14 +1199,21 @@ private struct GalleryCard<P: View>: View {
                     // it was sitting right on top of the disc/tonearm and
                     // covering part of the widget on every style that has
                     // one, not just Ghost.
+                    // Neutral capsule with a coloured icon/text, not a solid
+                    // accent-filled pill — one of these sits on every
+                    // Adaptive/Custom/Ghost card simultaneously across the
+                    // whole grid, so a full-colour fill on all of them at
+                    // once was a real contributor to the app reading as too
+                    // blue; the colour still reads clearly on the icon/text
+                    // alone.
                     if special, let badgeText {
                         HStack(spacing: 4) {
                             Image(systemName: badgeIcon).font(.system(size: 8, weight: .bold))
                             Text(badgeText).font(.system(size: 9, weight: .bold)).tracking(0.3)
                         }
-                        .foregroundStyle(AMTheme.onAccent)
+                        .foregroundStyle(accent)
                         .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Capsule().fill(accent))
+                        .background(Capsule().fill(.thinMaterial))
                     }
                     Text(title).font(.appHeadline).foregroundStyle(Neu.text)
                     Text(subtitle).font(.appCaption).foregroundStyle(Neu.subtext).lineLimit(1)
@@ -1219,16 +1225,21 @@ private struct GalleryCard<P: View>: View {
         }
         .buttonStyle(.plain)
         // Native material card surface; hover deepens the shadow (elevation).
-        // Special cards get a thin, restrained accent hairline — not a
-        // glowing gradient border — the same quiet cue Apple's own
-        // "featured" cards use (App Store, Music) rather than a neon ring.
+        // Ordinary (non-special) cards no longer get an accent-tinted ring
+        // just from hovering/being active — that alone, repeated across a
+        // whole grid of ordinary prebuilt-colour cards, was a big source of
+        // stray blue. They get a plain neutral hairline instead, the same
+        // separator language the rest of the app already uses. Special
+        // cards keep a restrained accent hairline (much lower opacity than
+        // before) — still the quiet "featured" cue Apple's own App
+        // Store/Music cards use, just dialled back.
         .appCard(corner: 20, elevated: hovered)
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(
                     special
-                        ? accent.opacity(hovered ? 0.55 : 0.32)
-                        : accent.opacity(hovered ? 0.4 : (active ? 0.28 : 0)),
+                        ? accent.opacity(hovered ? 0.32 : 0.16)
+                        : Neu.hairline.opacity(hovered ? 1 : (active ? 0.7 : 0)),
                     lineWidth: 1
                 )
         )

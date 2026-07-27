@@ -46,6 +46,12 @@ struct VisualEffectBlur: NSViewRepresentable {
 /// A material card — the native replacement for `neuRaised`. A translucent
 /// material fill with continuous corners and a single soft shadow; no hard
 /// border. `elevated` slightly deepens the shadow (used on hover).
+///
+/// `.thinMaterial` rather than `.regularMaterial` — per feedback that the
+/// "liquid glass" should read as more translucent throughout; thin lets
+/// noticeably more of whatever's behind (the window's own vibrancy, the
+/// desktop beyond that) show through each card, instead of the heavier,
+/// closer-to-opaque regular material.
 private struct AppCard: ViewModifier {
     var corner: CGFloat = 16
     var elevated: Bool = false
@@ -54,7 +60,7 @@ private struct AppCard: ViewModifier {
         content
             .background(
                 RoundedRectangle(cornerRadius: corner, style: .continuous)
-                    .fill(.regularMaterial)
+                    .fill(.thinMaterial)
             )
             .overlay(
                 // A whisper-thin top highlight for the "glass" edge — far
@@ -75,11 +81,12 @@ extension View {
 
     /// A flat inset well (search fields, small insets) — a thin material with
     /// continuous corners, no drop shadow. Native replacement for `neuInset`
-    /// where a recessed look is wanted.
+    /// where a recessed look is wanted. Lightened (0.5 -> 0.32 opacity) to
+    /// match the same "more translucent throughout" pass as appCard.
     func appWell(corner: CGFloat = 10) -> some View {
         background(
             RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .fill(.quaternary.opacity(0.5))
+                .fill(.quaternary.opacity(0.32))
         )
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
     }
