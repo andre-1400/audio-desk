@@ -162,7 +162,8 @@ struct NotchWidgetView: View {
 
     private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
     private var art: NSImage? { isPreview ? previewArt : displayedArt }
-    private var waveColour: Color { isPreview ? (previewColours ?? .adaptivePreviewPlaceholder).dominant : extractedColours.dominant }
+    private var colours: ExtractedColours { isPreview ? (previewColours ?? .adaptivePreviewPlaceholder) : extractedColours }
+    private var waveColour: Color { colours.dominant }
     private var expanded: Bool { isPreview ? previewExpanded : hovering }
     private var isActive: Bool { !np.trackName.isEmpty }
 
@@ -176,14 +177,31 @@ struct NotchWidgetView: View {
     var body: some View {
         ZStack {
             if isVisible {
-                UnevenRoundedRectangle(
+                let shape = UnevenRoundedRectangle(
                     topLeadingRadius: 0,
                     bottomLeadingRadius: expanded ? 18 : 10,
                     bottomTrailingRadius: expanded ? 18 : 10,
                     topTrailingRadius: 0,
                     style: .continuous
                 )
-                .fill(Color.black)
+                // Idle stays plain black — small and meant to blend with
+                // the real notch, not draw attention. Expanded tints
+                // toward the playing track's own colours (dominant +
+                // secondary) instead of flat black, the same "adaptive"
+                // language every other widget in this app already uses,
+                // rather than a fixed brand colour lifted from a reference.
+                if expanded {
+                    shape.fill(
+                        LinearGradient(
+                            colors: [colours.dominant.opacity(0.5), colours.secondary.opacity(0.35), Color.black.opacity(0.94)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .background(shape.fill(Color.black))
+                } else {
+                    shape.fill(Color.black)
+                }
             }
 
             if expanded {
@@ -315,27 +333,34 @@ struct NotchWidgetView: View {
 
             Color.clear.frame(width: metrics.notch.width)
 
-            VStack(spacing: 5) {
-                VStack(spacing: 1) {
-                    Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
-                        .font(.system(size: 12.5, weight: .bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                    if !np.artistName.isEmpty {
-                        Text(np.artistName)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.6))
+            HStack(spacing: 8) {
+                VStack(spacing: 5) {
+                    VStack(spacing: 1) {
+                        Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
+                            .font(.system(size: 12.5, weight: .bold))
+                            .foregroundStyle(.white)
                             .lineLimit(1)
+                        if !np.artistName.isEmpty {
+                            Text(np.artistName)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .lineLimit(1)
+                        }
+                    }
+
+                    progressRow
+
+                    HStack(spacing: 22) {
+                        transportButton("backward.fill", size: 12) { if !isPreview { detector.previousTrack() } }
+                        transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15) { if !isPreview { detector.togglePlayback() } }
+                        transportButton("forward.fill", size: 12) { if !isPreview { detector.nextTrack() } }
                     }
                 }
 
-                progressRow
-
-                HStack(spacing: 22) {
-                    transportButton("backward.fill", size: 12) { if !isPreview { detector.previousTrack() } }
-                    transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15) { if !isPreview { detector.togglePlayback() } }
-                    transportButton("forward.fill", size: 12) { if !isPreview { detector.nextTrack() } }
-                }
+                // Same decorative equalizer accent as the idle pill, tinted
+                // the same way — a small visual echo on the expanded state
+                // instead of the two looking unrelated.
+                EqualizerBars(animating: isPreview ? true : np.isPlaying, color: waveColour)
             }
             .padding(.horizontal, 14)
             .frame(width: metrics.rightWidth)
@@ -391,6 +416,10 @@ struct NotchWidgetView: View {
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: size + 12, height: size + 12)
+                // A soft circular chip behind each icon instead of a bare
+                // glyph floating on the background — reads as an actual
+                // button, not just decoration.
+                .background(Circle().fill(Color.white.opacity(0.12)))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
