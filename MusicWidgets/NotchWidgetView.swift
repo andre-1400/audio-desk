@@ -256,6 +256,13 @@ struct NotchWidgetView: View {
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isActive)
         .onHover { isHovering in
             guard !isPreview else { return }
+            // Only on the transition into hover, not out of it or on
+            // every SwiftUI onHover re-fire — a tap-style click on the
+            // trackpad, the same feedback macOS gives for things like
+            // Dock magnification or Force Click previews.
+            if isHovering && !hovering {
+                NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+            }
             hovering = isHovering
         }
         // maxHeight was missing here — without it, this view's actual
