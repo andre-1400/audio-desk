@@ -995,6 +995,16 @@ struct DesktopWidgetChrome: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            // Without this, hover was hit-tested against the widget's own
+            // visible shape — a rounded rect — so the square corner area
+            // the close button actually sits in (cut off by the rounding)
+            // was OUTSIDE that hit-test region. Moving the mouse from the
+            // body toward the button meant crossing that dead corner
+            // first, which dropped hover to false and hid the button
+            // right as you reached for it. A plain rectangular content
+            // shape makes the whole bounding box (corners included)
+            // hoverable, so the button stays reachable the entire way.
+            .contentShape(Rectangle())
             .onHover { hovered = $0 }
             .overlay(alignment: .topLeading) {
                 closeButton
