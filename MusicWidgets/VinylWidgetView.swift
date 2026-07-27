@@ -128,6 +128,18 @@ struct VinylWidgetView: View {
     private let tonearmRestAngle = -22.0
     private let tonearmStartAngle = -8.0
     private let tonearmEndAngle = 14.0
+    // Separate angle range for the realistic art (Adaptive theme only) —
+    // its pivot-to-tip vector isn't drawn at the same baseline tilt as
+    // the vector tonearm's own shapes, so the same degrees value doesn't
+    // land the same place on the record. Feedback was that the needle
+    // wasn't even landing on the disc at the start of a song, i.e. it
+    // needed MORE inward rotation than -8° at start — shifted the whole
+    // range +14° (same 22° sweep, just rotated further onto the platter)
+    // as a reasoned first pass. This is unverified on-screen and will
+    // likely need another round of tuning once seen.
+    private let tonearmRealisticRestAngle = -22.0
+    private let tonearmRealisticStartAngle = 6.0
+    private let tonearmRealisticEndAngle = 28.0
     private let tonearmMaxSeekProgress = 0.98
     private let tonearmPlaybackTransitionDuration: TimeInterval = 0.42
     private let seekHandoffSuppressionDuration = 0.45
@@ -191,6 +203,55 @@ struct VinylWidgetView: View {
         return tonearmAngle(forProgress: progress)
     }
 
+    /// Same state machine as tonearmAngle(at:) above, but through the
+    /// realistic art's own angle range — kept as a full parallel rather
+    /// than adding a parameter to the vector version, so recalibrating
+    /// this one (which will likely need more rounds of tuning, per
+    /// feedback that it isn't landing on the disc yet) can never affect
+    /// the vector tonearm the other themes still use.
+    private func tonearmRealisticAngle(at date: Date) -> Double {
+        if animator.tonearmShouldRest {
+            return tonearmRealisticRestAngle
+        }
+
+        guard !displayedNowPlaying.trackName.isEmpty else {
+            return tonearmRealisticRestAngle
+        }
+
+        if isScrubbing {
+            return tonearmRealisticAngle(forProgress: scrubProgress)
+        }
+
+        // The song-switch transition object stores its from/to angles in
+        // the VECTOR's range (it's shared state, computed elsewhere via
+        // the vector's own tonearmAngle(forProgress:)) — remapped
+        // proportionally into the realistic range rather than duplicating
+        // the whole transition machinery.
+        if let transitionAngle = tonearmPlaybackTransition?.angle(at: date) {
+            return remapVectorAngleToRealistic(transitionAngle)
+        }
+
+        guard displayedNowPlaying.isPlaying else {
+            return tonearmRealisticRestAngle
+        }
+
+        guard let progress = playbackProgress(at: date) else {
+            return tonearmRealisticStartAngle
+        }
+
+        return tonearmRealisticAngle(forProgress: progress)
+    }
+
+    private func remapVectorAngleToRealistic(_ vectorAngle: Double) -> Double {
+        if vectorAngle <= tonearmStartAngle {
+            let t = (vectorAngle - tonearmRestAngle) / (tonearmStartAngle - tonearmRestAngle)
+            return tonearmRealisticRestAngle + t * (tonearmRealisticStartAngle - tonearmRealisticRestAngle)
+        } else {
+            let t = (vectorAngle - tonearmStartAngle) / (tonearmEndAngle - tonearmStartAngle)
+            return tonearmRealisticStartAngle + t * (tonearmRealisticEndAngle - tonearmRealisticStartAngle)
+        }
+    }
+
     private func playbackProgress(at date: Date) -> Double? {
         playbackProgress(for: displayedNowPlaying, at: date, applyingStartClamp: true)
     }
@@ -221,6 +282,11 @@ struct VinylWidgetView: View {
     private func tonearmAngle(forProgress progress: Double) -> Double {
         let clampedProgress = min(tonearmMaxSeekProgress, max(0.0, progress))
         return tonearmStartAngle + ((tonearmEndAngle - tonearmStartAngle) * clampedProgress)
+    }
+
+    private func tonearmRealisticAngle(forProgress progress: Double) -> Double {
+        let clampedProgress = min(tonearmMaxSeekProgress, max(0.0, progress))
+        return tonearmRealisticStartAngle + ((tonearmRealisticEndAngle - tonearmRealisticStartAngle) * clampedProgress)
     }
 
     private var theme: WidgetThemePalette { themeManager.palette }
@@ -345,7 +411,7 @@ struct VinylWidgetView: View {
                     if themeManager.themeID == .adaptive {
                         tonearmRealisticView
                             .rotationEffect(
-                                .degrees(tonearmAngle(at: context.date)),
+                                .degrees(tonearmRealisticAngle(at: context.date)),
                                 anchor: tonearmRealisticPivot
                             )
                             .offset(x: tonearmRealisticOffset.x, y: tonearmRealisticOffset.y)
@@ -1119,7 +1185,7 @@ struct VinylWidgetView: View {
     // 90x180 box, scaled by the same factor) so the pivot stays anchored
     // in the same spot relative to the platter as before, and only the
     // arm's reach grows.
-    private let tonearmRealisticScale: CGFloat = 1.8
+    private let tonearmRealisticScale: CGFloat = 1.7
 
     private var tonearmRealisticSize: CGSize {
         CGSize(width: 90 * tonearmRealisticScale, height: 180 * tonearmRealisticScale)
