@@ -334,9 +334,7 @@ struct SettingsView: View {
                 }
 
                 Section("Behavior") {
-                    toggleRow(icon: "square.stack.3d.up", title: "Always on top",
-                              subtitle: "Float above other windows",
-                              isOn: $settings.alwaysOnTop)
+                    windowLayerRow
                     toggleRow(icon: "cursorarrow.rays", title: "Click-through",
                               subtitle: "Clicks pass through to what's behind",
                               isOn: $settings.clickThrough)
@@ -362,6 +360,42 @@ struct SettingsView: View {
         }
         .frame(width: 460, height: 620)
         .background(VisualEffectBlur(.sheet))
+    }
+
+    // Replaces the old plain "Always on top" toggle — a 3-way native
+    // segmented control (Normal/Top/Bottom) instead of just on/off, same
+    // row layout (label+icon, then control below) the Widget Size/Opacity
+    // rows above already use.
+    private var windowLayerRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Window Layer").font(.appBody).foregroundStyle(Neu.text)
+                    Text(windowLayerSubtitle).font(.appCaption).foregroundStyle(Neu.subtext)
+                }
+            } icon: {
+                Image(systemName: "square.3.layers.3d")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(settings.windowLayer == .normal ? Neu.subtext : accent)
+                    .frame(width: 20)
+            }
+            Picker("", selection: $settings.windowLayer) {
+                ForEach(WidgetWindowLayer.allCases, id: \.self) { layer in
+                    Text(layer.title).tag(layer)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var windowLayerSubtitle: String {
+        switch settings.windowLayer {
+        case .normal: return "Sits just above the desktop icons"
+        case .alwaysOnTop: return "Floats above other windows"
+        case .alwaysOnBottom: return "Behind the icons — decorative only, can't be clicked"
+        }
     }
 
     private func toggleRow(icon: String, title: String, subtitle: String, isOn: Binding<Bool>) -> some View {

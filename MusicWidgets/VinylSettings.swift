@@ -1,6 +1,30 @@
 import SwiftUI
 import Combine
 
+// MARK: - Window layer (replaces the old plain alwaysOnTop bool)
+//
+// A user asked for "always on top and on the bottom and all that" — a
+// third option beyond the previous on/off. Normal keeps the existing
+// default placement (just above desktop icons); alwaysOnBottom drops the
+// widget to true desktop-picture level, *below* the icons. That's a real
+// tradeoff, not just a cosmetic choice: DesktopWidgetView.swift's own
+// window-level history documents that windows at or below icon level
+// don't receive mouse clicks at all (WindowServer routes them to Finder's
+// desktop interactions instead) — so a widget set to alwaysOnBottom
+// becomes purely decorative, its transport buttons unclickable. Surfaced
+// as a subtitle in Settings rather than silently discovered.
+enum WidgetWindowLayer: String, CaseIterable {
+    case alwaysOnBottom, normal, alwaysOnTop
+
+    var title: String {
+        switch self {
+        case .alwaysOnBottom: return "Bottom"
+        case .normal: return "Normal"
+        case .alwaysOnTop: return "Top"
+        }
+    }
+}
+
 // MARK: - Global widget settings (size lives in WidgetSizeManager.shared)
 
 /// Shared, persisted settings for the active desktop widget.
@@ -11,9 +35,10 @@ final class WidgetSettings: ObservableObject {
     @Published var widgetOpacity: Double {
         didSet { UserDefaults.standard.set(widgetOpacity, forKey: "widget.opacity") }
     }
-    /// Widget floats above all windows instead of sitting just over the desktop.
-    @Published var alwaysOnTop: Bool {
-        didSet { UserDefaults.standard.set(alwaysOnTop, forKey: "widget.alwaysOnTop") }
+    /// Where the widget sits relative to other windows and the desktop
+    /// icons — Normal (default), Always on Top, or Always on Bottom.
+    @Published var windowLayer: WidgetWindowLayer {
+        didSet { UserDefaults.standard.set(windowLayer.rawValue, forKey: "widget.windowLayer") }
     }
     /// Mouse clicks pass straight through the widget to whatever is behind it.
     @Published var clickThrough: Bool {
@@ -36,7 +61,14 @@ final class WidgetSettings: ObservableObject {
     private init() {
         let storedOpacity = UserDefaults.standard.object(forKey: "widget.opacity") as? Double
         widgetOpacity = min(1.0, max(0.5, storedOpacity ?? 1.0))
-        alwaysOnTop = UserDefaults.standard.bool(forKey: "widget.alwaysOnTop")
+        if let storedLayer = UserDefaults.standard.string(forKey: "widget.windowLayer"),
+           let layer = WidgetWindowLayer(rawValue: storedLayer) {
+            windowLayer = layer
+        } else {
+            // One-time migration from the old alwaysOnTop bool, then the
+            // legacy key is simply never read again.
+            windowLayer = UserDefaults.standard.bool(forKey: "widget.alwaysOnTop") ? .alwaysOnTop : .normal
+        }
         clickThrough = UserDefaults.standard.bool(forKey: "widget.clickThrough")
         hideWhenPaused = UserDefaults.standard.bool(forKey: "widget.hideWhenPaused")
         vinylTransitionAnimationEnabled = UserDefaults.standard.object(forKey: "widget.vinylTransitionAnimation") as? Bool ?? true

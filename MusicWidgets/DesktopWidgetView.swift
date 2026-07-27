@@ -137,6 +137,10 @@ struct DesktopWidgetView: View {
     @State private var extractedColours: ExtractedColours = .adaptivePreviewPlaceholder
     @State private var blurredBodyArt: NSImage?
     @State private var closeHovered = false
+    // Captured once from the GeometryReader so the blur pre-render (below)
+    // knows what size to bake, without needing geo.size threaded into
+    // refreshArt's completion handler.
+    @State private var screenSize: CGSize = .zero
 
     // Progress-bar scrubbing — plain DragGesture, not the NSView capture
     // trick every other widget needs: this window is never movable-by-
@@ -193,6 +197,22 @@ struct DesktopWidgetView: View {
                         .onHover { closeHovered = $0 }
                 }
             }
+            // Order versus the detector/refreshArt onAppear below isn't
+            // guaranteed, so if art already loaded before screenSize was
+            // known (or vice versa), bake the cache here too rather than
+            // leaving it permanently empty for the session.
+            .onAppear {
+                screenSize = geo.size
+                if !isCustom, blurredBodyArt == nil, let art = displayedArt {
+                    renderBlurredBackdrop(from: art)
+                }
+            }
+            .onChange(of: geo.size) { _, newSize in
+                screenSize = newSize
+                if !isCustom, blurredBodyArt == nil, let art = displayedArt {
+                    renderBlurredBackdrop(from: art)
+                }
+            }
         }
         .ignoresSafeArea()
         .onAppear {
@@ -239,7 +259,17 @@ struct DesktopWidgetView: View {
     }
 
     // MARK: - Backdrop (shared by both styles)
-
+    //
+    // Prefers effectiveBlurredArt — a pre-baked bitmap, rendered ONCE per
+    // track by renderBlurredBackdrop(from:) below, not recomputed here.
+    // This used to apply .blur(radius: 60) live to a full-screen Image on
+    // every single render of this view, including on play/pause/skip
+    // (any @State change forces body to re-evaluate, which called this
+    // function again) — a full-screen 60pt Gaussian blur is real,
+    // GPU-bound work, and doing it on every transport tap (not just on an
+    // actual track/art change) was the reported "delay" pausing/skipping
+    // specifically on this widget. The live-blur path below only runs
+    // once, transiently, before the very first cached bitmap exists.
     private func backdrop(in size: CGSize) -> some View {
         ZStack {
             Color.black
@@ -248,7 +278,14 @@ struct DesktopWidgetView: View {
             // tied to whatever's playing regardless of style, and picking a
             // custom colour had nothing left to actually change once the
             // album-art ring (the only other thing it touched) is gone.
-            if !isCustom, let art = effectiveArt {
+            if !isCustom, let cached = effectiveBlurredArt {
+                Image(nsImage: cached)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: size.width, height: size.height)
+                    .clipped()
+                    .overlay(Color.black.opacity(0.55))
+            } else if !isCustom, let art = effectiveArt {
                 Image(nsImage: art)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -721,7 +758,36 @@ struct DesktopWidgetView: View {
             withAnimation(.easeInOut(duration: 0.3)) { displayedArt = image }
             if !isCustom {
                 extractedColours = ColourExtractor.extract(from: image)
+                renderBlurredBackdrop(from: image)
             }
+        }
+    }
+
+    /// Bakes the backdrop's blur into an actual bitmap ONCE per track,
+    /// instead of backdrop(in:) applying .blur(radius: 60) live to a
+    /// full-screen image on every render (including on simple play/pause/
+    /// skip taps, since any @State change re-evaluates body). Mirrors what
+    /// the art itself will be clipped/scaled to at display time (fill +
+    /// 1.15 scale) so the cached bitmap matches the old live-blur look
+    /// exactly, just computed once instead of every frame.
+    private func renderBlurredBackdrop(from image: NSImage) {
+        guard screenSize.width > 0, screenSize.height > 0 else { return }
+        let renderer = ImageRenderer(content:
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: screenSize.width, height: screenSize.height)
+                .clipped()
+                .blur(radius: 60)
+                .scaleEffect(1.15)
+                .frame(width: screenSize.width, height: screenSize.height)
+        )
+        // Full retina detail isn't needed for a heavily-blurred backdrop —
+        // 1x keeps the one-time render itself cheap without any visible
+        // quality loss once it's blurred this much.
+        renderer.scale = 1
+        if let rendered = renderer.nsImage {
+            blurredBodyArt = rendered
         }
     }
 }

@@ -94,7 +94,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             .receive(on: DispatchQueue.main).dropFirst()
             .sink { [weak self] _ in self?.applyWindowPreferences() }
             .store(in: &globalCancellables)
-        WidgetSettings.shared.$alwaysOnTop
+        WidgetSettings.shared.$windowLayer
             .receive(on: DispatchQueue.main).dropFirst()
             .sink { [weak self] _ in self?.applyWindowPreferences() }
             .store(in: &globalCancellables)
@@ -394,25 +394,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var desktopOverlayLevel: NSWindow.Level {
         NSWindow.Level(Int(CGWindowLevelForKey(.desktopIconWindow)) + 2)
     }
+    /// True desktop-picture level, *below* the Finder icons — the new
+    /// "Always on Bottom" layer. Per DesktopWidgetView.swift's own
+    /// documented window-level history, windows at or below icon level
+    /// don't receive mouse clicks at all (WindowServer routes them to
+    /// Finder's desktop interactions instead), so a widget placed here is
+    /// deliberately non-interactive/decorative-only — that tradeoff is
+    /// surfaced in the Settings subtitle, not silent.
+    private var bottomWidgetLevel: NSWindow.Level {
+        NSWindow.Level(Int(CGWindowLevelForKey(.desktopWindow)) + 1)
+    }
+    private var bottomOverlayLevel: NSWindow.Level {
+        NSWindow.Level(Int(CGWindowLevelForKey(.desktopWindow)) + 2)
+    }
 
-    /// Push opacity / click-through / always-on-top onto the live windows.
+    /// Push opacity / click-through / window-layer onto the live windows.
     private func applyWindowPreferences() {
         let s = WidgetSettings.shared
-        let onTop = s.alwaysOnTop
+        let layer = s.windowLayer
         for w in activeWidgetWindows {
             // The full-screen Desktop widget always stays pinned at
             // desktop-picture level — "always on top" would float it above
             // every other window, defeating the whole point of a
             // background. Opacity/click-through still apply normally.
             if w !== desktopWidgetWindow {
-                w.level = onTop ? .floating : desktopWidgetLevel
+                switch layer {
+                case .alwaysOnTop: w.level = .floating
+                case .normal: w.level = desktopWidgetLevel
+                case .alwaysOnBottom: w.level = bottomWidgetLevel
+                }
             }
             w.ignoresMouseEvents = s.clickThrough
             if w.isVisible { w.alphaValue = s.widgetOpacity }
         }
         if let o = overlayWindow {
-            o.level = onTop ? NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
-                            : desktopOverlayLevel
+            switch layer {
+            case .alwaysOnTop: o.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+            case .normal: o.level = desktopOverlayLevel
+            case .alwaysOnBottom: o.level = bottomOverlayLevel
+            }
             o.alphaValue = s.widgetOpacity
         }
     }
