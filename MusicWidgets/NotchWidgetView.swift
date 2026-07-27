@@ -220,9 +220,22 @@ struct NotchWidgetView: View {
                 idleContent
             }
         }
+        // Expanded passes height: nil deliberately — an unconstrained
+        // height means this ZStack *hugs* expandedContent instead of being
+        // stretched to the window's full expandedHeight, which is where
+        // all the dead black space at the bottom was coming from. The
+        // window itself stays the full expandedHeight (see windowFrame),
+        // so there's still plenty of room and nothing can clip; only the
+        // drawn black card shrinks to fit.
+        //
+        // This cannot move content upward: the window's top edge is
+        // pinned at notch.maxY, the outer .frame below is alignment:
+        // .top, and this view's own top edge is therefore always the
+        // screen's top edge no matter what its height resolves to. Only
+        // the bottom edge moves.
         .frame(
             width: expanded ? metrics.expandedWidth : (isActive ? metrics.idleWidth : 0),
-            height: expanded ? metrics.expandedHeight : (isActive ? metrics.idleHeight : 0)
+            height: expanded ? nil : (isActive ? metrics.idleHeight : 0)
         )
         // Background AND clip use the exact same shape, so content (album
         // art, equalizer bars, anything near an edge) can never poke past
@@ -388,7 +401,14 @@ struct NotchWidgetView: View {
         .frame(maxWidth: .infinity, alignment: .center)
         // Nudged back down slightly ("a tiny bit lower") from
         // notch.height - 40 to notch.height - 33.
+        // UNCHANGED — this is the only thing that sets how far down the
+        // content sits, and it must stay exactly as-is so the art and
+        // track titles keep clearing the physical notch.
         .padding(.top, metrics.notch.height - 33)
+        // The card hugs this content now (see body's height: nil), so
+        // this is literally the margin between the transport buttons /
+        // album art and the card's bottom edge.
+        .padding(.bottom, 10)
     }
 
     private var progressRow: some View {
