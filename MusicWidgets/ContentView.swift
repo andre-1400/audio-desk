@@ -738,7 +738,6 @@ private struct GalleryDetail: View {
                                     accent: category.accentColor,
                                     hovered: hoveredID == "notch",
                                     active: notchState.isEnabled,
-                                    activeLabel: "Enabled",
                                     placeLabel: notchState.isEnabled ? "Turn Off" : "Turn On",
                                     placeIcon: notchState.isEnabled ? "xmark.circle" : "power",
                                     onHover: { setHover("notch", $0) },
@@ -1064,9 +1063,6 @@ private struct GalleryCard<P: View>: View {
     let accent: Color
     let hovered: Bool
     var active: Bool = false
-    // "On desktop" fits every placeable widget; Notch's card passes "Enabled"
-    // instead since it's never actually placed "on the desktop."
-    var activeLabel: String = "On desktop"
     // "Place" implies immediate placement, which is what every card does
     // except Custom — that one opens the colour picker first, so its cards
     // pass "Customize" instead.
@@ -1121,18 +1117,18 @@ private struct GalleryCard<P: View>: View {
                         .transition(.opacity.combined(with: .scale(scale: 0.8)))
                     }
 
+                    // A plain checkmark badge instead of a labelled pill —
+                    // the same minimal "this one's already active" language
+                    // the App Store (installed) and Podcasts (played) use,
+                    // rather than a capsule with text sitting on the tile.
                     if active && !hovered {
-                        HStack(spacing: 5) {
-                            Circle().fill(Color(hex: "53e08a")).frame(width: 6, height: 6)
-                                .shadow(color: Color(hex: "53e08a").opacity(0.8), radius: 3)
-                            Text(activeLabel).font(.system(size: 10.5, weight: .semibold))
-                        }
-                        .foregroundStyle(Neu.text)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(Capsule().fill(Neu.raised).shadow(color: .black.opacity(0.18), radius: 4, y: 1))
-                        .overlay(Capsule().strokeBorder(Neu.hairline, lineWidth: 1))
-                        .padding(12)
-                        .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                        Image(systemName: "checkmark.circle.fill")
+                            .symbolRenderingMode(.hierarchical)
+                            .font(.system(size: 20))
+                            .foregroundStyle(Color(hex: "53e08a"))
+                            .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+                            .padding(12)
+                            .transition(.opacity.combined(with: .scale(scale: 0.85)))
                     }
                 }
 
