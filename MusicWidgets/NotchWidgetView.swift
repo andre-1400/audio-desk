@@ -386,11 +386,11 @@ struct NotchWidgetView: View {
         }
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .center)
-        // The one number that actually matters here: push the whole row
-        // down past the physical cutout's own height, plus a little
-        // breathing room, instead of starting flush with the top like the
-        // idle pill (which has to stay level with the notch) does.
-        .padding(.top, metrics.notch.height + 10)
+        // Trimmed from notch.height + 10 down to just + 3 per feedback —
+        // the whole point is clearing the cutout with as little wasted
+        // space above the content as possible, not adding a visible gap
+        // beneath the notch.
+        .padding(.top, metrics.notch.height + 3)
     }
 
     private var progressRow: some View {
