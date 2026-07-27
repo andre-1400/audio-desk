@@ -74,7 +74,7 @@ struct NotchLayoutMetrics {
     // small and floating in a lot of empty column space rather than
     // actually filling it the way the reference's does.
     let leftWidth: CGFloat = 110
-    let rightWidth: CGFloat = 250
+    let rightWidth: CGFloat = 280
     let expandedHeight: CGFloat = 112
 
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
@@ -329,8 +329,12 @@ struct NotchWidgetView: View {
 
             Color.clear.frame(width: metrics.notch.width)
 
-            HStack(spacing: 12) {
-                VStack(spacing: 8) {
+            // Title/artist/progress/transport read as one centred block
+            // spanning the available width (matching the reference), with
+            // the equalizer kept as a slim, separate accent hugging the
+            // far-right edge instead of squeezing into the same column.
+            HStack(spacing: 10) {
+                VStack(spacing: 7) {
                     VStack(spacing: 2) {
                         Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
                             .font(.system(size: 14, weight: .bold))
@@ -343,6 +347,7 @@ struct NotchWidgetView: View {
                                 .lineLimit(1)
                         }
                     }
+                    .frame(maxWidth: .infinity)
 
                     progressRow
 
@@ -352,17 +357,13 @@ struct NotchWidgetView: View {
                         transportButton("forward.fill", size: 13) { if !isPreview { detector.nextTrack() } }
                     }
                 }
+                .frame(maxWidth: .infinity)
 
-                // Same decorative equalizer accent as the idle pill, tinted
-                // the same way — a small visual echo on the expanded state
-                // instead of the two looking unrelated.
                 EqualizerBars(animating: isPreview ? true : np.isPlaying, color: waveColour)
+                    .frame(width: 18)
             }
-            .padding(.leading, 10)
-            .padding(.trailing, 18)
-            // Same fix as the art column, mirrored: hugging the leading
-            // edge (next to the gap) instead of being centred within the
-            // full rightWidth column.
+            .padding(.leading, 14)
+            .padding(.trailing, 16)
             .frame(width: metrics.rightWidth, alignment: .leading)
         }
     }
