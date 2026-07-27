@@ -135,16 +135,25 @@ struct VinylWidgetView: View {
     //
     // First pass shifted the whole range +14° (start -8->6, end 14->28)
     // since the needle wasn't landing on the disc at all at start. That
-    // fixed the start but overshot the end — feedback (with a screenshot
-    // near the end of a song) showed the needle sitting on the album art
-    // label in the centre, past the vinyl's outer groove area entirely.
-    // Pulled endAngle back down (28->19) to stop short of the label,
-    // shrinking the sweep from 22° to 13° rather than shifting the whole
-    // range again, since the start position was confirmed correct and
-    // shouldn't move.
+    // overshot both ends — follow-up feedback: with start=6°/end=19°, the
+    // needle at song START actually sits where the MIDDLE of the song
+    // should be, and at song END it's still well into the album art
+    // label.
+    //
+    // Rather than guess a third time, treated the two known-bad data
+    // points as a linear calibration: f(6°) ≈ 50% of the way across the
+    // groove (the "start = looks like the middle" report) and f(19°) ≈
+    // ~140% (a rough estimate for "way into the cover", i.e. well past
+    // the label edge at 100%). Solving m*angle + b = percent for those
+    // two points and then solving for the angles where percent = 0 and
+    // percent = 100 gives startAngle ≈ -1°, endAngle ≈ 12° — a 7°
+    // down-shift of the previous range, keeping the same ~13° span since
+    // nothing suggested the *span* itself was wrong, only where it sits.
+    // The 140% figure is an estimate, not a measurement, so this may
+    // still need another small correction once seen.
     private let tonearmRealisticRestAngle = -22.0
-    private let tonearmRealisticStartAngle = 6.0
-    private let tonearmRealisticEndAngle = 19.0
+    private let tonearmRealisticStartAngle = -1.0
+    private let tonearmRealisticEndAngle = 12.0
     private let tonearmMaxSeekProgress = 0.98
     private let tonearmPlaybackTransitionDuration: TimeInterval = 0.42
     private let seekHandoffSuppressionDuration = 0.45
@@ -1190,7 +1199,7 @@ struct VinylWidgetView: View {
     // 90x180 box, scaled by the same factor) so the pivot stays anchored
     // in the same spot relative to the platter as before, and only the
     // arm's reach grows.
-    private let tonearmRealisticScale: CGFloat = 1.7
+    private let tonearmRealisticScale: CGFloat = 1.6
 
     private var tonearmRealisticSize: CGSize {
         CGSize(width: 90 * tonearmRealisticScale, height: 180 * tonearmRealisticScale)
