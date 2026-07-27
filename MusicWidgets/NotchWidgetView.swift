@@ -69,9 +69,13 @@ enum NotchDetector {
 // whose drawn size animates within an already-large, static window.
 struct NotchLayoutMetrics {
     let notch: CGRect
-    let leftWidth: CGFloat = 90
-    let rightWidth: CGFloat = 260
-    let expandedHeight: CGFloat = 96
+    // Bigger overall footprint per feedback that the layout/proportions
+    // (not colour) were the main thing to fix — the art in particular was
+    // small and floating in a lot of empty column space rather than
+    // actually filling it the way the reference's does.
+    let leftWidth: CGFloat = 110
+    let rightWidth: CGFloat = 250
+    let expandedHeight: CGFloat = 112
 
     var expandedWidth: CGFloat { leftWidth + notch.width + rightWidth }
 
@@ -177,31 +181,14 @@ struct NotchWidgetView: View {
     var body: some View {
         ZStack {
             if isVisible {
-                let shape = UnevenRoundedRectangle(
+                UnevenRoundedRectangle(
                     topLeadingRadius: 0,
                     bottomLeadingRadius: expanded ? 18 : 10,
                     bottomTrailingRadius: expanded ? 18 : 10,
                     topTrailingRadius: 0,
                     style: .continuous
                 )
-                // Idle stays plain black — small and meant to blend with
-                // the real notch, not draw attention. Expanded tints
-                // toward the playing track's own colours (dominant +
-                // secondary) instead of flat black, the same "adaptive"
-                // language every other widget in this app already uses,
-                // rather than a fixed brand colour lifted from a reference.
-                if expanded {
-                    shape.fill(
-                        LinearGradient(
-                            colors: [colours.dominant.opacity(0.5), colours.secondary.opacity(0.35), Color.black.opacity(0.94)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .background(shape.fill(Color.black))
-                } else {
-                    shape.fill(Color.black)
-                }
+                .fill(Color.black)
             }
 
             if expanded {
@@ -319,30 +306,34 @@ struct NotchWidgetView: View {
     // stacked on the right.
     private var expandedContent: some View {
         HStack(spacing: 0) {
+            // Filling most of expandedHeight (a fixed margin, not a fixed
+            // size) instead of a small 42pt square floating in a much
+            // bigger column — same "make it actually fill the space"
+            // treatment the idle art already got.
             Group {
                 if let art {
                     Image(nsImage: art).resizable().aspectRatio(contentMode: .fill)
                 } else {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(Color.white.opacity(0.15))
                 }
             }
-            .frame(width: 42, height: 42)
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .frame(width: metrics.expandedHeight - 20, height: metrics.expandedHeight - 20)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             .frame(width: metrics.leftWidth)
 
             Color.clear.frame(width: metrics.notch.width)
 
-            HStack(spacing: 8) {
-                VStack(spacing: 5) {
-                    VStack(spacing: 1) {
+            HStack(spacing: 12) {
+                VStack(spacing: 8) {
+                    VStack(spacing: 2) {
                         Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
-                            .font(.system(size: 12.5, weight: .bold))
+                            .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(.white)
                             .lineLimit(1)
                         if !np.artistName.isEmpty {
                             Text(np.artistName)
-                                .font(.system(size: 10, weight: .medium))
+                                .font(.system(size: 11, weight: .medium))
                                 .foregroundStyle(.white.opacity(0.6))
                                 .lineLimit(1)
                         }
@@ -350,10 +341,10 @@ struct NotchWidgetView: View {
 
                     progressRow
 
-                    HStack(spacing: 22) {
-                        transportButton("backward.fill", size: 12) { if !isPreview { detector.previousTrack() } }
-                        transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 15) { if !isPreview { detector.togglePlayback() } }
-                        transportButton("forward.fill", size: 12) { if !isPreview { detector.nextTrack() } }
+                    HStack(spacing: 26) {
+                        transportButton("backward.fill", size: 13) { if !isPreview { detector.previousTrack() } }
+                        transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 17) { if !isPreview { detector.togglePlayback() } }
+                        transportButton("forward.fill", size: 13) { if !isPreview { detector.nextTrack() } }
                     }
                 }
 
@@ -362,7 +353,7 @@ struct NotchWidgetView: View {
                 // instead of the two looking unrelated.
                 EqualizerBars(animating: isPreview ? true : np.isPlaying, color: waveColour)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 18)
             .frame(width: metrics.rightWidth)
         }
     }
