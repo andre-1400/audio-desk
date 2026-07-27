@@ -420,6 +420,15 @@ struct WidgetSizeSlider: View {
         (scale - WidgetSizeManager.minScale) / (WidgetSizeManager.maxScale - WidgetSizeManager.minScale)
     }
 
+    // Still custom-drawn (not a real Slider — see SliderDragCaptureView's
+    // own doc comment on why a real Slider isn't safe in this specific,
+    // isMovableByWindowBackground window), but refined to match a native
+    // continuous NSSlider's actual details more closely: a lighter,
+    // material-toned empty track instead of a flat well fill, a thinner
+    // 4pt track, and a thumb with a hairline border for definition instead
+    // of shadow alone. Icon bookend sizes now match the real Slider used
+    // for the same control in Settings (11/16) instead of a different,
+    // larger pair (11/20) that made the two controls feel inconsistent.
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "app").font(.system(size: 11))
@@ -428,12 +437,13 @@ struct WidgetSizeSlider: View {
             GeometryReader { geo in
                 let width = geo.size.width
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Neu.well).frame(height: 5)
-                    Capsule().fill(AMTheme.accent).frame(width: max(5, width * fraction), height: 5)
+                    Capsule().fill(.quaternary).frame(height: 4)
+                    Capsule().fill(AMTheme.accent).frame(width: max(4, width * fraction), height: 4)
                     Circle().fill(Color.white)
-                        .frame(width: 15, height: 15)
+                        .frame(width: 16, height: 16)
+                        .overlay(Circle().strokeBorder(Color.black.opacity(0.08), lineWidth: 0.5))
                         .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
-                        .offset(x: min(width - 15, max(0, width * fraction - 7.5)))
+                        .offset(x: min(width - 16, max(0, width * fraction - 8)))
                 }
                 .frame(height: 20)
                 .contentShape(Rectangle())
@@ -446,7 +456,7 @@ struct WidgetSizeSlider: View {
             }
             .frame(height: 20)
 
-            Image(systemName: "app.fill").font(.system(size: 20))
+            Image(systemName: "app.fill").font(.system(size: 16))
                 .foregroundStyle(Neu.subtext)
         }
     }
@@ -493,6 +503,59 @@ private struct SliderDragCaptureView: NSViewRepresentable {
 
         override func mouseUp(with event: NSEvent) {
             window?.isMovableByWindowBackground = true
+        }
+    }
+}
+
+/// Raw AppKit drag surface backing NowPlayingBar's progress scrubber — same
+/// shape as SliderDragCaptureView (mouseDownCanMoveWindow = false, custom
+/// hitTest, temporarily disabling isMovableByWindowBackground while
+/// dragging), kept as its own type rather than shared per this codebase's
+/// existing convention. The one difference: this needs a distinct "drag
+/// ended" callback (to actually commit the seek), not just continuous
+/// onDrag, since scrubbing previews a position without moving anything
+/// until release.
+private struct NowPlayingScrubDragCaptureView: NSViewRepresentable {
+    var onDrag: (CGFloat) -> Void
+    var onEnd: (CGFloat) -> Void
+
+    func makeNSView(context: Context) -> DragView {
+        let view = DragView()
+        view.onDrag = onDrag
+        view.onEnd = onEnd
+        return view
+    }
+
+    func updateNSView(_ nsView: DragView, context: Context) {
+        nsView.onDrag = onDrag
+        nsView.onEnd = onEnd
+    }
+
+    final class DragView: NSView {
+        var onDrag: ((CGFloat) -> Void)?
+        var onEnd: ((CGFloat) -> Void)?
+
+        override var isFlipped: Bool { true }
+        override var mouseDownCanMoveWindow: Bool { false }
+
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            bounds.contains(point) ? self : nil
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            window?.isMovableByWindowBackground = false
+            onDrag?(convert(event.locationInWindow, from: nil).x)
+        }
+
+        override func mouseDragged(with event: NSEvent) {
+            onDrag?(convert(event.locationInWindow, from: nil).x)
+        }
+
+        override func mouseUp(with event: NSEvent) {
+            window?.isMovableByWindowBackground = true
+            onEnd?(convert(event.locationInWindow, from: nil).x)
         }
     }
 }
@@ -1182,9 +1245,20 @@ private struct NowPlayingBar: View {
     @ObservedObject var detector: MusicDetector
     @StateObject private var artFetcher = AlbumArtFetcher()
     @State private var art: NSImage? = nil
+    @State private var isScrubbing = false
+    @State private var scrubProgress: Double = 0
+    // Same seek-handoff idea the widgets' own scrub bars use: for a short
+    // window right after committing a seek, keep showing the scrubbed
+    // position instead of the live detector's (not yet caught up) one, so
+    // the bar doesn't visibly snap back before the source app's own
+    // position actually updates.
+    @State private var seekHandoffUntil: Date? = nil
+    @State private var seekHandoffProgress: Double = 0
+    private let seekHandoffSuppressionDuration = 0.45
 
     private var np: NowPlayingInfo { detector.nowPlaying }
     private var hasTrack: Bool { !np.trackName.isEmpty }
+    private var canSeek: Bool { hasTrack && (np.durationMillis ?? 0) > 0 }
 
     // Same 0...1 fraction the widgets compute for their own scrub bars —
     // just without their per-frame TimelineView interpolation, since this
@@ -1194,6 +1268,20 @@ private struct NowPlayingBar: View {
     private var progress: Double {
         guard let duration = np.durationMillis, duration > 0, let position = np.positionMillis else { return 0 }
         return min(1, max(0, Double(position) / Double(duration)))
+    }
+
+    private var displayProgress: Double {
+        if isScrubbing { return scrubProgress }
+        if let until = seekHandoffUntil, Date() < until { return seekHandoffProgress }
+        return progress
+    }
+
+    private func commitSeek(toFraction fraction: Double) {
+        guard canSeek, let duration = np.durationMillis else { return }
+        let targetMillis = Int((fraction * Double(duration)).rounded())
+        seekHandoffProgress = fraction
+        seekHandoffUntil = Date().addingTimeInterval(seekHandoffSuppressionDuration)
+        detector.seek(toMillis: targetMillis)
     }
 
     var body: some View {
@@ -1233,14 +1321,36 @@ private struct NowPlayingBar: View {
             }
 
             if hasTrack {
-                Capsule().fill(Neu.hairline).frame(height: 3)
-                    .overlay(alignment: .leading) {
-                        GeometryReader { geo in
-                            Capsule().fill(Neu.subtext)
-                                .frame(width: max(3, geo.size.width * progress))
+                GeometryReader { geo in
+                    let width = geo.size.width
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Neu.hairline).frame(height: isScrubbing ? 5 : 3)
+                        Capsule().fill(Neu.subtext).frame(width: max(3, width * displayProgress), height: isScrubbing ? 5 : 3)
+                        Circle().fill(Neu.text)
+                            .frame(width: 10, height: 10)
+                            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                            .offset(x: min(width - 10, max(0, width * displayProgress - 5)))
+                            .opacity(isScrubbing ? 1 : 0)
+                    }
+                    .frame(height: 14)
+                    .contentShape(Rectangle())
+                    .overlay {
+                        if canSeek {
+                            NowPlayingScrubDragCaptureView(
+                                onDrag: { x in
+                                    isScrubbing = true
+                                    scrubProgress = min(1, max(0, x / width))
+                                },
+                                onEnd: { x in
+                                    commitSeek(toFraction: min(1, max(0, x / width)))
+                                    isScrubbing = false
+                                }
+                            )
                         }
                     }
-                    .clipShape(Capsule())
+                }
+                .frame(height: 14)
+                .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
             }
         }
         .padding(.horizontal, 16)
