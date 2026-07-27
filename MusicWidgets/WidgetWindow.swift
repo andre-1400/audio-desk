@@ -13,17 +13,21 @@ final class WidgetSizeManager: ObservableObject {
     private let storageKey = "widget.scale"
     private let legacyKey = "widget.size"   // old small/medium/large string
 
-    /// baseWidgetSize (384x516, vinyl's own base) at minScale is ~85x114 —
-    /// about the footprint of a Finder desktop icon + label. Every other
-    /// widget family's own base size scales by the same factor, so a wider
-    /// family (e.g. CD Hi-Fi at 560pt) reads larger still at the same
-    /// slider position, which is expected — the slider dials relative size,
-    /// not an absolute pixel target shared across every widget shape.
-    static let minScale: CGFloat = 0.22
-    /// At maxScale, vinyl (384pt base) is ~999pt wide — comfortably over
-    /// half the width of any common display — and CD Hi-Fi (560pt base)
-    /// reaches ~1456pt, well past it.
-    static let maxScale: CGFloat = 2.6
+    /// Narrowed from the original 0.22-2.6 range — that let the slider go
+    /// all the way down to an ~85x114 desktop-icon-sized sliver and up to
+    /// a ~1456pt-wide CD Hi-Fi, both of which read as unpolished/extreme
+    /// rather than a considered size choice. baseWidgetSize (384x516,
+    /// vinyl's own base) at minScale is ~192x258 — still a small, compact
+    /// widget, not an icon. Every other widget family's own base size
+    /// scales by the same factor, so a wider family (e.g. CD Hi-Fi at
+    /// 560pt) reads larger still at the same slider position, which is
+    /// expected — the slider dials relative size, not an absolute pixel
+    /// target shared across every widget shape.
+    static let minScale: CGFloat = 0.5
+    /// At maxScale, vinyl (384pt base) is ~614pt wide, and CD Hi-Fi
+    /// (560pt base) reaches ~896pt — sizeable but well short of dominating
+    /// the screen the old 2.6 max allowed.
+    static let maxScale: CGFloat = 1.6
     static let defaultScale: CGFloat = 1.0
 
     @Published var scale: CGFloat {

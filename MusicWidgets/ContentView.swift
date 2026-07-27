@@ -1245,16 +1245,6 @@ private struct NowPlayingBar: View {
     @ObservedObject var detector: MusicDetector
     @StateObject private var artFetcher = AlbumArtFetcher()
     @State private var art: NSImage? = nil
-    @State private var isScrubbing = false
-    @State private var scrubProgress: Double = 0
-    // Same seek-handoff idea the widgets' own scrub bars use: for a short
-    // window right after committing a seek, keep showing the scrubbed
-    // position instead of the live detector's (not yet caught up) one, so
-    // the bar doesn't visibly snap back before the source app's own
-    // position actually updates.
-    @State private var seekHandoffUntil: Date? = nil
-    @State private var seekHandoffProgress: Double = 0
-    private let seekHandoffSuppressionDuration = 0.45
 
     private var np: NowPlayingInfo { detector.nowPlaying }
     private var hasTrack: Bool { !np.trackName.isEmpty }
@@ -1268,20 +1258,6 @@ private struct NowPlayingBar: View {
     private var progress: Double {
         guard let duration = np.durationMillis, duration > 0, let position = np.positionMillis else { return 0 }
         return min(1, max(0, Double(position) / Double(duration)))
-    }
-
-    private var displayProgress: Double {
-        if isScrubbing { return scrubProgress }
-        if let until = seekHandoffUntil, Date() < until { return seekHandoffProgress }
-        return progress
-    }
-
-    private func commitSeek(toFraction fraction: Double) {
-        guard canSeek, let duration = np.durationMillis else { return }
-        let targetMillis = Int((fraction * Double(duration)).rounded())
-        seekHandoffProgress = fraction
-        seekHandoffUntil = Date().addingTimeInterval(seekHandoffSuppressionDuration)
-        detector.seek(toMillis: targetMillis)
     }
 
     var body: some View {
@@ -1321,36 +1297,10 @@ private struct NowPlayingBar: View {
             }
 
             if hasTrack {
-                GeometryReader { geo in
-                    let width = geo.size.width
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Neu.hairline).frame(height: isScrubbing ? 5 : 3)
-                        Capsule().fill(Neu.subtext).frame(width: max(3, width * displayProgress), height: isScrubbing ? 5 : 3)
-                        Circle().fill(Neu.text)
-                            .frame(width: 10, height: 10)
-                            .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                            .offset(x: min(width - 10, max(0, width * displayProgress - 5)))
-                            .opacity(isScrubbing ? 1 : 0)
-                    }
-                    .frame(height: 14)
-                    .contentShape(Rectangle())
-                    .overlay {
-                        if canSeek {
-                            NowPlayingScrubDragCaptureView(
-                                onDrag: { x in
-                                    isScrubbing = true
-                                    scrubProgress = min(1, max(0, x / width))
-                                },
-                                onEnd: { x in
-                                    commitSeek(toFraction: min(1, max(0, x / width)))
-                                    isScrubbing = false
-                                }
-                            )
-                        }
-                    }
+                NowPlayingProgressBar(progress: progress, canSeek: canSeek) { fraction in
+                    guard let duration = np.durationMillis else { return }
+                    detector.seek(toMillis: Int((fraction * Double(duration)).rounded()))
                 }
-                .frame(height: 14)
-                .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
             }
         }
         .padding(.horizontal, 16)
@@ -1392,6 +1342,72 @@ private struct NowPlayingBar: View {
     }
 }
 
+/// Isolated from NowPlayingBar itself so drag/seek state changes only
+/// re-render this small view — the actual source of the reported lag was
+/// that isScrubbing/scrubProgress lived on NowPlayingBar directly, so every
+/// single mouseDragged tick forced SwiftUI to re-evaluate NowPlayingBar's
+/// *entire* body (album art loading logic, track text, transport buttons)
+/// on top of the progress row, not just the row itself. The drag mechanism
+/// itself isn't the bottleneck — WidgetSizeSlider already uses the same
+/// NSView-capture technique smoothly elsewhere.
+private struct NowPlayingProgressBar: View {
+    let progress: Double
+    let canSeek: Bool
+    let onSeek: (Double) -> Void
+
+    @State private var isScrubbing = false
+    @State private var scrubProgress: Double = 0
+    // Same seek-handoff idea the widgets' own scrub bars use: for a short
+    // window right after committing a seek, keep showing the scrubbed
+    // position instead of the live detector's (not yet caught up) one, so
+    // the bar doesn't visibly snap back before the source app's own
+    // position actually updates.
+    @State private var seekHandoffUntil: Date? = nil
+    @State private var seekHandoffProgress: Double = 0
+    private let seekHandoffSuppressionDuration = 0.45
+
+    private var displayProgress: Double {
+        if isScrubbing { return scrubProgress }
+        if let until = seekHandoffUntil, Date() < until { return seekHandoffProgress }
+        return progress
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width
+            ZStack(alignment: .leading) {
+                Capsule().fill(Neu.hairline).frame(height: isScrubbing ? 5 : 3)
+                Capsule().fill(Neu.subtext).frame(width: max(3, width * displayProgress), height: isScrubbing ? 5 : 3)
+                Circle().fill(Neu.text)
+                    .frame(width: 10, height: 10)
+                    .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                    .offset(x: min(width - 10, max(0, width * displayProgress - 5)))
+                    .opacity(isScrubbing ? 1 : 0)
+            }
+            .frame(height: 14)
+            .contentShape(Rectangle())
+            .overlay {
+                if canSeek {
+                    NowPlayingScrubDragCaptureView(
+                        onDrag: { x in
+                            isScrubbing = true
+                            scrubProgress = min(1, max(0, x / width))
+                        },
+                        onEnd: { x in
+                            let fraction = min(1, max(0, x / width))
+                            seekHandoffProgress = fraction
+                            seekHandoffUntil = Date().addingTimeInterval(seekHandoffSuppressionDuration)
+                            isScrubbing = false
+                            onSeek(fraction)
+                        }
+                    )
+                }
+            }
+        }
+        .frame(height: 14)
+        .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isScrubbing)
+    }
+}
 
 // MARK: - Vinyl style model
 
