@@ -1076,28 +1076,35 @@ struct VinylWidgetView: View {
 
     // MARK: - Tonearm (AI-generated realistic art, Adaptive theme only)
     //
-    // Second-generation asset: black/carbon-fiber finish with a curved
-    // (not straight) arm, replacing the first silver/straight attempt in
-    // this same imageset slot. Same checkerboard-alpha problem as the
-    // first version (Gemini drew a fake-transparency checker pattern in
-    // as literal opaque pixels — confirmed via alpha=255 everywhere in
-    // the raw file) and the same fix: a border flood-fill into real alpha
-    // plus a light Gaussian blur on just the alpha channel to feather the
-    // silhouette edge. This version's checkerboard had soft/anti-aliased
-    // tile edges rather than two crisp tones, so the flood-fill match had
-    // to use a brightness threshold (>=140) instead of two exact values —
-    // safe here since the black/carbon tonearm's own tones (~35-90) sit
-    // nowhere near that range.
+    // Third-generation asset: same black/carbon colour, but from a prompt
+    // asking for a plainer, less mechanically-busy look (fewer visible
+    // screws/seams) and a slightly thicker rod — replacing the second
+    // (curved, but visually "over-engineered") attempt in this same
+    // imageset slot.
     //
-    // Pivot location (480, 305) and the 90x180 frame/offset below were
+    // This one's background wasn't a checkerboard at all — a flat, near-
+    // uniform light gray (~199-201) plus a small sparkle/watermark glyph
+    // sitting apart from the arm. Cleaned with a border flood-fill
+    // matching that single tone (tight tolerance, since it's a flat
+    // colour rather than a noisy pattern), then a connected-components
+    // pass that discards any small opaque blob left over once the main
+    // flood-fill finishes — which is what caught and removed the
+    // watermark automatically, since it wasn't connected to the (much
+    // larger) tonearm silhouette. Verified by compositing the result over
+    // solid red and solid magenta test backgrounds and confirming a clean
+    // silhouette with no gray fringe and no leftover watermark, since this
+    // tool's own image preview renders transparent PNGs against a flat
+    // grey matte that's easy to mistake for "it didn't work."
+    //
+    // Pivot location (470, 310) and the 90x180 frame/offset below were
     // read directly off the cleaned image with a debug coordinate grid
-    // overlaid, same process as the first version — the image's own
-    // aspect ratio (720:1456 ≈ 1:2.02) is close enough to the vector
-    // tonearm's (90:180 = 1:2) that reusing the exact same outer frame
-    // and offset as tonearmView lines the new art up over the platter
-    // correctly with no separate tuning needed.
+    // overlaid (composited over solid colour, not judged from the raw
+    // preview) — the image's own aspect ratio (720:1456 ≈ 1:2.02) is
+    // close enough to the vector tonearm's (90:180 = 1:2) that reusing
+    // the exact same outer frame and offset as tonearmView lines the new
+    // art up over the platter correctly with no separate tuning needed.
     private var tonearmRealisticPivot: UnitPoint {
-        UnitPoint(x: 480.0 / 720.0, y: 305.0 / 1456.0)
+        UnitPoint(x: 470.0 / 720.0, y: 310.0 / 1456.0)
     }
 
     private var tonearmRealisticView: some View {
