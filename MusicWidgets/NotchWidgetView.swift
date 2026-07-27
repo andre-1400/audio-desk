@@ -386,11 +386,11 @@ struct NotchWidgetView: View {
         }
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .center)
-        // Trimmed from notch.height + 10 down to just + 3 per feedback —
-        // the whole point is clearing the cutout with as little wasted
-        // space above the content as possible, not adding a visible gap
-        // beneath the notch.
-        .padding(.top, metrics.notch.height + 3)
+        // Raised further per feedback ("by a bunch more") from
+        // notch.height + 3 down to notch.height - 20 — user explicitly
+        // accepted the risk of this overshooting and clipping under the
+        // cutout, to be corrected on the next round if it goes too far.
+        .padding(.top, metrics.notch.height - 20)
     }
 
     private var progressRow: some View {
