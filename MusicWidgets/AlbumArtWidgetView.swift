@@ -115,6 +115,14 @@ struct AlbumArtWidgetView: View {
     private var circlePrimary: Color { circleIsLight ? Color.black.opacity(0.85) : Color.white.opacity(0.9) }
     private var circleSecondary: Color { circleIsLight ? Color.black.opacity(0.35) : Color.white.opacity(0.10) }
 
+    /// Mini's own background is the dominant colour itself now (was a flat
+    /// permanent black), so — same as Circle — there's no separate scrim
+    /// darkening it further to account for.
+    private var miniIsLight: Bool { isLightSurface(darkening: 0) }
+    private var miniPrimary: Color { miniIsLight ? Color.black.opacity(0.85) : .white }
+    private var miniSecondary: Color { miniIsLight ? Color.black.opacity(0.55) : Color.white.opacity(0.62) }
+    private var miniBorder: Color { miniIsLight ? Color.black.opacity(0.08) : Color.white.opacity(0.08) }
+
     var body: some View {
         Group {
             switch model.size {
@@ -269,7 +277,7 @@ struct AlbumArtWidgetView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 13, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                        .strokeBorder(miniBorder, lineWidth: 1)
                 )
                 .contentShape(Rectangle())
                 .onTapGesture { togglePlayback() }
@@ -282,13 +290,13 @@ struct AlbumArtWidgetView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(miniPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if !np.artistName.isEmpty {
                     Text(np.artistName)
                         .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.62))
+                        .foregroundStyle(miniSecondary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -302,23 +310,29 @@ struct AlbumArtWidgetView: View {
             // cards show these purely for looks — cosmetic only, never
             // wired to real transport commands.
             HStack(spacing: 6) {
-                transportButton("backward.fill", size: 12, tapTarget: 24) { if !isPreview { detector.previousTrack() } }
-                transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 16, prominent: true, tapTarget: 32) { togglePlayback() }
-                transportButton("forward.fill", size: 12, tapTarget: 24) { if !isPreview { detector.nextTrack() } }
+                transportButton("backward.fill", size: 12, primaryColor: miniPrimary, secondaryColor: miniSecondary, tapTarget: 24) { if !isPreview { detector.previousTrack() } }
+                transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 16, prominent: true, primaryColor: miniPrimary, secondaryColor: miniSecondary, tapTarget: 32) { togglePlayback() }
+                transportButton("forward.fill", size: 12, primaryColor: miniPrimary, secondaryColor: miniSecondary, tapTarget: 24) { if !isPreview { detector.nextTrack() } }
             }
         }
         .padding(.leading, 12)
         .padding(.trailing, 14)
         .padding(.vertical, 12)
         .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
+        // Adaptive now — was a permanent flat black regardless of the
+        // playing track's own colours, the one thing left in this widget
+        // that didn't actually track the art the way "Adaptive" implies
+        // everywhere else in the app. Filled with the extracted dominant
+        // colour itself (same as Circle, which also sits with no separate
+        // scrim layered on top) rather than a scrim over something else.
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.black.opacity(0.62))
+                .fill(effectiveExtracted.dominant.opacity(0.9))
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                .strokeBorder(miniBorder, lineWidth: 1)
         )
     }
 
