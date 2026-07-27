@@ -386,11 +386,9 @@ struct NotchWidgetView: View {
         }
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .center)
-        // Raised further per feedback ("by a bunch more") from
-        // notch.height + 3 down to notch.height - 20 — user explicitly
-        // accepted the risk of this overshooting and clipping under the
-        // cutout, to be corrected on the next round if it goes too far.
-        .padding(.top, metrics.notch.height - 20)
+        // Raised again per feedback ("even more") from notch.height - 20
+        // to notch.height - 40.
+        .padding(.top, metrics.notch.height - 40)
     }
 
     private var progressRow: some View {
