@@ -108,17 +108,11 @@ struct OnboardingView: View {
             VStack(spacing: 28) {
                 Spacer()
 
-                // Placeholder mark — swap for the real logo once the app
-                // is renamed; "logo" stands in for it everywhere for now.
-                ZStack {
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .fill(AMTheme.gradient)
-                        .frame(width: 104, height: 104)
-                        .shadow(color: AMTheme.accent.opacity(0.4), radius: 16, y: 8)
-                    Text("logo")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(AMTheme.onAccent)
-                }
+                Image("AppLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 104, height: 104)
+                    .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
 
                 // Rotating greeting — `.id` on the changing string forces a
                 // fresh view identity each time, so the transition below
