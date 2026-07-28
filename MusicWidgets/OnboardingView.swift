@@ -108,12 +108,6 @@ struct OnboardingView: View {
             VStack(spacing: 28) {
                 Spacer()
 
-                Image("AppLogo")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 104, height: 104)
-                    .shadow(color: .black.opacity(0.35), radius: 16, y: 8)
-
                 // Rotating greeting — `.id` on the changing string forces a
                 // fresh view identity each time, so the transition below
                 // actually plays as a cross-fade instead of the text just
