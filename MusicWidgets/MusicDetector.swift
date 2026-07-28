@@ -262,6 +262,13 @@ final class MusicDetector: ObservableObject {
     /// it once started) and treated as a plain failure.
     private static let scriptTimeoutSeconds: TimeInterval = 5
 
+    // One shared queue for every AppleScript call, not a fresh queue (and
+    // thread) per call — this used to spin up a brand-new DispatchQueue on
+    // every single invocation, which at a 0.25s poll interval with two
+    // sources (Spotify + Apple Music) meant ~8 new threads/sec and was the
+    // actual cause of the polling stutter, not the semaphore wait itself.
+    private static let execQueue = DispatchQueue(label: "com.vinylwidget.applescript-exec", qos: .userInitiated)
+
     @discardableResult
     private static func executeAppleScript(_ source: String) -> ScriptOutcome {
         guard let script = NSAppleScript(source: source) else {
@@ -270,7 +277,6 @@ final class MusicDetector: ObservableObject {
 
         let semaphore = DispatchSemaphore(value: 0)
         var outcome: ScriptOutcome = .otherError
-        let execQueue = DispatchQueue(label: "com.vinylwidget.applescript-exec", qos: .userInitiated)
         execQueue.async {
             var error: NSDictionary?
             let result = script.executeAndReturnError(&error)

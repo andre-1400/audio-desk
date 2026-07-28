@@ -149,13 +149,16 @@ final class AppleMusicLocalQueueProvider {
     // separate queue, cap how long the caller waits.
     private static let scriptTimeoutSeconds: TimeInterval = 5
 
+    // Shared across calls rather than a fresh queue (and thread) per call —
+    // see MusicDetector's identical fix for why that mattered.
+    private static let execQueue = DispatchQueue(label: "com.vinylwidget.applemusic-queue-exec", qos: .userInitiated)
+
     @discardableResult
     private static func executeAppleScript(_ source: String) -> String? {
         guard let script = NSAppleScript(source: source) else { return nil }
 
         let semaphore = DispatchSemaphore(value: 0)
         var outcome: String?
-        let execQueue = DispatchQueue(label: "com.vinylwidget.applemusic-queue-exec", qos: .userInitiated)
         execQueue.async {
             var error: NSDictionary?
             let result = script.executeAndReturnError(&error)

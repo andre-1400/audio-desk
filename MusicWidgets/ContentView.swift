@@ -175,19 +175,11 @@ private struct GallerySidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Brand header — a restrained app mark, no heavy accent gradient
-            // tile (that read as an Android splash chip).
+            // Brand header — just the app name, no mark/tile and no subtitle
+            // (both read as unnecessary chrome once the sidebar has its own
+            // native section header below).
             HStack(spacing: 10) {
-                // Placeholder mark — "logo" stands in for the real app icon
-                // everywhere in-app until the rebrand's actual logo exists.
-                Text("logo")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(AMTheme.accent)
-                    .frame(width: 28, height: 28)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Audio Desk").font(.appTitle).foregroundStyle(Neu.text)
-                    Text("Desktop players").font(.appCaption).foregroundStyle(Neu.subtext)
-                }
+                Text("Audio Desk").font(.appTitle).foregroundStyle(Neu.text)
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 18)
