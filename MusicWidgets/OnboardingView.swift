@@ -131,7 +131,7 @@ struct OnboardingView: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
                     .frame(height: 70)
 
-                Text("Welcome to \"name\"")
+                Text("Welcome to Audio Desk")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Neu.subtext)
 

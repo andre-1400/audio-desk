@@ -27,7 +27,7 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>MusicWidgets needs access to control Spotify and Apple Music to display what's playing.</string>
+	<string>Audio Desk needs access to control Spotify and Apple Music to display what's playing.</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>ITSAppUsesNonExemptEncryption</key>

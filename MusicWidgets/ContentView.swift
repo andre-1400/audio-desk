@@ -185,7 +185,7 @@ private struct GallerySidebar: View {
                     .foregroundStyle(AMTheme.accent)
                     .frame(width: 28, height: 28)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text("\"name\"").font(.appTitle).foregroundStyle(Neu.text)
+                    Text("Audio Desk").font(.appTitle).foregroundStyle(Neu.text)
                     Text("Desktop players").font(.appCaption).foregroundStyle(Neu.subtext)
                 }
                 Spacer(minLength: 0)
@@ -242,7 +242,7 @@ private struct GallerySidebar: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 8)
 
-                Text("\"name\" \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
+                Text("Audio Desk \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
                     .font(.appCaption)
                     .foregroundStyle(Neu.subtext.opacity(0.7))
                     .padding(.horizontal, 18)
@@ -1647,7 +1647,7 @@ private struct VinylWidgetReplica: View {
 
                 if traits.hasTransportControls {
                     VStack(spacing: 9) {
-                        RetroVFDDisplay(title: "NOW PLAYING", subtitle: "\"name\"")
+                        RetroVFDDisplay(title: "NOW PLAYING", subtitle: "Audio Desk")
                         transportControls
                     }
                     .padding(.top, 10)

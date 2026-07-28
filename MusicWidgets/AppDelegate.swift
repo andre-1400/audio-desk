@@ -135,7 +135,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
             button.image = AppDelegate.makeNoteIcon()
-            button.toolTip = "\"name\""
+            button.toolTip = "Audio Desk"
             button.target = self
             button.action = #selector(statusItemClicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -225,14 +225,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         menu.addItem(.separator())
-        let open = NSMenuItem(title: "Open \"name\"", action: #selector(showGallery), keyEquivalent: "o")
+        let open = NSMenuItem(title: "Open Audio Desk", action: #selector(showGallery), keyEquivalent: "o")
         open.target = self
         menu.addItem(open)
         let settings = NSMenuItem(title: "Settings…", action: #selector(showGallerySettings), keyEquivalent: ",")
         settings.target = self
         menu.addItem(settings)
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit \"name\"", action: #selector(quitApp), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit Audio Desk", action: #selector(quitApp), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
         return menu
@@ -482,7 +482,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                 backing: .buffered, defer: false
             )
-            win.title = "\"name\""
+            win.title = "Audio Desk"
             win.titlebarAppearsTransparent = true
             win.titleVisibility = .hidden
             win.isMovableByWindowBackground = true

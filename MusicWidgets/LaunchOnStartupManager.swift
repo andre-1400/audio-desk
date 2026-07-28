@@ -15,13 +15,13 @@ final class LaunchOnStartupManager: ObservableObject {
         switch SMAppService.mainApp.status {
         case .enabled:
             isEnabled = true
-            statusMessage = "\"name\" will open automatically when you log in."
+            statusMessage = "Audio Desk will open automatically when you log in."
         case .notRegistered:
             isEnabled = false
-            statusMessage = "\"name\" will not open automatically when you log in."
+            statusMessage = "Audio Desk will not open automatically when you log in."
         case .requiresApproval:
             isEnabled = false
-            statusMessage = "Approve \"name\" in System Settings to enable startup."
+            statusMessage = "Approve Audio Desk in System Settings to enable startup."
         case .notFound:
             isEnabled = false
             statusMessage = "Launch On Startup is unavailable for this build."
