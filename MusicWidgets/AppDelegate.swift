@@ -134,7 +134,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = item.button {
-            button.image = AppDelegate.makeNoteIcon()
+            button.image = AppDelegate.makeMenuBarIcon()
             button.toolTip = "Audio Desk"
             button.target = self
             button.action = #selector(statusItemClicked)
@@ -536,29 +536,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// A custom eighth-note glyph for the menu bar (template image, auto-tints).
-    static func makeNoteIcon() -> NSImage {
-        let size = NSSize(width: 16, height: 16)
-        let img = NSImage(size: size, flipped: false) { _ in
-            NSColor.black.setFill()
-            // notehead
-            NSBezierPath(ovalIn: NSRect(x: 2.0, y: 1.6, width: 6.4, height: 5.0)).fill()
-            // stem
-            NSBezierPath(rect: NSRect(x: 7.1, y: 3.8, width: 1.5, height: 9.6)).fill()
-            // flag
-            let flag = NSBezierPath()
-            flag.move(to: NSPoint(x: 8.6, y: 13.4))
-            flag.curve(to: NSPoint(x: 12.8, y: 8.0),
-                       controlPoint1: NSPoint(x: 13.0, y: 12.9),
-                       controlPoint2: NSPoint(x: 13.4, y: 10.2))
-            flag.curve(to: NSPoint(x: 8.6, y: 9.9),
-                       controlPoint1: NSPoint(x: 11.4, y: 9.4),
-                       controlPoint2: NSPoint(x: 9.9, y: 9.7))
-            flag.close()
-            flag.fill()
-            return true
+    /// The real app icon (vinyl record + tonearm, in colour), scaled down
+    /// for the menu bar. Deliberately *not* a template image — the whole
+    /// point is to keep the blue label and the icon's own black/colour
+    /// styling recognisable, the same way Spotify's own menu bar icon
+    /// keeps its brand colour instead of going monochrome.
+    static func makeMenuBarIcon() -> NSImage {
+        guard let source = NSImage(named: "MenuBarIcon") else {
+            assertionFailure("MenuBarIcon asset missing")
+            return NSImage()
         }
-        img.isTemplate = true
+        let target = NSSize(width: 18, height: 18)
+        let img = NSImage(size: target)
+        img.lockFocus()
+        source.draw(in: NSRect(origin: .zero, size: target),
+                    from: .zero, operation: .sourceOver, fraction: 1.0)
+        img.unlockFocus()
+        img.isTemplate = false
         return img
     }
 

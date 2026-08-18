@@ -85,6 +85,35 @@ final class MusicDetector: ObservableObject {
     /// so a plain Bool is enough.
     private var pollInFlight = false
 
+    /// Guards the optimistic play/pause flip against the source app's own
+    /// lag. `playpause` returns before Spotify/Music has finished applying
+    /// it, so the very next poll can still report the *previous* state.
+    /// Accepting that would flip the UI back and then forward again a tick
+    /// later — and because the vinyl view starts a 0.42s tonearm animation
+    /// on every isPlaying change, each spurious flip is a visible sweep, so
+    /// the arm lurched toward the wrong position before settling. Hold the
+    /// optimistic value until the source agrees with it, or the window
+    /// lapses (so a command that silently failed still self-corrects).
+    /// Mirrors the seek-handoff suppression the widget views already do.
+    private var optimisticPlaybackUntil: Date?
+    private var optimisticIsPlaying = false
+    private let optimisticPlaybackWindow: TimeInterval = 1.0
+
+    /// The same guard for seeks. `set player position` also returns before
+    /// the source has applied it, so a poll landing in between reports the
+    /// pre-seek position — which drags the tonearm back toward where the
+    /// track *was* before it swings to the scrubbed position. Held until
+    /// the source reports a position consistent with the seek target.
+    private var seekHoldUntil: Date?
+    private var seekTargetMillis = 0
+    private var seekIssuedAt: Date = .distantPast
+    private let seekHoldWindow: TimeInterval = 1.0
+    /// How far off the expected position a sample may be and still count as
+    /// "the seek landed". Generous, because the alternative failure — a
+    /// short seek being mistaken for a stale sample — is invisible anyway:
+    /// if the source is within this much of the target, so is the tonearm.
+    private let seekPositionToleranceMillis = 1500
+
     // Used to resolve "both apps are playing" ties by the most recent state transition.
     private var lastSpotifyPlaybackState: PlayerPlaybackState = .stopped
     private var lastApplePlaybackState: PlayerPlaybackState = .stopped
@@ -107,6 +136,8 @@ final class MusicDetector: ObservableObject {
         timer?.invalidate()
         timer = nil
         pollInFlight = false
+        optimisticPlaybackUntil = nil
+        seekHoldUntil = nil
     }
 
     deinit {
@@ -123,11 +154,15 @@ final class MusicDetector: ObservableObject {
             let (newState, permissionDenied) = self.detectNowPlaying()
             DispatchQueue.main.async {
                 self.pollInFlight = false
-                if newState != self.nowPlaying {
-                    self.nowPlaying = newState
-                }
                 if permissionDenied != self.automationPermissionDenied {
                     self.automationPermissionDenied = permissionDenied
+                }
+                // Drop the whole sample rather than half-merging it — the
+                // position that came back alongside a stale isPlaying is
+                // just as stale. The next poll is 0.25s away.
+                guard !self.shouldHoldOptimisticUpdate(against: newState) else { return }
+                if newState != self.nowPlaying {
+                    self.nowPlaying = newState
                 }
             }
         }
@@ -429,6 +464,9 @@ final class MusicDetector: ObservableObject {
                 // restarts the clock from the position just captured.
                 progressSampledAt: resuming ? Date() : nil
             )
+            // Hold this against stale polls until the source agrees.
+            optimisticIsPlaying = resuming
+            optimisticPlaybackUntil = Date().addingTimeInterval(optimisticPlaybackWindow)
         }
 
         Self.commandQueue.async { [weak self] in
@@ -446,6 +484,67 @@ final class MusicDetector: ObservableObject {
                 self?.pollNowPlaying()
             }
         }
+    }
+
+    /// True while any local optimistic change is still waiting for the
+    /// source app to agree, meaning this sample should be ignored. Both
+    /// predicates run (no short-circuit) so each clears its own state.
+    private func shouldHoldOptimisticUpdate(against incoming: NowPlayingInfo) -> Bool {
+        let holdingPlayback = shouldHoldOptimisticPlayback(against: incoming)
+        let holdingSeek = shouldHoldSeek(against: incoming)
+        return holdingPlayback || holdingSeek
+    }
+
+    private func shouldHoldSeek(against incoming: NowPlayingInfo) -> Bool {
+        guard let until = seekHoldUntil else { return false }
+
+        guard Date() < until else {
+            seekHoldUntil = nil
+            return false
+        }
+        guard incoming.trackName == nowPlaying.trackName else {
+            seekHoldUntil = nil
+            return false
+        }
+        // No position to judge by — hold rather than risk snapping back.
+        guard let incomingPosition = incoming.positionMillis else { return true }
+
+        // Where the seek target should have drifted to by now, if playing.
+        let elapsedMillis = nowPlaying.isPlaying
+            ? max(0, Int(Date().timeIntervalSince(seekIssuedAt) * 1000))
+            : 0
+        let expected = seekTargetMillis + elapsedMillis
+
+        guard abs(incomingPosition - expected) > seekPositionToleranceMillis else {
+            seekHoldUntil = nil
+            return false
+        }
+        return true
+    }
+
+    /// True while an optimistic play/pause flip is still waiting for the
+    /// source app to agree, meaning this sample should be ignored.
+    private func shouldHoldOptimisticPlayback(against incoming: NowPlayingInfo) -> Bool {
+        guard let until = optimisticPlaybackUntil else { return false }
+
+        // Window lapsed — the command presumably didn't take. Let the
+        // truth through rather than holding a wrong state indefinitely.
+        guard Date() < until else {
+            optimisticPlaybackUntil = nil
+            return false
+        }
+        // A different track means something changed out from under the
+        // toggle (skip, queue advance); that update matters more.
+        guard incoming.trackName == nowPlaying.trackName else {
+            optimisticPlaybackUntil = nil
+            return false
+        }
+        // Source caught up — stop holding, accept this and every sample after.
+        guard incoming.isPlaying != optimisticIsPlaying else {
+            optimisticPlaybackUntil = nil
+            return false
+        }
+        return true
     }
 
     /// Current playback position, advanced by however long it's been since
@@ -523,6 +622,10 @@ final class MusicDetector: ObservableObject {
             durationMillis: nowPlaying.durationMillis,
             progressSampledAt: nowPlaying.isPlaying ? Date() : nil
         )
+        // Hold this against pre-seek polls until the source lands on it.
+        seekTargetMillis = sanitizedMillis
+        seekIssuedAt = Date()
+        seekHoldUntil = Date().addingTimeInterval(seekHoldWindow)
 
         // Own queue, not the polling one — see commandQueue for why.
         Self.commandQueue.async { [weak self] in
