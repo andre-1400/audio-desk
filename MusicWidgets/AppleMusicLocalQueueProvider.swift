@@ -70,7 +70,11 @@ final class AppleMusicLocalQueueProvider {
                 trackName: row.trackName,
                 artistName: row.artistName,
                 albumArtURL: row.albumArtURL,
-                albumArt: row.albumArtURL.flatMap(loadImage),
+                // Called through an explicit closure rather than passed as a
+                // bare function value: as a value, the @MainActor-isolated
+                // `loadImage` has to be converted to flatMap's non-isolated
+                // throwing parameter type, which the compiler warns about.
+                albumArt: row.albumArtURL.flatMap { url in loadImage(from: url) },
                 isCurrentTrack: row.slot == 0,
                 musicSource: .appleMusic,
                 spotifyURI: nil,

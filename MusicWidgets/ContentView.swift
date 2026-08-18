@@ -251,98 +251,138 @@ struct SettingsView: View {
 
     private var accent: Color { AMTheme.accent }
 
+    // Split into separately-typed sub-views on purpose: as one expression
+    // this body was large enough to blow the older Swift type-checker's
+    // budget ("unable to type-check this expression in reasonable time")
+    // when building against the shipping toolchain. Rendering is identical.
+    private var settingsHeader: some View {
+        HStack {
+            Text("Settings").font(.appTitle).foregroundStyle(Neu.text)
+            Spacer()
+            // A real labelled "Close" button — this sheet had no other
+            // dismiss control, so the X icon button is replaced here
+            // rather than just removed outright.
+            Button("Close", action: onClose)
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 18)
+        .padding(.bottom, 10)
+    }
+
+    private var widgetSizeRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Widget Size").font(.appBody).foregroundStyle(Neu.text)
+            Text("Anywhere from icon-sized to over half the screen")
+                .font(.appCaption).foregroundStyle(Neu.subtext)
+            // A real native Slider with the system's own bookend-
+            // icon layout (minimumValueLabel/maximumValueLabel) —
+            // the same construct System Settings uses for
+            // brightness/volume — instead of hand-placing icons
+            // in an HStack next to it, which is what produced the
+            // uneven gap this replaces. Safe here (unlike the
+            // gallery header's copy) because this sheet isn't
+            // isMovableByWindowBackground, so there's no window-
+            // drag conflict to guard against.
+            Slider(value: $sizeM.scale, in: WidgetSizeManager.minScale...WidgetSizeManager.maxScale) {
+                EmptyView()
+            } minimumValueLabel: {
+                Image(systemName: "app").font(.system(size: 11)).foregroundStyle(Neu.subtext)
+            } maximumValueLabel: {
+                Image(systemName: "app.fill").font(.system(size: 16)).foregroundStyle(Neu.subtext)
+            }
+            .tint(accent)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var opacityValueLabel: some View {
+        let percent: Int = Int(settings.widgetOpacity * 100)
+        return Text("\(percent)%")
+            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .foregroundStyle(Neu.text)
+            .frame(width: 40, alignment: .trailing)
+    }
+
+    private var opacitySlider: some View {
+        Slider(value: $settings.widgetOpacity, in: 0.5...1.0) {
+            EmptyView()
+        } minimumValueLabel: {
+            Image(systemName: "circle.dotted").font(.system(size: 12)).foregroundStyle(Neu.subtext)
+        } maximumValueLabel: {
+            Image(systemName: "circle.fill").font(.system(size: 12)).foregroundStyle(Neu.subtext)
+        }
+        .tint(accent)
+    }
+
+    private var opacityRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Opacity").font(.appBody).foregroundStyle(Neu.text)
+            Text("Let the widget blend into your wallpaper")
+                .font(.appCaption).foregroundStyle(Neu.subtext)
+            HStack(spacing: 12) {
+                opacitySlider
+                opacityValueLabel
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var behaviorRows: some View {
+        Group {
+            windowLayerRow
+            toggleRow(icon: "cursorarrow.rays", title: "Click-through",
+                      subtitle: "Clicks pass through to what's behind",
+                      isOn: $settings.clickThrough)
+            toggleRow(icon: "moon.zzz", title: "Hide when paused",
+                      subtitle: "Fade out when nothing is playing",
+                      isOn: $settings.hideWhenPaused)
+            toggleRow(icon: "record.circle", title: "Track-change animation",
+                      subtitle: "Off: the vinyl widgets snap to the next song instantly",
+                      isOn: $settings.vinylTransitionAnimationEnabled)
+        }
+    }
+
+    private var launchAtLoginRow: some View {
+        let binding = Binding<Bool>(
+            get: { startup.isEnabled },
+            set: { startup.setEnabled($0) }
+        )
+        let subtitle: String = startup.isEnabled
+            ? "Opens automatically at login"
+            : "Off — open it yourself"
+        return toggleRow(icon: "power", title: "Launch at login",
+                         subtitle: subtitle, isOn: binding)
+    }
+
+    // Native grouped Form — the same section/row language as macOS
+    // System Settings, replacing the hand-drawn "block" cards.
+    private var settingsForm: some View {
+        Form {
+            Section {
+                widgetSizeRow
+                opacityRow
+            } header: {
+                Text("Appearance")
+            }
+
+            Section("Behavior") {
+                behaviorRows
+            }
+
+            Section("Startup") {
+                launchAtLoginRow
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text("Settings").font(.appTitle).foregroundStyle(Neu.text)
-                Spacer()
-                // A real labelled "Close" button — this sheet had no other
-                // dismiss control, so the X icon button is replaced here
-                // rather than just removed outright.
-                Button("Close", action: onClose)
-                    .buttonStyle(.bordered)
-                    .controlSize(.regular)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
-            .padding(.bottom, 10)
-
-            // Native grouped Form — the same section/row language as macOS
-            // System Settings, replacing the hand-drawn "block" cards.
-            Form {
-                Section {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Widget Size").font(.appBody).foregroundStyle(Neu.text)
-                        Text("Anywhere from icon-sized to over half the screen")
-                            .font(.appCaption).foregroundStyle(Neu.subtext)
-                        // A real native Slider with the system's own bookend-
-                        // icon layout (minimumValueLabel/maximumValueLabel) —
-                        // the same construct System Settings uses for
-                        // brightness/volume — instead of hand-placing icons
-                        // in an HStack next to it, which is what produced the
-                        // uneven gap this replaces. Safe here (unlike the
-                        // gallery header's copy) because this sheet isn't
-                        // isMovableByWindowBackground, so there's no window-
-                        // drag conflict to guard against.
-                        Slider(value: $sizeM.scale, in: WidgetSizeManager.minScale...WidgetSizeManager.maxScale) {
-                            EmptyView()
-                        } minimumValueLabel: {
-                            Image(systemName: "app").font(.system(size: 11)).foregroundStyle(Neu.subtext)
-                        } maximumValueLabel: {
-                            Image(systemName: "app.fill").font(.system(size: 16)).foregroundStyle(Neu.subtext)
-                        }
-                        .tint(accent)
-                    }
-                    .padding(.vertical, 4)
-
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("Opacity").font(.appBody).foregroundStyle(Neu.text)
-                        Text("Let the widget blend into your wallpaper")
-                            .font(.appCaption).foregroundStyle(Neu.subtext)
-                        HStack(spacing: 12) {
-                            Slider(value: $settings.widgetOpacity, in: 0.5...1.0) {
-                                EmptyView()
-                            } minimumValueLabel: {
-                                Image(systemName: "circle.dotted").font(.system(size: 12)).foregroundStyle(Neu.subtext)
-                            } maximumValueLabel: {
-                                Image(systemName: "circle.fill").font(.system(size: 12)).foregroundStyle(Neu.subtext)
-                            }
-                            .tint(accent)
-                            Text("\(Int(settings.widgetOpacity * 100))%")
-                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(Neu.text)
-                                .frame(width: 40, alignment: .trailing)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Appearance")
-                }
-
-                Section("Behavior") {
-                    windowLayerRow
-                    toggleRow(icon: "cursorarrow.rays", title: "Click-through",
-                              subtitle: "Clicks pass through to what's behind",
-                              isOn: $settings.clickThrough)
-                    toggleRow(icon: "moon.zzz", title: "Hide when paused",
-                              subtitle: "Fade out when nothing is playing",
-                              isOn: $settings.hideWhenPaused)
-                    toggleRow(icon: "record.circle", title: "Track-change animation",
-                              subtitle: "Off: the vinyl widgets snap to the next song instantly",
-                              isOn: $settings.vinylTransitionAnimationEnabled)
-                }
-
-                Section("Startup") {
-                    toggleRow(icon: "power", title: "Launch at login",
-                              subtitle: startup.isEnabled ? "Opens automatically at login" : "Off — open it yourself",
-                              isOn: Binding(
-                                get: { startup.isEnabled },
-                                set: { startup.setEnabled($0) }
-                              ))
-                }
-            }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
+            settingsHeader
+            settingsForm
         }
         .frame(width: 460, height: 620)
         .background(VisualEffectBlur(.sheet))
@@ -667,63 +707,74 @@ private struct GalleryDetail: View {
         return max(1, Int((avail + spacing) / (minItem + spacing)))
     }
 
-    var body: some View {
-        VStack(spacing: 0) {
-            // Header — a genuine large title (the appLargeTitle token),
-            // matching the scale/weight Music, Podcasts, and Mail use for
-            // their own library page headers, with the slight negative
-            // tracking SF Pro Display wants at large sizes. Extra top
-            // clearance gives it room to breathe the way a real large-title
-            // page does, instead of sitting flush under the titlebar.
-            HStack(alignment: .firstTextBaseline) {
-                Text(category.title)
-                    .font(.appLargeTitle)
-                    .tracking(-0.4)
-                    .foregroundStyle(Neu.text)
-                Spacer()
-                // Widget size, right where you pick the widget — not
-                // meaningful for Desktop (always full screen) or Notch
-                // (sized to the physical notch, not user-adjustable).
-                if category != .desktop && category != .notch {
-                    VStack(alignment: .trailing, spacing: 6) {
-                        Text("SIZE")
-                            .font(.system(size: 10, weight: .semibold)).tracking(1.2)
-                            .foregroundStyle(Neu.subtext)
-                        WidgetSizeSlider(scale: $sizeM.scale)
-                            .frame(width: 190)
-                    }
+    // Header — a genuine large title (the appLargeTitle token),
+    // matching the scale/weight Music, Podcasts, and Mail use for
+    // their own library page headers, with the slight negative
+    // tracking SF Pro Display wants at large sizes. Extra top
+    // clearance gives it room to breathe the way a real large-title
+    // page does, instead of sitting flush under the titlebar.
+    private var pageHeader: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(category.title)
+                .font(.appLargeTitle)
+                .tracking(-0.4)
+                .foregroundStyle(Neu.text)
+            Spacer()
+            // Widget size, right where you pick the widget — not
+            // meaningful for Desktop (always full screen) or Notch
+            // (sized to the physical notch, not user-adjustable).
+            if category != .desktop && category != .notch {
+                VStack(alignment: .trailing, spacing: 6) {
+                    Text("SIZE")
+                        .font(.system(size: 10, weight: .semibold)).tracking(1.2)
+                        .foregroundStyle(Neu.subtext)
+                    WidgetSizeSlider(scale: $sizeM.scale)
+                        .frame(width: 190)
                 }
+            }
+        }
+        .padding(.horizontal, 34)
+        .padding(.top, 36)
+        .padding(.bottom, 26)
+    }
+
+    @ViewBuilder private var categorySection: some View {
+        if category == .vinyl {
+            vinylSection
+        } else if category == .cd {
+            cdSection
+        } else if category == .albumArt {
+            albumArtSection
+        } else if category == .desktop {
+            desktopSection
+        } else {
+            notchSection
+        }
+    }
+
+    // Grid (grouped by form)
+    private var grid: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 30) {
+                categorySection
             }
             .padding(.horizontal, 34)
-            .padding(.top, 36)
+            .padding(.top, 4)
             .padding(.bottom, 26)
-
-            // Grid (grouped by form)
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 30) {
-                    if category == .vinyl {
-                        vinylSection
-                    } else if category == .cd {
-                        cdSection
-                    } else if category == .albumArt {
-                        albumArtSection
-                    } else if category == .desktop {
-                        desktopSection
-                    } else {
-                        notchSection
-                    }
-                }
-                .padding(.horizontal, 34)
-                .padding(.top, 4)
-                .padding(.bottom, 26)
+        }
+        .background(
+            GeometryReader { g in
+                Color.clear
+                    .onAppear { contentWidth = g.size.width }
+                    .onChange(of: g.size.width) { w in contentWidth = w }
             }
-            .background(
-                GeometryReader { g in
-                    Color.clear
-                        .onAppear { contentWidth = g.size.width }
-                        .onChange(of: g.size.width) { w in contentWidth = w }
-                }
-            )
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            pageHeader
+            grid
 
             // Now playing bar
             NowPlayingBar(detector: detector)
@@ -1216,82 +1267,112 @@ private struct GalleryCard<P: View>: View {
     let action: () -> Void
     @ViewBuilder let preview: (Bool) -> P
 
+    // Broken out of `body` into separately-typed pieces: as a single
+    // expression the card body exceeded the older Swift type-checker's
+    // budget when building with the shipping toolchain. Same rendering,
+    // same modifier order — only the type-checking is chunked.
+    @ViewBuilder private var previewArea: some View {
+        preview(hovered)
+            .frame(height: 190)
+            .frame(maxWidth: .infinity)
+            .background {
+                // Special cards' accent glow removed — with a
+                // border + badge already marking them out, a
+                // radial tint behind every Adaptive/Custom/Ghost
+                // card in every category (many at once, across
+                // the whole grid) was a big contributor to the
+                // app reading as too blue overall.
+                if !transparentPreview {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(.quaternary.opacity(0.4))
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var hoverPlacePill: some View {
+        HStack(spacing: 5) {
+            Image(systemName: placeIcon).font(.system(size: 11, weight: .bold))
+            Text(placeLabel).font(.system(size: 11.5, weight: .semibold))
+        }
+        .foregroundStyle(AMTheme.onAccent)
+        .padding(.horizontal, 11).padding(.vertical, 6)
+        .background(Capsule().fill(accent))
+        .padding(12)
+        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+    }
+
+    // A plain checkmark badge instead of a labelled pill —
+    // the same minimal "this one's already active" language
+    // the App Store (installed) and Podcasts (played) use,
+    // rather than a capsule with text sitting on the tile.
+    private var activeCheckBadge: some View {
+        Image(systemName: "checkmark.circle.fill")
+            .symbolRenderingMode(.hierarchical)
+            .font(.system(size: 20))
+            .foregroundStyle(Color(hex: "53e08a"))
+            .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+            .padding(12)
+            .transition(.opacity.combined(with: .scale(scale: 0.85)))
+    }
+
+    // Moved down out of an overlay on the preview itself — it was
+    // sitting right on top of the disc/tonearm and covering part of
+    // the widget on every style that has one, not just Ghost.
+    // Neutral capsule with a coloured icon/text, not a solid
+    // accent-filled pill — one of these sits on every
+    // Adaptive/Custom/Ghost card simultaneously across the whole
+    // grid, so a full-colour fill on all of them at once was a real
+    // contributor to the app reading as too blue; the colour still
+    // reads clearly on the icon/text alone.
+    @ViewBuilder private var specialBadge: some View {
+        if special, let badgeText {
+            HStack(spacing: 4) {
+                Image(systemName: badgeIcon).font(.system(size: 8, weight: .bold))
+                Text(badgeText).font(.system(size: 9, weight: .bold)).tracking(0.3)
+            }
+            .foregroundStyle(accent)
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(.thinMaterial))
+        }
+    }
+
+    private var captionArea: some View {
+        VStack(spacing: 5) {
+            specialBadge
+            Text(title).font(.appHeadline).foregroundStyle(Neu.text)
+            Text(subtitle).font(.appCaption).foregroundStyle(Neu.subtext).lineLimit(1)
+        }
+        .padding(.top, 14)
+        .padding(.bottom, 2)
+    }
+
+    // Nested ternaries inline in a modifier argument are exactly the shape
+    // the old type-checker chokes on; resolved here as plain statements.
+    private var borderColor: Color {
+        if special {
+            return accent.opacity(hovered ? 0.32 : 0.16)
+        }
+        let strength: Double
+        if hovered { strength = 1 } else if active { strength = 0.7 } else { strength = 0 }
+        return Neu.hairline.opacity(strength)
+    }
+
+    private var cardContent: some View {
+        VStack(spacing: 0) {
+            ZStack(alignment: .bottomTrailing) {
+                previewArea
+                if hovered { hoverPlacePill }
+                if active && !hovered { activeCheckBadge }
+            }
+            captionArea
+        }
+        .padding(14)
+    }
+
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 0) {
-                ZStack(alignment: .bottomTrailing) {
-                    preview(hovered)
-                        .frame(height: 190)
-                        .frame(maxWidth: .infinity)
-                        .background {
-                            // Special cards' accent glow removed — with a
-                            // border + badge already marking them out, a
-                            // radial tint behind every Adaptive/Custom/Ghost
-                            // card in every category (many at once, across
-                            // the whole grid) was a big contributor to the
-                            // app reading as too blue overall.
-                            if !transparentPreview {
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(.quaternary.opacity(0.4))
-                            }
-                        }
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-
-                    if hovered {
-                        HStack(spacing: 5) {
-                            Image(systemName: placeIcon).font(.system(size: 11, weight: .bold))
-                            Text(placeLabel).font(.system(size: 11.5, weight: .semibold))
-                        }
-                        .foregroundStyle(AMTheme.onAccent)
-                        .padding(.horizontal, 11).padding(.vertical, 6)
-                        .background(Capsule().fill(accent))
-                        .padding(12)
-                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                    }
-
-                    // A plain checkmark badge instead of a labelled pill —
-                    // the same minimal "this one's already active" language
-                    // the App Store (installed) and Podcasts (played) use,
-                    // rather than a capsule with text sitting on the tile.
-                    if active && !hovered {
-                        Image(systemName: "checkmark.circle.fill")
-                            .symbolRenderingMode(.hierarchical)
-                            .font(.system(size: 20))
-                            .foregroundStyle(Color(hex: "53e08a"))
-                            .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
-                            .padding(12)
-                            .transition(.opacity.combined(with: .scale(scale: 0.85)))
-                    }
-                }
-
-                VStack(spacing: 5) {
-                    // Moved down here from an overlay on the preview itself —
-                    // it was sitting right on top of the disc/tonearm and
-                    // covering part of the widget on every style that has
-                    // one, not just Ghost.
-                    // Neutral capsule with a coloured icon/text, not a solid
-                    // accent-filled pill — one of these sits on every
-                    // Adaptive/Custom/Ghost card simultaneously across the
-                    // whole grid, so a full-colour fill on all of them at
-                    // once was a real contributor to the app reading as too
-                    // blue; the colour still reads clearly on the icon/text
-                    // alone.
-                    if special, let badgeText {
-                        HStack(spacing: 4) {
-                            Image(systemName: badgeIcon).font(.system(size: 8, weight: .bold))
-                            Text(badgeText).font(.system(size: 9, weight: .bold)).tracking(0.3)
-                        }
-                        .foregroundStyle(accent)
-                        .padding(.horizontal, 8).padding(.vertical, 3)
-                        .background(Capsule().fill(.thinMaterial))
-                    }
-                    Text(title).font(.appHeadline).foregroundStyle(Neu.text)
-                    Text(subtitle).font(.appCaption).foregroundStyle(Neu.subtext).lineLimit(1)
-                }
-                .padding(.top, 14)
-                .padding(.bottom, 2)
-            }
-            .padding(14)
+            cardContent
         }
         .buttonStyle(.plain)
         // Native material card surface; hover deepens the shadow (elevation).
@@ -1306,12 +1387,7 @@ private struct GalleryCard<P: View>: View {
         .appCard(corner: 20, elevated: hovered)
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(
-                    special
-                        ? accent.opacity(hovered ? 0.32 : 0.16)
-                        : Neu.hairline.opacity(hovered ? 1 : (active ? 0.7 : 0)),
-                    lineWidth: 1
-                )
+                .strokeBorder(borderColor, lineWidth: 1)
         )
         .scaleEffect(hovered ? 1.012 : 1.0)
         .animation(.spring(response: 0.3, dampingFraction: 0.72), value: hovered)
@@ -1341,28 +1417,46 @@ private struct NowPlayingBar: View {
         return min(1, max(0, Double(position) / Double(duration)))
     }
 
+    private var artThumbnail: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Neu.well)
+                .frame(width: 52, height: 52).neuInset(11)
+            if let art {
+                Image(nsImage: art).resizable().scaledToFill()
+                    .frame(width: 52, height: 52)
+                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            } else {
+                Image(systemName: "music.note")
+                    .font(.system(size: 19, weight: .medium)).foregroundStyle(Neu.subtext)
+            }
+        }
+    }
+
+    private var trackLabels: some View {
+        let title: String = hasTrack ? np.trackName : "Nothing playing"
+        let detail: String = hasTrack ? np.artistName : "Start a track in Spotify or Apple Music"
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold)).foregroundStyle(Neu.text).lineLimit(1)
+            Text(detail)
+                .font(.system(size: 11.5)).foregroundStyle(Neu.subtext).lineLimit(1)
+        }
+    }
+
+    @ViewBuilder private var progressBar: some View {
+        if hasTrack {
+            NowPlayingProgressBar(progress: progress, canSeek: canSeek) { fraction in
+                guard let duration = np.durationMillis else { return }
+                detector.seek(toMillis: Int((fraction * Double(duration)).rounded()))
+            }
+        }
+    }
+
     var body: some View {
         VStack(spacing: 10) {
             HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous).fill(Neu.well)
-                        .frame(width: 52, height: 52).neuInset(11)
-                    if let art {
-                        Image(nsImage: art).resizable().scaledToFill()
-                            .frame(width: 52, height: 52)
-                            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                    } else {
-                        Image(systemName: "music.note")
-                            .font(.system(size: 19, weight: .medium)).foregroundStyle(Neu.subtext)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(hasTrack ? np.trackName : "Nothing playing")
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(Neu.text).lineLimit(1)
-                    Text(hasTrack ? np.artistName : "Start a track in Spotify or Apple Music")
-                        .font(.system(size: 11.5)).foregroundStyle(Neu.subtext).lineLimit(1)
-                }
+                artThumbnail
+                trackLabels
 
                 Spacer(minLength: 8)
 
@@ -1377,12 +1471,7 @@ private struct NowPlayingBar: View {
                 }
             }
 
-            if hasTrack {
-                NowPlayingProgressBar(progress: progress, canSeek: canSeek) { fraction in
-                    guard let duration = np.durationMillis else { return }
-                    detector.seek(toMillis: Int((fraction * Double(duration)).rounded()))
-                }
-            }
+            progressBar
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -1636,71 +1725,81 @@ private struct VinylWidgetReplica: View {
     var liveTrackName: String = ""
     var liveArtistName: String = ""
 
+    // === Body shell (344×476) ===
+    // Split out of `body` purely so the older Swift type-checker gets
+    // several small expressions instead of one very large one. Layering,
+    // geometry and modifier order are unchanged.
+    private var bodyShell: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(colors: palette.widgetBodyGradient,
+                                   startPoint: .topLeading, endPoint: .bottomTrailing)
+                )
+                .shadow(color: .black.opacity(0.7), radius: 30, x: 0, y: 20)
+
+            // Adaptive preview: same real-blurred-art body as the
+            // live widget, not just the fixed palette gradient.
+            AdaptiveBodyFill(blurredArt: liveBlurredArt, size: CGSize(width: 344, height: 476))
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(palette.widgetBorder, lineWidth: 1)
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(colors: [palette.widgetTopSheen, .clear],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1
+                )
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(
+                    LinearGradient(colors: [Color.white.opacity(0.06), .clear],
+                                   startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.28))
+                )
+
+            VinylBodyTexture(pattern: traits.pattern)
+        }
+        .frame(width: 344, height: 476)
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+    }
+
+    // === Content (platter + track info / controls) ===
+    private var contentStack: some View {
+        VStack(spacing: 0) {
+            platterArea
+                .padding(.top, palette.showBody ? 20 : 8)
+
+            if traits.hasTransportControls {
+                VStack(spacing: 9) {
+                    RetroVFDDisplay(title: "NOW PLAYING", subtitle: "Audio Desk")
+                    transportControls
+                }
+                .padding(.top, 10)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 14)
+            } else {
+                trackInfo
+                    .padding(.top, 16)
+                    .padding(.horizontal, 38)
+                    .padding(.bottom, 20)
+            }
+        }
+    }
+
+    // === Tonearm (cued onto the record) ===
+    private var cuedTonearm: some View {
+        tonearmReplicaRealisticView
+            .rotationEffect(.degrees(-5), anchor: tonearmReplicaRealisticPivot)
+            .offset(x: tonearmReplicaRealisticOffset.x, y: tonearmReplicaRealisticOffset.y)
+    }
+
     var body: some View {
         ZStack {
-            // === Body shell (344×476) ===
-            if palette.showBody {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(
-                            LinearGradient(colors: palette.widgetBodyGradient,
-                                           startPoint: .topLeading, endPoint: .bottomTrailing)
-                        )
-                        .shadow(color: .black.opacity(0.7), radius: 30, x: 0, y: 20)
-
-                    // Adaptive preview: same real-blurred-art body as the
-                    // live widget, not just the fixed palette gradient.
-                    AdaptiveBodyFill(blurredArt: liveBlurredArt, size: CGSize(width: 344, height: 476))
-
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .strokeBorder(palette.widgetBorder, lineWidth: 1)
-
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(colors: [palette.widgetTopSheen, .clear],
-                                           startPoint: .top, endPoint: .bottom),
-                            lineWidth: 1
-                        )
-
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(
-                            LinearGradient(colors: [Color.white.opacity(0.06), .clear],
-                                           startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.28))
-                        )
-
-                    VinylBodyTexture(pattern: traits.pattern)
-                }
-                .frame(width: 344, height: 476)
-                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            }
-
+            if palette.showBody { bodyShell }
             if palette.showBody { bodyDetails }
-
-            // === Content (platter + track info / controls) ===
-            VStack(spacing: 0) {
-                platterArea
-                    .padding(.top, palette.showBody ? 20 : 8)
-
-                if traits.hasTransportControls {
-                    VStack(spacing: 9) {
-                        RetroVFDDisplay(title: "NOW PLAYING", subtitle: "Audio Desk")
-                        transportControls
-                    }
-                    .padding(.top, 10)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 14)
-                } else {
-                    trackInfo
-                        .padding(.top, 16)
-                        .padding(.horizontal, 38)
-                        .padding(.bottom, 20)
-                }
-            }
-
-            // === Tonearm (cued onto the record) ===
-            tonearmReplicaRealisticView
-                .rotationEffect(.degrees(-5), anchor: tonearmReplicaRealisticPivot)
-                .offset(x: tonearmReplicaRealisticOffset.x, y: tonearmReplicaRealisticOffset.y)
+            contentStack
+            cuedTonearm
         }
         .frame(width: 384, height: 516)
     }
@@ -1883,69 +1982,6 @@ private struct VinylWidgetReplica: View {
         .shadow(color: .black.opacity(0.8), radius: 6)
     }
 
-    // MARK: Tonearm (exact geometry from the live widget)
-
-    private var tonearmView: some View {
-        ZStack {
-            // Arm rod — rendered first so the mounting joint below sits on top of it.
-            RoundedRectangle(cornerRadius: 4)
-                .fill(
-                    LinearGradient(colors: [Color(hex: "1c1c1e"), Color(hex: "606064"), Color(hex: "1c1c1e")],
-                                   startPoint: .leading, endPoint: .trailing)
-                )
-                .frame(width: 8, height: 132)
-                .rotationEffect(.degrees(20))
-                .position(x: 46, y: 85)
-                .shadow(color: .black.opacity(0.55), radius: 1.5, x: 1, y: 2)
-                .shadow(color: .black.opacity(0.32), radius: 5, x: 2, y: 5)
-
-            // Mounting joint — dark bezel plate + brushed-chrome cap.
-            Circle()
-                .fill(
-                    LinearGradient(colors: [Color(hex: "38383c"), Color(hex: "222224"), Color(hex: "0e0e10")],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                )
-                .frame(width: 30, height: 30)
-                .overlay(Circle().strokeBorder(Color.black.opacity(0.5), lineWidth: 1))
-                .shadow(color: .black.opacity(0.4), radius: 2, x: 0, y: 1)
-                .position(x: 68, y: 16)
-
-            Circle()
-                .fill(
-                    RadialGradient(colors: [Color(hex: "f2f2f4"), Color(hex: "c2c2c6"), Color(hex: "78787c")],
-                                   center: UnitPoint(x: 0.35, y: 0.3), startRadius: 0, endRadius: 8)
-                )
-                .frame(width: 15, height: 15)
-                .overlay(Circle().strokeBorder(Color.black.opacity(0.28), lineWidth: 0.5))
-                .position(x: 68, y: 16)
-
-            RoundedRectangle(cornerRadius: 3)
-                .fill(
-                    LinearGradient(colors: [Color(hex: "666666"), Color(hex: "222222")],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing)
-                )
-                .frame(width: 18, height: 16)
-                .position(x: 24, y: 152)
-
-            Rectangle()
-                .fill(
-                    LinearGradient(colors: [Color(hex: "bbbbbb"), Color(hex: "666666")],
-                                   startPoint: .top, endPoint: .bottom)
-                )
-                .frame(width: 2, height: 8)
-                .position(x: 28, y: 164)
-
-            if traits.hasCounterweight {
-                RoundedRectangle(cornerRadius: 7)
-                    .fill(LinearGradient(colors: [Color(hex: "3a3a3a"), Color(hex: "0c0c0c")], startPoint: .top, endPoint: .bottom))
-                    .frame(width: 17, height: 24)
-                    .rotationEffect(.degrees(20))
-                    .position(x: 80, y: 6)
-            }
-        }
-        .frame(width: 90, height: 180)
-    }
-
     // MARK: Realistic tonearm (same asset/proportions as VinylWidgetView)
     //
     // Rolled out from the main live widget once its calibration there was
@@ -1982,50 +2018,65 @@ private struct VinylWidgetReplica: View {
 
     // MARK: Track info placeholder (mirrors the live widget's integrated panel)
 
+    // The transport row and scrub row below are shared verbatim by the
+    // live and placeholder variants; hoisting them also keeps each
+    // expression small enough for the older Swift type-checker.
+    private var staticTransportRow: some View {
+        HStack(spacing: 38) {
+            Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
+                .foregroundStyle(palette.trackArtist)
+            Image(systemName: "play.fill").font(.system(size: 27, weight: .medium))
+                .foregroundStyle(palette.trackTitle)
+            Image(systemName: "forward.fill").font(.system(size: 21, weight: .medium))
+                .foregroundStyle(palette.trackArtist)
+        }
+        .frame(height: 37)
+        .padding(.top, 12)
+    }
+
+    private var staticScrubRow: some View {
+        HStack(spacing: 9) {
+            Text("0:00").frame(width: 34, alignment: .leading)
+            Capsule().fill(palette.trackArtist.opacity(0.32)).frame(height: 4)
+            Text("-0:00").frame(width: 34, alignment: .trailing)
+        }
+        .font(.system(size: 10, weight: .medium).monospacedDigit())
+        .foregroundStyle(palette.trackArtist.opacity(0.85))
+        .frame(height: 22)
+        .padding(.top, 12)
+    }
+
+    private var liveTrackInfo: some View {
+        let textShadow: Double = palette.showBody ? 0 : 0.55
+        return VStack(spacing: 0) {
+            Text(liveTrackName)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(palette.trackTitle)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .truncationMode(.tail)
+                .shadow(color: .black.opacity(textShadow), radius: 6)
+            Text(liveArtistName)
+                .font(.system(size: 14.5, weight: .medium))
+                .foregroundStyle(palette.trackArtist)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .truncationMode(.tail)
+                .padding(.top, 4)
+                .shadow(color: .black.opacity(textShadow), radius: 5)
+
+            if palette.showBody {
+                staticTransportRow
+                staticScrubRow
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 140, alignment: .top)
+    }
+
     @ViewBuilder private var trackInfo: some View {
         if !liveTrackName.isEmpty {
-            VStack(spacing: 0) {
-                Text(liveTrackName)
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(palette.trackTitle)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .truncationMode(.tail)
-                    .shadow(color: .black.opacity(palette.showBody ? 0 : 0.55), radius: 6)
-                Text(liveArtistName)
-                    .font(.system(size: 14.5, weight: .medium))
-                    .foregroundStyle(palette.trackArtist)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
-                    .truncationMode(.tail)
-                    .padding(.top, 4)
-                    .shadow(color: .black.opacity(palette.showBody ? 0 : 0.55), radius: 5)
-
-                if palette.showBody {
-                    HStack(spacing: 38) {
-                        Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
-                            .foregroundStyle(palette.trackArtist)
-                        Image(systemName: "play.fill").font(.system(size: 27, weight: .medium))
-                            .foregroundStyle(palette.trackTitle)
-                        Image(systemName: "forward.fill").font(.system(size: 21, weight: .medium))
-                            .foregroundStyle(palette.trackArtist)
-                    }
-                    .frame(height: 37)
-                    .padding(.top, 12)
-
-                    HStack(spacing: 9) {
-                        Text("0:00").frame(width: 34, alignment: .leading)
-                        Capsule().fill(palette.trackArtist.opacity(0.32)).frame(height: 4)
-                        Text("-0:00").frame(width: 34, alignment: .trailing)
-                    }
-                    .font(.system(size: 10, weight: .medium).monospacedDigit())
-                    .foregroundStyle(palette.trackArtist.opacity(0.85))
-                    .frame(height: 22)
-                    .padding(.top, 12)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 140, alignment: .top)
+            liveTrackInfo
         } else {
             placeholderTrackInfo
         }
@@ -2042,26 +2093,8 @@ private struct VinylWidgetReplica: View {
                 .padding(.top, 8)
 
             if palette.showBody {
-                HStack(spacing: 38) {
-                    Image(systemName: "backward.fill").font(.system(size: 21, weight: .medium))
-                        .foregroundStyle(palette.trackArtist)
-                    Image(systemName: "play.fill").font(.system(size: 27, weight: .medium))
-                        .foregroundStyle(palette.trackTitle)
-                    Image(systemName: "forward.fill").font(.system(size: 21, weight: .medium))
-                        .foregroundStyle(palette.trackArtist)
-                }
-                .frame(height: 37)
-                .padding(.top, 12)
-
-                HStack(spacing: 9) {
-                    Text("0:00").frame(width: 34, alignment: .leading)
-                    Capsule().fill(palette.trackArtist.opacity(0.32)).frame(height: 4)
-                    Text("-0:00").frame(width: 34, alignment: .trailing)
-                }
-                .font(.system(size: 10, weight: .medium).monospacedDigit())
-                .foregroundStyle(palette.trackArtist.opacity(0.85))
-                .frame(height: 22)
-                .padding(.top, 12)
+                staticTransportRow
+                staticScrubRow
             }
         }
         .frame(maxWidth: .infinity)
