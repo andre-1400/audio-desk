@@ -1,0 +1,17 @@
+Audio Desk turns your Mac's desktop into a living display for whatever you're listening to.
+
+Pick from a growing collection of beautifully rendered widgets — a spinning vinyl record with a realistic tonearm, a Discman-style CD player, album art cards, a full-desktop backdrop, and even a widget that lives right in your MacBook's notch — and watch them react in real time to Spotify or Apple Music.
+
+FEATURES
+• Multiple widget styles: Vinyl, CD/Discman, Album Art, Notch, and full-desktop modes
+• Real-time now-playing info for Spotify and Apple Music
+• Full playback control: play, pause, skip, and scrub, right from the widget
+• Drag any widget anywhere on your desktop
+• Resize, adjust opacity, and choose whether widgets sit above or below your other windows
+• Custom color themes to match your setup
+• Launch on startup
+• Native macOS design that feels right at home in your menu bar
+
+Audio Desk runs entirely on your Mac — no account, no server, no data collection. It simply reads what's playing and lets you control it, right where you're already looking.
+
+One-time purchase. No subscription, ever.

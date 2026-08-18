@@ -1,0 +1,132 @@
+<title>Audio Desk Support</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --surface: #ffffff;
+    --text: #1c1d1f;
+    --text-dim: #55585e;
+    --border: #e4e2dd;
+    --accent: #2f6fed;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15161a;
+      --surface: #1c1e23;
+      --text: #eceef1;
+      --text-dim: #9a9ea6;
+      --border: #2b2e34;
+      --accent: #6d9bff;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #15161a;
+    --surface: #1c1e23;
+    --text: #eceef1;
+    --text-dim: #9a9ea6;
+    --border: #2b2e34;
+    --accent: #6d9bff;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 72px 24px 96px;
+  }
+
+  .brand {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    padding-bottom: 28px;
+    margin-bottom: 40px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  h1 {
+    font-size: clamp(28px, 4.2vw, 36px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+
+  .dek {
+    font-size: 16px;
+    color: var(--text-dim);
+    margin: 0 0 48px;
+    max-width: 52ch;
+  }
+
+  section { margin-bottom: 32px; }
+
+  h2 {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 12px;
+  }
+
+  p {
+    font-size: 16px;
+    margin: 0 0 14px;
+    max-width: 62ch;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+  }
+
+  ul { margin: 0; padding-left: 20px; max-width: 62ch; }
+  li { font-size: 16px; margin-bottom: 8px; }
+
+  a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+  }
+  a:hover, a:focus-visible { border-bottom-color: currentColor; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+</style>
+
+<div class="wrap">
+  <div class="brand">Audio Desk</div>
+
+  <h1>Support</h1>
+  <p class="dek">Questions, issues, or feedback about Audio Desk — here's how to reach out.</p>
+
+  <section>
+    <h2>Contact</h2>
+    <div class="card">
+      <p style="margin:0">Email <a href="mailto:andreynizhelskii@gmail.com">andreynizhelskii@gmail.com</a> and we'll get back to you as soon as we can.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Common questions</h2>
+    <p><strong>Audio Desk isn't showing my current track.</strong><br>
+    Make sure Spotify or Apple Music is open and playing, and that Audio Desk has been granted Automation permission in System Settings → Privacy &amp; Security → Automation.</p>
+    <p><strong>Does Audio Desk collect any of my data?</strong><br>
+    No — everything happens locally on your Mac. See the <a href="https://claude.ai/code/artifact/d014e205-aec9-499a-91b9-d19e6e5c77b0">Privacy Policy</a> for details.</p>
+    <p><strong>Is this a subscription?</strong><br>
+    No — Audio Desk is a one-time purchase. No subscriptions, ever.</p>
+  </section>
+</div>

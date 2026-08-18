@@ -644,6 +644,7 @@ private struct AlbumArtScrubDragCaptureView: NSViewRepresentable {
         override func mouseUp(with event: NSEvent) {
             guard isTrackingPress else { return }
             isTrackingPress = false
+            window?.isMovableByWindowBackground = true
             onEnded?(localPoint(from: event))
         }
 
@@ -734,6 +735,7 @@ private struct AlbumArtRingDragCaptureView: NSViewRepresentable {
         override func mouseUp(with event: NSEvent) {
             guard isTrackingPress else { return }
             isTrackingPress = false
+            window?.isMovableByWindowBackground = true
             onEnded?(localPoint(from: event))
         }
 

@@ -121,4 +121,24 @@ class WidgetWindow: NSPanel {
         acceptsMouseMovedEvents = true
         ignoresMouseEvents = false
     }
+
+    // isMovableByWindowBackground above is not enough on its own here.
+    // AppKit only starts a background drag when the view under the cursor
+    // reports mouseDownCanMoveWindow, and SwiftUI's NSHostingView — which
+    // covers this window's entire surface — reports false. The gallery
+    // window never hits this because it's a .titled window and drags via
+    // its (transparent) titlebar instead; this panel is .borderless, so
+    // there's no titlebar to fall back on and the widget ends up pinned
+    // in place.
+    //
+    // A window only receives mouseDown for events that no view in the
+    // responder chain consumed, which makes this the right place to
+    // handle it: the transport buttons, the scrub bar's NSView capture,
+    // and the disc's own tap-to-pause gesture all swallow their own
+    // clicks, so a press anywhere *else* on the widget falls through to
+    // here and drags the window — "draggable everywhere except the
+    // controls", without having to enumerate where the controls are.
+    override func mouseDown(with event: NSEvent) {
+        performDrag(with: event)
+    }
 }

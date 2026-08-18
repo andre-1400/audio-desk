@@ -698,6 +698,7 @@ private struct HScrubDragCaptureView: NSViewRepresentable {
         override func mouseUp(with event: NSEvent) {
             guard isTrackingPress else { return }
             isTrackingPress = false
+            window?.isMovableByWindowBackground = true
             onEnded?(localPoint(from: event))
         }
 

@@ -61,6 +61,30 @@ final class MusicDetector: ObservableObject {
     // needs to be true, not just serial-per-instance.
     private static let detectionQueue = DispatchQueue(label: "com.vinylwidget.music-detection", qos: .userInitiated)
 
+    // User-initiated transport commands get their own queue rather than
+    // sharing the polling one. Thread-safety against concurrent
+    // NSAppleScript calls is already guaranteed further down by
+    // executeAppleScript's own static execQueue (every script, from any
+    // caller, runs serialized there), so detectionQueue was only ever
+    // providing ordering — and sharing it meant a button tap had to wait
+    // behind every poll already queued ahead of it. With up to eight
+    // MusicDetector instances alive (menu bar + gallery + whichever
+    // widgets are open), each enqueueing two scripts every 0.25s, that
+    // backlog is what produced first the UI freeze (when this was a
+    // blocking .sync) and then the multi-second command delay (once it
+    // became .async). A tap now waits only for whatever single script is
+    // actually mid-flight.
+    private static let commandQueue = DispatchQueue(label: "com.vinylwidget.music-command", qos: .userInitiated)
+
+    /// Guards against stacking polls. The 0.25s timer fires regardless of
+    /// whether the previous poll finished, and a poll is two AppleScript
+    /// round-trips — so without this, every instance could enqueue work
+    /// faster than the shared serial queue drains it and the backlog grew
+    /// without bound, pushing displayed state further and further behind
+    /// reality the longer the app ran. Main-thread only (every caller is),
+    /// so a plain Bool is enough.
+    private var pollInFlight = false
+
     // Used to resolve "both apps are playing" ties by the most recent state transition.
     private var lastSpotifyPlaybackState: PlayerPlaybackState = .stopped
     private var lastApplePlaybackState: PlayerPlaybackState = .stopped
@@ -82,6 +106,7 @@ final class MusicDetector: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
+        pollInFlight = false
     }
 
     deinit {
@@ -89,10 +114,15 @@ final class MusicDetector: ObservableObject {
     }
 
     private func pollNowPlaying() {
+        // Skip rather than stack up — see pollInFlight. Dropping a tick is
+        // harmless (the next one is 0.25s away); queueing it is not.
+        guard !pollInFlight else { return }
+        pollInFlight = true
         Self.detectionQueue.async { [weak self] in
             guard let self else { return }
             let (newState, permissionDenied) = self.detectNowPlaying()
             DispatchQueue.main.async {
+                self.pollInFlight = false
                 if newState != self.nowPlaying {
                     self.nowPlaying = newState
                 }
@@ -368,39 +398,68 @@ final class MusicDetector: ObservableObject {
     }
 
     func togglePlayback() {
-        // Run on the same shared serial queue polling uses (blocking this
-        // call until its turn) — these commands run synchronously on
-        // whatever thread calls them (the main thread, from a button tap),
-        // which without this would be free to collide with a poll running
-        // concurrently on the background queue. NSAppleScript isn't
-        // documented as thread-safe against that kind of overlap.
-        Self.detectionQueue.sync {
-            switch nowPlaying.source {
+        // Queued on the same shared serial queue polling uses, so this
+        // command and any in-flight poll still never overlap (NSAppleScript
+        // isn't documented as thread-safe against that) — but dispatched
+        // .async, not .sync. This used to block the calling thread (the
+        // main thread, from a button tap) until its turn on the queue came
+        // up AND the AppleScript round-trip finished, which meant a badly-
+        // timed tap could freeze the entire UI for as long as an in-flight
+        // poll (up to two AppleScript calls) plus this command took to run
+        // — the exact "snappy, laggy" stall that was reported. Async keeps
+        // the queue's ordering guarantee without blocking the tap itself.
+        let source = nowPlaying.source == .none ? preferredToggleSourceFallback() : nowPlaying.source
+        guard source != .none else { return }
+
+        // Flip local state immediately so the widget responds to the click
+        // itself rather than to the confirming poll a round-trip later. The
+        // poll below still corrects this if the command didn't take.
+        if !nowPlaying.trackName.isEmpty {
+            let resuming = !nowPlaying.isPlaying
+            nowPlaying = NowPlayingInfo(
+                trackName: nowPlaying.trackName,
+                artistName: nowPlaying.artistName,
+                albumName: nowPlaying.albumName,
+                albumArtURL: nowPlaying.albumArtURL,
+                isPlaying: resuming,
+                source: nowPlaying.source,
+                positionMillis: estimatedPositionMillis(),
+                durationMillis: nowPlaying.durationMillis,
+                // Pausing freezes progress (no sample date); resuming
+                // restarts the clock from the position just captured.
+                progressSampledAt: resuming ? Date() : nil
+            )
+        }
+
+        Self.commandQueue.async { [weak self] in
+            switch source {
             case .spotify:
                 Self.executeAppleScript("tell application \"Spotify\" to playpause")
             case .appleMusic:
                 Self.executeAppleScript("tell application \"Music\" to playpause")
             case .none:
-                let fallbackSource = preferredToggleSourceFallback()
-                switch fallbackSource {
-                case .spotify:
-                    Self.executeAppleScript("tell application \"Spotify\" to playpause")
-                case .appleMusic:
-                    Self.executeAppleScript("tell application \"Music\" to playpause")
-                case .none:
-                    break
-                }
+                break
+            }
+            // Scheduled from the command's own completion, so it can't fire
+            // before the command ran and read back the pre-toggle state.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                self?.pollNowPlaying()
             }
         }
+    }
 
-        // Poll immediately so the UI updates fast. detectionQueue.sync
-        // above already blocked until the AppleScript command itself
-        // finished, so there's no need for the longer delay this used to
-        // have — just a small buffer for the target app's own state to
-        // catch up.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.pollNowPlaying()
+    /// Current playback position, advanced by however long it's been since
+    /// the last sample if playing. Used to hand the optimistic pause an
+    /// accurate freeze point instead of a stale one.
+    private func estimatedPositionMillis() -> Int? {
+        guard let base = nowPlaying.positionMillis else { return nil }
+        guard nowPlaying.isPlaying, let sampledAt = nowPlaying.progressSampledAt else { return base }
+        let elapsed = Int(Date().timeIntervalSince(sampledAt) * 1000)
+        guard elapsed > 0 else { return base }
+        if let duration = nowPlaying.durationMillis {
+            return min(duration, base + elapsed)
         }
+        return base + elapsed
     }
 
     func nextTrack() {
@@ -416,7 +475,8 @@ final class MusicDetector: ObservableObject {
             ? preferredToggleSourceFallback()
             : nowPlaying.source
 
-        Self.detectionQueue.sync {
+        // Own queue, not the polling one — see commandQueue for why.
+        Self.commandQueue.async { [weak self] in
             switch source {
             case .spotify:
                 Self.executeAppleScript("tell application \"Spotify\" to \(spotify)")
@@ -425,17 +485,14 @@ final class MusicDetector: ObservableObject {
             case .none:
                 break
             }
-        }
-
-        // Poll a couple of times so the new track shows up quickly — same
-        // reasoning as togglePlayback: the command has already completed
-        // by this point, so these just need to be short buffers, not a
-        // deliberate wait.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.pollNowPlaying()
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
-            self?.pollNowPlaying()
+            // Poll a couple of times so the new track shows up quickly,
+            // timed from when the command actually finished.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                self?.pollNowPlaying()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self?.pollNowPlaying()
+            }
         }
     }
 
@@ -450,17 +507,11 @@ final class MusicDetector: ObservableObject {
         case .none:
             return
         }
-        Self.detectionQueue.sync {
-            switch nowPlaying.source {
-            case .spotify:
-                Self.executeAppleScript("tell application \"Spotify\" to set player position to \(secondsLiteral)")
-            case .appleMusic:
-                Self.executeAppleScript("tell application \"Music\" to set player position to \(secondsLiteral)")
-            case .none:
-                break
-            }
-        }
-
+        // Optimistic local update first — doesn't depend on the AppleScript
+        // command's result at all (it's built purely from already-known
+        // local state plus the target position), so there's no reason to
+        // wait on the command to show the scrub instantly.
+        let source = nowPlaying.source
         nowPlaying = NowPlayingInfo(
             trackName: nowPlaying.trackName,
             artistName: nowPlaying.artistName,
@@ -473,8 +524,19 @@ final class MusicDetector: ObservableObject {
             progressSampledAt: nowPlaying.isPlaying ? Date() : nil
         )
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self] in
-            self?.pollNowPlaying()
+        // Own queue, not the polling one — see commandQueue for why.
+        Self.commandQueue.async { [weak self] in
+            switch source {
+            case .spotify:
+                Self.executeAppleScript("tell application \"Spotify\" to set player position to \(secondsLiteral)")
+            case .appleMusic:
+                Self.executeAppleScript("tell application \"Music\" to set player position to \(secondsLiteral)")
+            case .none:
+                break
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                self?.pollNowPlaying()
+            }
         }
     }
 
