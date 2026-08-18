@@ -167,73 +167,117 @@ private struct GallerySidebar: View {
     @Binding var category: WidgetCategory
     let onSettings: () -> Void
 
+    // This body is deliberately broken all the way down into small,
+    // explicitly-typed pieces. As one expression it was what actually
+    // failed the release build with "unable to type-check this expression
+    // in reasonable time" on the older toolchain — the List(selection:)
+    // with an inline Binding built from closures was the costly part,
+    // since the solver has to infer the binding's type, the list's
+    // optional selection type, and every row's tag together. Written out
+    // as separate declarations with the types stated, each piece is
+    // solved on its own. Identical view tree and behaviour.
+
+    // Explicitly Binding<WidgetCategory?>: List's selection is optional,
+    // and stating that here is what keeps it out of the body's inference.
+    private var selection: Binding<WidgetCategory?> {
+        Binding<WidgetCategory?>(
+            get: { self.category },
+            set: { (new: WidgetCategory?) in
+                guard let new else { return }
+                withAnimation(.easeInOut(duration: 0.18)) { self.category = new }
+            }
+        )
+    }
+
+    // Brand header — just the app name, no mark/tile and no subtitle
+    // (both read as unnecessary chrome once the sidebar has its own
+    // native section header below).
+    private var brandHeader: some View {
+        HStack(spacing: 10) {
+            Text("Audio Desk").font(.appTitle).foregroundStyle(Neu.text)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 30)
+        .padding(.bottom, 14)
+    }
+
+    // No SF Symbol actually looks like a MacBook notch (the closest,
+    // circle.grid.2x1.fill, is just two dots) — drawn directly instead
+    // so it reads as an actual notch silhouette.
+    @ViewBuilder
+    private func row(for cat: WidgetCategory) -> some View {
+        if cat == .notch {
+            Label {
+                Text(cat.title)
+            } icon: {
+                NotchGlyph()
+            }
+            .tag(cat)
+        } else {
+            Label(cat.title, systemImage: cat.icon)
+                .tag(cat)
+        }
+    }
+
+    // Native sidebar list — system selection highlight, hover, row
+    // metrics, exactly like Finder/Music. Tint reads AMTheme.accent,
+    // which is just .accentColor now — system blue on any default
+    // Mac, correctly following the user's own accent colour choice
+    // if they've customised it in System Settings.
+    private var categoryList: some View {
+        List(selection: selection) {
+            Section("Library") {
+                ForEach(WidgetCategory.availableCases) { cat in
+                    row(for: cat)
+                }
+            }
+        }
+        .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .environment(\.defaultMinListRowHeight, 30)
+        .tint(AMTheme.accent)
+    }
+
+    private var settingsButton: some View {
+        Button(action: onSettings) {
+            Label("Settings", systemImage: "gearshape")
+                .font(.system(size: 13))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+    }
+
+    // Resolved as a plain String first: the optional-chained dictionary
+    // lookup, the `as?` cast and the `??` fallback are all inference work
+    // that does not belong inside a string interpolation in the body.
+    private var versionLabel: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String
+        return "Audio Desk " + (version ?? "1.0")
+    }
+
+    // Settings + version footer, matching sidebar row language.
+    private var footer: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            settingsButton
+
+            Text(versionLabel)
+                .font(.appCaption)
+                .foregroundStyle(Neu.subtext.opacity(0.7))
+                .padding(.horizontal, 18)
+                .padding(.bottom, 14)
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Brand header — just the app name, no mark/tile and no subtitle
-            // (both read as unnecessary chrome once the sidebar has its own
-            // native section header below).
-            HStack(spacing: 10) {
-                Text("Audio Desk").font(.appTitle).foregroundStyle(Neu.text)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 18)
-            .padding(.top, 30)
-            .padding(.bottom, 14)
-
-            // Native sidebar list — system selection highlight, hover, row
-            // metrics, exactly like Finder/Music. Tint reads AMTheme.accent,
-            // which is just .accentColor now — system blue on any default
-            // Mac, correctly following the user's own accent colour choice
-            // if they've customised it in System Settings.
-            List(selection: Binding(
-                get: { category },
-                set: { new in
-                    if let new { withAnimation(.easeInOut(duration: 0.18)) { category = new } }
-                }
-            )) {
-                Section("Library") {
-                    ForEach(WidgetCategory.availableCases) { cat in
-                        // No SF Symbol actually looks like a MacBook notch
-                        // (the closest, circle.grid.2x1.fill, is just two
-                        // dots) — drawn directly instead so it reads as an
-                        // actual notch silhouette.
-                        if cat == .notch {
-                            Label {
-                                Text(cat.title)
-                            } icon: {
-                                NotchGlyph()
-                            }
-                            .tag(cat)
-                        } else {
-                            Label(cat.title, systemImage: cat.icon)
-                                .tag(cat)
-                        }
-                    }
-                }
-            }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-            .environment(\.defaultMinListRowHeight, 30)
-            .tint(AMTheme.accent)
-
-            // Settings + version footer, matching sidebar row language.
-            VStack(alignment: .leading, spacing: 2) {
-                Button(action: onSettings) {
-                    Label("Settings", systemImage: "gearshape")
-                        .font(.system(size: 13))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 8)
-
-                Text("Audio Desk \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")")
-                    .font(.appCaption)
-                    .foregroundStyle(Neu.subtext.opacity(0.7))
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 14)
-            }
+            brandHeader
+            categoryList
+            footer
         }
         .frame(width: 220)
         .frame(maxHeight: .infinity)
