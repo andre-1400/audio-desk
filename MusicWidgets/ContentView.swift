@@ -157,13 +157,7 @@ struct GalleryRoot: View {
 /// row's own selected/unselected colour automatically.
 private struct NotchGlyph: View {
     var body: some View {
-        UnevenRoundedRectangle(
-            topLeadingRadius: 0,
-            bottomLeadingRadius: 4,
-            bottomTrailingRadius: 4,
-            topTrailingRadius: 0,
-            style: .continuous
-        )
+        BottomRoundedRect(bottomLeadingRadius: 4, bottomTrailingRadius: 4)
         .frame(width: 17, height: 10)
         .frame(width: 18, height: 18)
     }

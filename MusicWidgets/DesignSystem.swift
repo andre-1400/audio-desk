@@ -118,3 +118,39 @@ extension Font {
     /// Small captions, counts, footers.
     static let appCaption = Font.system(size: 11, weight: .regular)
 }
+
+// MARK: - BottomRoundedRect
+
+/// Flat top edge, rounded only at the two bottom corners — a manual
+/// stand-in for SwiftUI's UnevenRoundedRectangle, which some older Xcode/
+/// SDK combinations (the ones this app's minimum deployment target
+/// intentionally stays compatible with) don't have. Plain circular-arc
+/// corners rather than UnevenRoundedRectangle's continuous/squircle
+/// interpolation — indistinguishable from it at the small radii (4-28pt)
+/// this is actually used at.
+struct BottomRoundedRect: Shape {
+    var bottomLeadingRadius: CGFloat
+    var bottomTrailingRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let maxRadius = min(rect.width, rect.height) / 2
+        let blr = min(bottomLeadingRadius, maxRadius)
+        let btr = min(bottomTrailingRadius, maxRadius)
+
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - btr))
+        path.addArc(
+            center: CGPoint(x: rect.maxX - btr, y: rect.maxY - btr),
+            radius: btr, startAngle: .degrees(0), endAngle: .degrees(90), clockwise: false
+        )
+        path.addLine(to: CGPoint(x: rect.minX + blr, y: rect.maxY))
+        path.addArc(
+            center: CGPoint(x: rect.minX + blr, y: rect.maxY - blr),
+            radius: blr, startAngle: .degrees(90), endAngle: .degrees(180), clockwise: false
+        )
+        path.closeSubpath()
+        return path
+    }
+}

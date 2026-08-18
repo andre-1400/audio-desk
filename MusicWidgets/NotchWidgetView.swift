@@ -195,13 +195,10 @@ struct NotchWidgetView: View {
 
     // Shared by both the background fill and the clip below, so the two
     // can never disagree about where the corner curve actually is.
-    private var backgroundShape: UnevenRoundedRectangle {
-        UnevenRoundedRectangle(
-            topLeadingRadius: 0,
+    private var backgroundShape: BottomRoundedRect {
+        BottomRoundedRect(
             bottomLeadingRadius: expanded ? 28 : 16,
-            bottomTrailingRadius: expanded ? 28 : 16,
-            topTrailingRadius: 0,
-            style: .continuous
+            bottomTrailingRadius: expanded ? 28 : 16
         )
     }
 

@@ -2081,10 +2081,3 @@ struct FlyingSleeveView: View {
         .shadow(color: .black.opacity(0.38), radius: 14, x: 0, y: 10)
     }
 }
-
-#Preview {
-    VinylWidgetView(
-        animator: SongSwitchAnimator(),
-        themeManager: WidgetThemeManager()
-    )
-}

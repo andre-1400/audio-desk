@@ -947,7 +947,7 @@ private struct SpinIntegrator: ViewModifier {
     let target: Double
     func body(content: Content) -> some View {
         TimelineView(.animation(paused: target == 0 && spinSpeed < 0.5)) { context in
-            content.onChange(of: context.date) { now in
+            content.onChange(of: context.date) { (now: Date) in
                 let dt = min(0.05, now.timeIntervalSince(lastTick ?? now))
                 lastTick = now
                 if spinSpeed < target {
