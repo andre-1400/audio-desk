@@ -10,23 +10,16 @@
 		AA000001 /* MusicWidgetsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000011 /* MusicWidgetsApp.swift */; };
 		AA000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000012 /* ContentView.swift */; };
 		AA000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000013 /* Assets.xcassets */; };
-		AA000400 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000401 /* PrivacyInfo.xcprivacy */; };
 		AA000101 /* VinylWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000111 /* VinylWidgetView.swift */; };
 		AA000102 /* NowPlayingInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000112 /* NowPlayingInfo.swift */; };
 		AA000103 /* MusicDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000113 /* MusicDetector.swift */; };
 		AA000104 /* AlbumArtFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000114 /* AlbumArtFetcher.swift */; };
 		AA000105 /* ColourExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000115 /* ColourExtractor.swift */; };
-		AA000700 /* CustomColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000701 /* CustomColor.swift */; };
-		AA000702 /* HSVColorPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000703 /* HSVColorPickerView.swift */; };
-		AA000704 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000705 /* DesignSystem.swift */; };
-		AA000708 /* DesktopWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000709 /* DesktopWidgetView.swift */; };
-		AA00070A /* NotchWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00070B /* NotchWidgetView.swift */; };
 		AA000106 /* WidgetWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000116 /* WidgetWindow.swift */; };
 		AA000107 /* WidgetTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000117 /* WidgetTheme.swift */; };
 		AA000108 /* SongSwitchAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000118 /* SongSwitchAnimator.swift */; };
 		AA000109 /* VinylSleeveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000119 /* VinylSleeveView.swift */; };
 		AA000110 /* WidgetLandingAnimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000120 /* WidgetLandingAnimator.swift */; };
-		AA000200 /* QueueTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000201 /* QueueTrack.swift */; };
 		AA000124 /* AppleMusicLocalQueueProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000134 /* AppleMusicLocalQueueProvider.swift */; };
 		AA000129 /* LaunchOnStartupManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000139 /* LaunchOnStartupManager.swift */; };
 		AA000130 /* StartupToggleStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000140 /* StartupToggleStyle.swift */; };
@@ -35,33 +28,33 @@
 		AA000145 /* VinylSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000146 /* VinylSettings.swift */; };
 		AA000147 /* CDWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000148 /* CDWidgetView.swift */; };
 		AA000151 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000152 /* OnboardingView.swift */; };
+		AA000200 /* QueueTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000201 /* QueueTrack.swift */; };
+		AA000400 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA000401 /* PrivacyInfo.xcprivacy */; };
 		AA000500 /* AlbumArtWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000501 /* AlbumArtWidgetView.swift */; };
 		AA000600 /* VinylHorizontalWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000601 /* VinylHorizontalWidgetView.swift */; };
+		AA000700 /* CustomColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000701 /* CustomColor.swift */; };
+		AA000702 /* HSVColorPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000703 /* HSVColorPickerView.swift */; };
+		AA000704 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000705 /* DesignSystem.swift */; };
+		AA000708 /* DesktopWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000709 /* DesktopWidgetView.swift */; };
+		AA00070A /* NotchWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00070B /* NotchWidgetView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		AA000010 /* MusicWidgets.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MusicWidgets.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AA000010 /* Audio Desk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Audio Desk.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000011 /* MusicWidgetsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicWidgetsApp.swift; sourceTree = "<group>"; };
 		AA000012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		AA000013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		AA000401 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA000111 /* VinylWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VinylWidgetView.swift; sourceTree = "<group>"; };
 		AA000112 /* NowPlayingInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingInfo.swift; sourceTree = "<group>"; };
 		AA000113 /* MusicDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicDetector.swift; sourceTree = "<group>"; };
 		AA000114 /* AlbumArtFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumArtFetcher.swift; sourceTree = "<group>"; };
 		AA000115 /* ColourExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColourExtractor.swift; sourceTree = "<group>"; };
-		AA000701 /* CustomColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomColor.swift; sourceTree = "<group>"; };
-		AA000703 /* HSVColorPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HSVColorPickerView.swift; sourceTree = "<group>"; };
-		AA000705 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
-		AA000709 /* DesktopWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopWidgetView.swift; sourceTree = "<group>"; };
-		AA00070B /* NotchWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchWidgetView.swift; sourceTree = "<group>"; };
 		AA000116 /* WidgetWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetWindow.swift; sourceTree = "<group>"; };
 		AA000117 /* WidgetTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTheme.swift; sourceTree = "<group>"; };
 		AA000118 /* SongSwitchAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SongSwitchAnimator.swift; sourceTree = "<group>"; };
 		AA000119 /* VinylSleeveView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VinylSleeveView.swift; sourceTree = "<group>"; };
 		AA000120 /* WidgetLandingAnimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetLandingAnimator.swift; sourceTree = "<group>"; };
-		AA000201 /* QueueTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueTrack.swift; sourceTree = "<group>"; };
 		AA000134 /* AppleMusicLocalQueueProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleMusicLocalQueueProvider.swift; sourceTree = "<group>"; };
 		AA000139 /* LaunchOnStartupManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchOnStartupManager.swift; sourceTree = "<group>"; };
 		AA000140 /* StartupToggleStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupToggleStyle.swift; sourceTree = "<group>"; };
@@ -70,8 +63,15 @@
 		AA000146 /* VinylSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VinylSettings.swift; sourceTree = "<group>"; };
 		AA000148 /* CDWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDWidgetView.swift; sourceTree = "<group>"; };
 		AA000152 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		AA000201 /* QueueTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueueTrack.swift; sourceTree = "<group>"; };
+		AA000401 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA000501 /* AlbumArtWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlbumArtWidgetView.swift; sourceTree = "<group>"; };
 		AA000601 /* VinylHorizontalWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VinylHorizontalWidgetView.swift; sourceTree = "<group>"; };
+		AA000701 /* CustomColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomColor.swift; sourceTree = "<group>"; };
+		AA000703 /* HSVColorPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HSVColorPickerView.swift; sourceTree = "<group>"; };
+		AA000705 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
+		AA000709 /* DesktopWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopWidgetView.swift; sourceTree = "<group>"; };
+		AA00070B /* NotchWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotchWidgetView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -126,7 +126,7 @@
 		AA000031 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AA000010 /* MusicWidgets.app */,
+				AA000010 /* Audio Desk.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -156,7 +156,7 @@
 			);
 			name = MusicWidgets;
 			productName = MusicWidgets;
-			productReference = AA000010 /* MusicWidgets.app */;
+			productReference = AA000010 /* Audio Desk.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -255,6 +255,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = WCK4G7W296;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -284,6 +285,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = WCK4G7W296;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				INFOPLIST_FILE = MusicWidgets/Info.plist;
@@ -299,34 +301,6 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
-		};
-		AA000300 /* Release-AppStore */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = MusicWidgets/MusicWidgetsMAS.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_HARDENED_RUNTIME = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				INFOPLIST_FILE = MusicWidgets/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.musicwidgets.app;
-				PRODUCT_NAME = "Audio Desk";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = "Release-AppStore";
 		};
 		AA000072 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -448,6 +422,35 @@
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 			};
 			name = Release;
+		};
+		AA000300 /* Release-AppStore */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MusicWidgets/MusicWidgetsMAS.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = WCK4G7W296;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				INFOPLIST_FILE = MusicWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.musicwidgets.app;
+				PRODUCT_NAME = "Audio Desk";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = "Release-AppStore";
 		};
 		AA000301 /* Release-AppStore */ = {
 			isa = XCBuildConfiguration;
