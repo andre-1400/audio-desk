@@ -702,133 +702,15 @@ private struct GalleryDetail: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 30) {
                     if category == .vinyl {
-                        ForEach(VinylStyle.forms) { form in
-                            formSection(name: form.name,
-                                        count: form.styles.count, items: form.styles) { style in
-                                GalleryCard(title: style.name, subtitle: style.subtitle,
-                                            accent: category.accentColor,
-                                            hovered: hoveredID == style.id,
-                                            active: activeWidget.entry == "vinyl:\(style.themeID.rawValue)",
-                                            placeLabel: style.themeID == .custom ? "Customize" : "Place",
-                                            placeIcon: style.themeID == .custom ? "eyedropper" : "arrow.up.forward.square.fill",
-                                            special: style.isSpecialStyle,
-                                            badgeText: style.specialKind?.badgeText,
-                                            badgeIcon: style.specialKind?.badgeIcon ?? "sparkles",
-                                            transparentPreview: style.themeID == .ghost,
-                                            onHover: { setHover(style.id, $0) },
-                                            action: {
-                                                if style.themeID == .custom {
-                                                    customColorTarget = .vinyl
-                                                } else {
-                                                    AppDelegate.shared?.launchVinylWidget(themeID: style.themeID)
-                                                }
-                                            }) { animated in
-                                    VinylStylePreview(themeID: style.themeID, animated: animated, live: liveTrack, usesRainbowPreview: style.themeID == .custom)
-                                }
-                            }
-                        }
-                        formSection(name: "Horizontal",
-                                    count: VinylHorizontalModel.all.count, items: VinylHorizontalModel.all) { model in
-                            GalleryCard(title: model.name, subtitle: model.subtitle,
-                                        accent: category.accentColor,
-                                        hovered: hoveredID == model.id,
-                                        active: activeWidget.entry == "vinylh:\(model.id)",
-                                        placeLabel: model.themeID == .custom ? "Customize" : "Place",
-                                        placeIcon: model.themeID == .custom ? "eyedropper" : "arrow.up.forward.square.fill",
-                                        special: model.isSpecialStyle,
-                                        badgeText: model.specialKind?.badgeText,
-                                        badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
-                                        transparentPreview: model.themeID == .ghost,
-                                        onHover: { setHover(model.id, $0) },
-                                        action: {
-                                            if model.themeID == .custom {
-                                                customColorTarget = .vinylHorizontal(model)
-                                            } else {
-                                                AppDelegate.shared?.launchVinylHorizontalWidget(model: model)
-                                            }
-                                        }) { animated in
-                                VinylHorizontalModelPreview(model: model, animated: animated, live: liveTrack, usesRainbowPreview: model.themeID == .custom)
-                            }
-                        }
+                        vinylSection
                     } else if category == .cd {
-                        ForEach(CDModel.forms) { form in
-                            formSection(name: form.name,
-                                        count: form.models.count, items: form.models) { model in
-                                GalleryCard(title: model.name, subtitle: model.subtitle,
-                                            accent: category.accentColor,
-                                            hovered: hoveredID == model.id,
-                                            active: activeWidget.entry == "cd:\(model.id)",
-                                            placeLabel: model.isCustom ? "Customize" : "Place",
-                                            placeIcon: model.isCustom ? "eyedropper" : "arrow.up.forward.square.fill",
-                                            special: model.isSpecialStyle,
-                                            badgeText: model.specialKind?.badgeText,
-                                            badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
-                                            onHover: { setHover(model.id, $0) },
-                                            action: {
-                                                if model.isCustom {
-                                                    customColorTarget = .cd(model)
-                                                } else {
-                                                    AppDelegate.shared?.launchCDWidget(model: model)
-                                                }
-                                            }) { animated in
-                                    CDModelPreview(model: model, animated: animated, live: liveTrack, usesRainbowPreview: model.isCustom)
-                                }
-                            }
-                        }
+                        cdSection
                     } else if category == .albumArt {
-                        formSection(name: "Album Art",
-                                    count: AlbumArtModel.all.count, items: AlbumArtModel.all) { model in
-                            GalleryCard(title: model.name, subtitle: model.subtitle,
-                                        accent: category.accentColor,
-                                        hovered: hoveredID == model.id,
-                                        active: activeWidget.entry == "albumart:\(model.id)",
-                                        onHover: { setHover(model.id, $0) },
-                                        action: { AppDelegate.shared?.launchAlbumArtWidget(model: model) }) { _ in
-                                AlbumArtModelPreview(model: model, live: liveTrack)
-                            }
-                        }
+                        albumArtSection
                     } else if category == .desktop {
-                        ForEach(DesktopWidgetModel.forms) { form in
-                            formSection(name: form.name,
-                                        count: form.models.count, items: form.models) { model in
-                                GalleryCard(title: model.name, subtitle: model.subtitle,
-                                            accent: category.accentColor,
-                                            hovered: hoveredID == model.id,
-                                            active: activeWidget.entry == "desktop:\(model.id)",
-                                            placeLabel: model.isCustom ? "Customize" : "Place",
-                                            placeIcon: model.isCustom ? "eyedropper" : "arrow.up.forward.square.fill",
-                                            special: model.isSpecialStyle,
-                                            badgeText: model.specialKind?.badgeText,
-                                            badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
-                                            onHover: { setHover(model.id, $0) },
-                                            action: {
-                                                if model.isCustom {
-                                                    customColorTarget = .desktop(model)
-                                                } else {
-                                                    AppDelegate.shared?.launchDesktopWidget(model: model)
-                                                }
-                                            }) { animated in
-                                    DesktopWidgetModelPreview(model: model, animated: animated, live: liveTrack, usesRainbowPreview: model.isCustom)
-                                }
-                            }
-                        }
+                        desktopSection
                     } else {
-                        // Notch — a single on/off toggle, not a style grid:
-                        // there's nothing to pick between, just enabled or
-                        // not, so this skips formSection's grouping/grid
-                        // machinery entirely and reuses GalleryCard directly.
-                        GalleryCard(title: "Now Playing", subtitle: "Shows up in your MacBook's notch",
-                                    accent: category.accentColor,
-                                    hovered: hoveredID == "notch",
-                                    active: notchState.isEnabled,
-                                    placeLabel: notchState.isEnabled ? "Turn Off" : "Turn On",
-                                    placeIcon: notchState.isEnabled ? "xmark.circle" : "power",
-                                    onHover: { setHover("notch", $0) },
-                                    action: { notchState.isEnabled.toggle() }) { animated in
-                            NotchWidgetModelPreview(animated: animated, live: liveTrack)
-                        }
-                        .padding(.top, 4)
-                        .frame(maxWidth: 340, alignment: .leading)
+                        notchSection
                     }
                 }
                 .padding(.horizontal, 34)
@@ -856,6 +738,174 @@ private struct GalleryDetail: View {
                 customColorTarget = nil
             }
         }
+    }
+
+    // MARK: - Category sections
+    //
+    // Split out of `body` deliberately, not for tidiness. As a single
+    // expression, the if/else chain over every category — each branch full
+    // of GalleryCard calls with inline ternaries — measured ~150ms to
+    // type-check on a current compiler, and exceeded the type-checker's
+    // limit outright on the older Swift that the oldest supported Xcode
+    // ships ("unable to type-check this expression in reasonable time").
+    // Split up, each branch type-checks independently and well within
+    // budget. This is purely a compile-time change: the view tree these
+    // produce is identical to the inline version.
+
+    // Two properties rather than one: as a single body this was the
+    // heaviest remaining expression to type-check, and the older
+    // compiler that has to build this has a materially lower ceiling.
+    @ViewBuilder
+    private var vinylSection: some View {
+        vinylStylesSection
+        vinylHorizontalSection
+    }
+
+    @ViewBuilder
+    private var vinylStylesSection: some View {
+        ForEach(VinylStyle.forms) { form in
+            formSection(name: form.name,
+                        count: form.styles.count, items: form.styles) { style in
+                GalleryCard(title: style.name, subtitle: style.subtitle,
+                            accent: category.accentColor,
+                            hovered: hoveredID == style.id,
+                            active: activeWidget.entry == "vinyl:\(style.themeID.rawValue)",
+                            placeLabel: style.themeID == .custom ? "Customize" : "Place",
+                            placeIcon: style.themeID == .custom ? "eyedropper" : "arrow.up.forward.square.fill",
+                            special: style.isSpecialStyle,
+                            badgeText: style.specialKind?.badgeText,
+                            badgeIcon: style.specialKind?.badgeIcon ?? "sparkles",
+                            transparentPreview: style.themeID == .ghost,
+                            onHover: { setHover(style.id, $0) },
+                            action: {
+                                if style.themeID == .custom {
+                                    customColorTarget = .vinyl
+                                } else {
+                                    AppDelegate.shared?.launchVinylWidget(themeID: style.themeID)
+                                }
+                            }) { animated in
+                    VinylStylePreview(themeID: style.themeID, animated: animated, live: liveTrack, usesRainbowPreview: style.themeID == .custom)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var vinylHorizontalSection: some View {
+        formSection(name: "Horizontal",
+                    count: VinylHorizontalModel.all.count, items: VinylHorizontalModel.all) { model in
+            GalleryCard(title: model.name, subtitle: model.subtitle,
+                        accent: category.accentColor,
+                        hovered: hoveredID == model.id,
+                        active: activeWidget.entry == "vinylh:\(model.id)",
+                        placeLabel: model.themeID == .custom ? "Customize" : "Place",
+                        placeIcon: model.themeID == .custom ? "eyedropper" : "arrow.up.forward.square.fill",
+                        special: model.isSpecialStyle,
+                        badgeText: model.specialKind?.badgeText,
+                        badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
+                        transparentPreview: model.themeID == .ghost,
+                        onHover: { setHover(model.id, $0) },
+                        action: {
+                            if model.themeID == .custom {
+                                customColorTarget = .vinylHorizontal(model)
+                            } else {
+                                AppDelegate.shared?.launchVinylHorizontalWidget(model: model)
+                            }
+                        }) { animated in
+                VinylHorizontalModelPreview(model: model, animated: animated, live: liveTrack, usesRainbowPreview: model.themeID == .custom)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var cdSection: some View {
+        ForEach(CDModel.forms) { form in
+            formSection(name: form.name,
+                        count: form.models.count, items: form.models) { model in
+                GalleryCard(title: model.name, subtitle: model.subtitle,
+                            accent: category.accentColor,
+                            hovered: hoveredID == model.id,
+                            active: activeWidget.entry == "cd:\(model.id)",
+                            placeLabel: model.isCustom ? "Customize" : "Place",
+                            placeIcon: model.isCustom ? "eyedropper" : "arrow.up.forward.square.fill",
+                            special: model.isSpecialStyle,
+                            badgeText: model.specialKind?.badgeText,
+                            badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
+                            onHover: { setHover(model.id, $0) },
+                            action: {
+                                if model.isCustom {
+                                    customColorTarget = .cd(model)
+                                } else {
+                                    AppDelegate.shared?.launchCDWidget(model: model)
+                                }
+                            }) { animated in
+                    CDModelPreview(model: model, animated: animated, live: liveTrack, usesRainbowPreview: model.isCustom)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var albumArtSection: some View {
+        formSection(name: "Album Art",
+                    count: AlbumArtModel.all.count, items: AlbumArtModel.all) { model in
+            GalleryCard(title: model.name, subtitle: model.subtitle,
+                        accent: category.accentColor,
+                        hovered: hoveredID == model.id,
+                        active: activeWidget.entry == "albumart:\(model.id)",
+                        onHover: { setHover(model.id, $0) },
+                        action: { AppDelegate.shared?.launchAlbumArtWidget(model: model) }) { _ in
+                AlbumArtModelPreview(model: model, live: liveTrack)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var desktopSection: some View {
+        ForEach(DesktopWidgetModel.forms) { form in
+            formSection(name: form.name,
+                        count: form.models.count, items: form.models) { model in
+                GalleryCard(title: model.name, subtitle: model.subtitle,
+                            accent: category.accentColor,
+                            hovered: hoveredID == model.id,
+                            active: activeWidget.entry == "desktop:\(model.id)",
+                            placeLabel: model.isCustom ? "Customize" : "Place",
+                            placeIcon: model.isCustom ? "eyedropper" : "arrow.up.forward.square.fill",
+                            special: model.isSpecialStyle,
+                            badgeText: model.specialKind?.badgeText,
+                            badgeIcon: model.specialKind?.badgeIcon ?? "sparkles",
+                            onHover: { setHover(model.id, $0) },
+                            action: {
+                                if model.isCustom {
+                                    customColorTarget = .desktop(model)
+                                } else {
+                                    AppDelegate.shared?.launchDesktopWidget(model: model)
+                                }
+                            }) { animated in
+                    DesktopWidgetModelPreview(model: model, animated: animated, live: liveTrack, usesRainbowPreview: model.isCustom)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var notchSection: some View {
+        // Notch — a single on/off toggle, not a style grid:
+        // there's nothing to pick between, just enabled or
+        // not, so this skips formSection's grouping/grid
+        // machinery entirely and reuses GalleryCard directly.
+        GalleryCard(title: "Now Playing", subtitle: "Shows up in your MacBook's notch",
+                    accent: category.accentColor,
+                    hovered: hoveredID == "notch",
+                    active: notchState.isEnabled,
+                    placeLabel: notchState.isEnabled ? "Turn Off" : "Turn On",
+                    placeIcon: notchState.isEnabled ? "xmark.circle" : "power",
+                    onHover: { setHover("notch", $0) },
+                    action: { notchState.isEnabled.toggle() }) { animated in
+            NotchWidgetModelPreview(animated: animated, live: liveTrack)
+        }
+        .padding(.top, 4)
+        .frame(maxWidth: 340, alignment: .leading)
     }
 
     @ViewBuilder

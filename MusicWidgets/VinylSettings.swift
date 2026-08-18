@@ -124,40 +124,70 @@ struct VinylBodyTexture: View {
             case .none:
                 break
             case .brushed:
-                var y: CGFloat = 0
-                while y < size.height {
-                    let op = (Int(y) % 3 == 0) ? 0.055 : 0.02
-                    ctx.stroke(Path { p in p.move(to: CGPoint(x: 0, y: y)); p.addLine(to: CGPoint(x: size.width, y: y)) },
-                               with: .color(.white.opacity(op)), lineWidth: 0.5)
-                    y += 2.5
-                }
+                Self.drawBrushed(in: &ctx, size: size)
             case .wood:
-                var x: CGFloat = 4
-                var seed = 1
-                while x < size.width {
-                    let wob = CGFloat((seed * 37) % 9) - 4
-                    let op = (seed % 2 == 0) ? 0.13 : 0.06
-                    ctx.stroke(Path { p in
-                        p.move(to: CGPoint(x: x, y: 0))
-                        p.addQuadCurve(to: CGPoint(x: x + wob, y: size.height),
-                                       control: CGPoint(x: x + wob * 2, y: size.height / 2))
-                    }, with: .color(.black.opacity(op)), lineWidth: 1)
-                    x += CGFloat(5 + (seed * 13) % 7)
-                    seed += 1
-                }
+                Self.drawWood(in: &ctx, size: size)
             case .fabric:
-                let step: CGFloat = 5
-                var i: CGFloat = -size.height
-                while i < size.width {
-                    ctx.stroke(Path { p in p.move(to: CGPoint(x: i, y: 0)); p.addLine(to: CGPoint(x: i + size.height, y: size.height)) },
-                               with: .color(.white.opacity(0.028)), lineWidth: 0.6)
-                    ctx.stroke(Path { p in p.move(to: CGPoint(x: i, y: size.height)); p.addLine(to: CGPoint(x: i + size.height, y: 0)) },
-                               with: .color(.black.opacity(0.045)), lineWidth: 0.6)
-                    i += step
-                }
+                Self.drawFabric(in: &ctx, size: size)
             }
         }
         .allowsHitTesting(false)
+    }
+
+    // Each pattern draws from its own method rather than inline in the
+    // Canvas closure. Inline, the switch's mixed CGFloat/Int arithmetic
+    // and inline Path builders made this one expression slow enough to
+    // type-check (~90ms on a current compiler) to risk exceeding the
+    // limit on the older Swift the oldest supported Xcode ships. Same
+    // drawing calls in the same order with the same values — only the
+    // type-checking is split up.
+
+    private static func drawBrushed(in ctx: inout GraphicsContext, size: CGSize) {
+        var y: CGFloat = 0
+        while y < size.height {
+            let op: Double = (Int(y) % 3 == 0) ? 0.055 : 0.02
+            let line = Path { p in
+                p.move(to: CGPoint(x: 0, y: y))
+                p.addLine(to: CGPoint(x: size.width, y: y))
+            }
+            ctx.stroke(line, with: .color(.white.opacity(op)), lineWidth: 0.5)
+            y += 2.5
+        }
+    }
+
+    private static func drawWood(in ctx: inout GraphicsContext, size: CGSize) {
+        var x: CGFloat = 4
+        var seed: Int = 1
+        while x < size.width {
+            let wob: CGFloat = CGFloat((seed * 37) % 9) - 4
+            let op: Double = (seed % 2 == 0) ? 0.13 : 0.06
+            let grain = Path { p in
+                p.move(to: CGPoint(x: x, y: 0))
+                p.addQuadCurve(to: CGPoint(x: x + wob, y: size.height),
+                               control: CGPoint(x: x + wob * 2, y: size.height / 2))
+            }
+            ctx.stroke(grain, with: .color(.black.opacity(op)), lineWidth: 1)
+            x += CGFloat(5 + (seed * 13) % 7)
+            seed += 1
+        }
+    }
+
+    private static func drawFabric(in ctx: inout GraphicsContext, size: CGSize) {
+        let step: CGFloat = 5
+        var i: CGFloat = -size.height
+        while i < size.width {
+            let down = Path { p in
+                p.move(to: CGPoint(x: i, y: 0))
+                p.addLine(to: CGPoint(x: i + size.height, y: size.height))
+            }
+            ctx.stroke(down, with: .color(.white.opacity(0.028)), lineWidth: 0.6)
+            let up = Path { p in
+                p.move(to: CGPoint(x: i, y: size.height))
+                p.addLine(to: CGPoint(x: i + size.height, y: 0))
+            }
+            ctx.stroke(up, with: .color(.black.opacity(0.045)), lineWidth: 0.6)
+            i += step
+        }
     }
 }
 
