@@ -177,16 +177,16 @@ struct VinylHorizontalWidgetView: View {
             guard !isPreview else { return }
             detector.stop()
         }
-        .onChange(of: trackIdentityKey) { oldValue, newValue in
+        .onChange(of: trackIdentityKey) { newValue in
             guard !isPreview else { return }
-            handleTrackIdentityChange(oldValue: oldValue, newValue: newValue)
+            handleTrackIdentityChange(newValue: newValue)
         }
-        .onChange(of: detector.nowPlaying) { _, live in
+        .onChange(of: detector.nowPlaying) { live in
             guard !isPreview else { return }
             guard !shouldSuppressSeekHandoffUpdate(from: live) else { return }
             displayedInfo = live
         }
-        .onChange(of: detector.nowPlaying.albumArtURL) { _, newURL in
+        .onChange(of: detector.nowPlaying.albumArtURL) { newURL in
             guard !isPreview else { return }
             if newURL != nil {
                 refreshArt(forceRefresh: false)
@@ -200,7 +200,12 @@ struct VinylHorizontalWidgetView: View {
 
     // MARK: - Track transition — simple crossfade + a quick disc-shrink pulse
 
-    private func handleTrackIdentityChange(oldValue: String, newValue: String) {
+    private func handleTrackIdentityChange(newValue: String) {
+        // lastObservedTrackIdentity still holds the previous value here —
+        // it's only overwritten further down — so it stands in for the
+        // oldValue parameter the pre-macOS-14 onChange(of:perform:) can't
+        // supply directly.
+        let oldValue = lastObservedTrackIdentity
         if !hasSeenInitialTrackIdentity {
             hasSeenInitialTrackIdentity = true
             lastObservedTrackIdentity = newValue
@@ -306,8 +311,8 @@ struct VinylHorizontalWidgetView: View {
                 .offset(x: discRadius * 0.738, y: -discRadius * 0.142)
         }
         .frame(width: hDiscContainerSize, height: hDiscContainerSize)
-        .contentShape(Rectangle())
-        .onTapGesture { togglePlayback() }
+        // Tap-to-pause removed — this widget has its own pause button, so
+        // the disc stays inert and draggable. See VinylWidgetView.
     }
 
     /// Identical shapes/colours/shadows to VinylWidgetView's tonearmView —

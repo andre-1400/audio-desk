@@ -207,7 +207,7 @@ struct DesktopWidgetView: View {
                     renderBlurredBackdrop(from: art)
                 }
             }
-            .onChange(of: geo.size) { _, newSize in
+            .onChange(of: geo.size) { newSize in
                 screenSize = newSize
                 if !isCustom, blurredBodyArt == nil, let art = displayedArt {
                     renderBlurredBackdrop(from: art)
@@ -228,9 +228,12 @@ struct DesktopWidgetView: View {
             guard !isPreview else { return }
             detector.stop()
         }
-        .onChange(of: trackKey) { oldValue, newValue in
+        .onChange(of: trackKey) { newValue in
             guard !isPreview else { return }
-            guard oldValue != newValue, lastTrackKey != newValue else { return }
+            // oldValue != newValue is guaranteed by onChange itself — the
+            // real guard here is lastTrackKey (dedupes against redundant
+            // fires with the same value).
+            guard lastTrackKey != newValue else { return }
             lastTrackKey = newValue
             seekHandoffUntil = nil
             let live = detector.nowPlaying
@@ -241,12 +244,12 @@ struct DesktopWidgetView: View {
             withAnimation(.easeInOut(duration: 0.3)) { displayedInfo = live }
             refreshArt(forceRefresh: true)
         }
-        .onChange(of: detector.nowPlaying) { _, live in
+        .onChange(of: detector.nowPlaying) { live in
             guard !isPreview else { return }
             guard !shouldSuppressSeekHandoffUpdate(from: live) else { return }
             displayedInfo = live
         }
-        .onChange(of: detector.nowPlaying.albumArtURL) { _, newURL in
+        .onChange(of: detector.nowPlaying.albumArtURL) { newURL in
             guard !isPreview else { return }
             if newURL != nil {
                 refreshArt(forceRefresh: false)
@@ -389,8 +392,9 @@ struct DesktopWidgetView: View {
                     // target position, independent of disc size.
                     .offset(x: discDiameter / 2 * 0.738, y: -discDiameter / 2 * 0.142)
             }
-            .contentShape(Rectangle())
-            .onTapGesture { togglePlayback() }
+            // Tap-to-pause removed for consistency with the other widgets:
+            // playback is the pause button's job. (This one isn't about
+            // dragging — the Desktop widget is deliberately pinned.)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
             .padding(.trailing, size.width * 0.13)
 
@@ -557,8 +561,7 @@ struct DesktopWidgetView: View {
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(.white.opacity(0.14), lineWidth: 1))
             .shadow(color: .black.opacity(0.55), radius: artSide * 0.12, x: 0, y: artSide * 0.06)
-            .contentShape(Rectangle())
-            .onTapGesture { togglePlayback() }
+            // Tap-to-pause removed — playback is the pause button's job.
 
             VStack(spacing: vSpacing * 0.27) {
                 Text(np.trackName.isEmpty ? "Nothing Playing" : np.trackName)

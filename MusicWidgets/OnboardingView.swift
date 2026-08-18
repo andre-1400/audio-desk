@@ -55,7 +55,7 @@ struct WelcomeTipsCard: View {
                     .buttonStyle(.borderedProminent)
                     .tint(AMTheme.accent)
                     .controlSize(.large)
-                    .buttonBorderShape(.capsule)
+                    .clipShape(Capsule())
             }
             .padding(30)
             .frame(width: 420)
@@ -129,7 +129,7 @@ struct OnboardingView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(AMTheme.accent)
                     .controlSize(.large)
-                    .buttonBorderShape(.capsule)
+                    .clipShape(Capsule())
                     .padding(.bottom, 54)
             }
         }

@@ -289,7 +289,7 @@ struct NotchWidgetView: View {
             guard !isPreview else { return }
             detector.stop()
         }
-        .onChange(of: detector.nowPlaying) { _, live in
+        .onChange(of: detector.nowPlaying) { live in
             guard !isPreview else { return }
             guard !shouldSuppressSeekHandoffUpdate(from: live) else { return }
             displayedInfo = live

@@ -139,7 +139,7 @@ struct GalleryRoot: View {
             showSettings = true
         }
         // The very first time a widget lands on the desktop, share three quick tips.
-        .onChange(of: activeWidget.entry) { _, entry in
+        .onChange(of: activeWidget.entry) { entry in
             if entry != nil && WelcomeTips.shouldShow {
                 withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) { showTips = true }
             }
@@ -845,7 +845,7 @@ private struct GalleryDetail: View {
                 GeometryReader { g in
                     Color.clear
                         .onAppear { contentWidth = g.size.width }
-                        .onChange(of: g.size.width) { _, w in contentWidth = w }
+                        .onChange(of: g.size.width) { w in contentWidth = w }
                 }
             )
 
@@ -1028,7 +1028,7 @@ private struct CustomColorSheetView: View {
                 Button("Close") { onClose() }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
-                    .buttonBorderShape(.capsule)
+                    .clipShape(Capsule())
                     .frame(maxWidth: .infinity)
                 Button {
                     place()
@@ -1039,7 +1039,7 @@ private struct CustomColorSheetView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(accent)
                 .controlSize(.large)
-                .buttonBorderShape(.capsule)
+                .clipShape(Capsule())
                 .frame(maxWidth: .infinity)
             }
         }
@@ -1345,7 +1345,7 @@ private struct NowPlayingBar: View {
         .frame(maxWidth: .infinity)
         .neuRaised(18)
         .onAppear { loadArt(np.albumArtURL) }
-        .onChange(of: np.albumArtURL) { _, url in loadArt(url) }
+        .onChange(of: np.albumArtURL) { url in loadArt(url) }
     }
 
     // Sized/coloured to match Apple Music's own mini-player exactly: the

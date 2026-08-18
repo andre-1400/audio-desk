@@ -143,7 +143,7 @@ struct AlbumArtWidgetView: View {
             guard !isPreview else { return }
             detector.stop()
         }
-        .onChange(of: detector.nowPlaying) { _, live in
+        .onChange(of: detector.nowPlaying) { live in
             guard !isPreview else { return }
             if live.trackName != displayedInfo.trackName || live.artistName != displayedInfo.artistName {
                 seekHandoffUntil = nil
@@ -151,7 +151,7 @@ struct AlbumArtWidgetView: View {
             guard !shouldSuppressSeekHandoffUpdate(from: live) else { return }
             displayedInfo = live
         }
-        .onChange(of: np.albumArtURL) { _, _ in
+        .onChange(of: np.albumArtURL) { _ in
             guard !isPreview else { return }
             refreshArt(forceRefresh: false)
         }
@@ -279,8 +279,8 @@ struct AlbumArtWidgetView: View {
                     RoundedRectangle(cornerRadius: 13, style: .continuous)
                         .strokeBorder(miniBorder, lineWidth: 1)
                 )
-                .contentShape(Rectangle())
-                .onTapGesture { togglePlayback() }
+                // Tap-to-pause removed — this layout has its own pause
+                // button, so the art stays inert and draggable.
 
             // Was truncating to 2-3 characters on most real track names —
             // the transport buttons' tap targets (46/36pt, sized for the
@@ -342,7 +342,9 @@ struct AlbumArtWidgetView: View {
         ZStack(alignment: .bottom) {
             // The art itself IS the background now — full-bleed and sharp,
             // no blur — instead of a small inset square over a flat colour
-            // gradient. Tapping anywhere on it toggles playback.
+            // gradient. The art is inert: this layout has its own pause
+            // button, and since the art *is* the whole widget here, giving
+            // it a tap gesture meant the widget couldn't be dragged at all.
             artImage
                 .id(trackKey)
                 .transition(.opacity)
@@ -350,8 +352,6 @@ struct AlbumArtWidgetView: View {
                 .aspectRatio(contentMode: .fill)
                 .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
                 .clipped()
-                .contentShape(Rectangle())
-                .onTapGesture { togglePlayback() }
 
             // Scrim only where the UI actually sits, fading to clear above
             // it — keeps the art readable up top instead of darkening the

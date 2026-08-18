@@ -311,9 +311,9 @@ struct CDWidgetView: View {
         }
         .frame(width: model.archetype.baseSize.width, height: model.archetype.baseSize.height)
         .onAppear { if !isPreview { setup() } }
-        .onChange(of: trackKey) { _, k in if !isPreview { handleTrackChange(k) } }
-        .onChange(of: np.albumArtURL) { _, u in if !isPreview { fetchArt(u) } }
-        .onChange(of: np.isPlaying) { _, _ in optimisticPlaying = nil }
+        .onChange(of: trackKey) { k in if !isPreview { handleTrackChange(k) } }
+        .onChange(of: np.albumArtURL) { u in if !isPreview { fetchArt(u) } }
+        .onChange(of: np.isPlaying) { _ in optimisticPlaying = nil }
     }
 
     @ViewBuilder private var archetypeBody: some View {
@@ -328,7 +328,7 @@ struct CDWidgetView: View {
         CDDeck(material: mat, diameter: model.archetype.deckDiameter,
                phase: transition.phase, targetSpeed: targetSpeed,
                displayedArt: effectiveDisplayedArt, incomingArt: isPreview ? nil : incomingArt,
-               onTap: { if !isPreview { togglePlayback() } }, isStatic: isPreview && !previewSpinning)
+               isStatic: isPreview && !previewSpinning)
     }
 
     private var lcd: some View {
@@ -692,7 +692,6 @@ struct CDDeck: View {
     let targetSpeed: Double
     let displayedArt: NSImage?
     let incomingArt: NSImage?
-    var onTap: () -> Void = {}
     var isStatic: Bool = false   // gallery previews: no spin engine / TimelineView
 
     @State private var angle: Double = 0
@@ -731,8 +730,9 @@ struct CDDeck: View {
             hinge.offset(y: -dock / 2 - 3)
         }
         .frame(width: dock + 16, height: dock + 20)
-        .contentShape(Circle())
-        .onTapGesture { onTap() }
+        // Tap-to-pause removed — this widget has its own pause button, and
+        // the disc is most of its surface, so claiming it for a gesture
+        // left almost nowhere to grab the widget by. See VinylWidgetView.
     }
 
     private var discLayer: some View {
@@ -947,7 +947,7 @@ private struct SpinIntegrator: ViewModifier {
     let target: Double
     func body(content: Content) -> some View {
         TimelineView(.animation(paused: target == 0 && spinSpeed < 0.5)) { context in
-            content.onChange(of: context.date) { _, now in
+            content.onChange(of: context.date) { now in
                 let dt = min(0.05, now.timeIntervalSince(lastTick ?? now))
                 lastTick = now
                 if spinSpeed < target {

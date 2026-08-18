@@ -475,16 +475,16 @@ struct VinylWidgetView: View {
             detector.stop()
             animator.cancelAndReset()
         }
-        .onChange(of: trackIdentityKey) { oldValue, newValue in
-            handleTrackIdentityChange(oldValue: oldValue, newValue: newValue)
+        .onChange(of: trackIdentityKey) { newValue in
+            handleTrackIdentityChange(newValue: newValue)
         }
-        .onChange(of: themeManager.themeID) { _, _ in
+        .onChange(of: themeManager.themeID) { _ in
             if let art = displayedAlbumArt { updateBlurredBodyArt(from: art) }
         }
-        .onChange(of: detector.nowPlaying) { _, live in
+        .onChange(of: detector.nowPlaying) { live in
             updateDisplayedPlaybackState(from: live)
         }
-        .onChange(of: detector.nowPlaying.albumArtURL) { _, newURL in
+        .onChange(of: detector.nowPlaying.albumArtURL) { newURL in
             if let url = newURL {
                 artFetcher.fetchArt(from: url, trackKey: trackIdentityKey, forceRefresh: false) { image in
                     guard let image else { return }
@@ -513,7 +513,7 @@ struct VinylWidgetView: View {
                 }
             }
         }
-        .onChange(of: animator.revealEventID) { _, eventID in
+        .onChange(of: animator.revealEventID) { eventID in
             guard eventID != nil, let snapshot = animator.revealedIncomingSnapshot else { return }
             displayedNowPlaying = NowPlayingInfo(
                 trackName: snapshot.trackName,
@@ -721,7 +721,12 @@ struct VinylWidgetView: View {
         return true
     }
 
-    private func handleTrackIdentityChange(oldValue: String, newValue: String) {
+    private func handleTrackIdentityChange(newValue: String) {
+        // lastObservedTrackIdentity still holds the previous value here —
+        // it's only overwritten further down — so it stands in for the
+        // oldValue parameter the pre-macOS-14 onChange(of:perform:) can't
+        // supply directly.
+        let oldValue = lastObservedTrackIdentity
         // Ignore bootstrap identity churn while the detector warms up.
         if !hasSeenInitialTrackIdentity {
             hasSeenInitialTrackIdentity = true
@@ -1017,10 +1022,10 @@ struct VinylWidgetView: View {
             spindleView
         }
         .frame(width: 272, height: 272)
-        .contentShape(Circle())
-        .onTapGesture {
-            detector.togglePlayback()
-        }
+        // No tap-to-pause here on purpose: this widget has its own pause
+        // button, and claiming the whole disc for a gesture made the
+        // largest part of the widget undraggable. Leaving the disc inert
+        // lets the click fall through to WidgetWindow's drag handling.
     }
 
     // MARK: - Spindle (standard chrome dot or retro 45-adapter)
@@ -1569,7 +1574,7 @@ struct SpinningVinylView: View {
             .opacity(effectiveOpacity)
             .rotationEffect(.degrees(displayAngle))
             .drawingGroup()
-            .onChange(of: sampledAngle) { _, newAngle in
+            .onChange(of: sampledAngle) { newAngle in
                 onAngleSample?(newAngle)
             }
         }
@@ -1582,7 +1587,7 @@ struct SpinningVinylView: View {
                 spinDownToken = nil
             }
         }
-        .onChange(of: freezeRotation) { _, frozen in
+        .onChange(of: freezeRotation) { frozen in
             let now = Date()
             if frozen {
                 captureCurrentAngle(at: now)
@@ -1590,7 +1595,7 @@ struct SpinningVinylView: View {
                 playbackStartDate = now
             }
         }
-        .onChange(of: isPlaying) { _, playing in
+        .onChange(of: isPlaying) { playing in
             let now = Date()
             if freezeRotation {
                 captureCurrentAngle(at: now)

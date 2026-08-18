@@ -111,8 +111,8 @@ struct VinylSleeveView: View {
         .opacity(isVisible ? 1.0 : 0.0)
         .offset(y: isVisible ? 0 : 24)
         .onAppear { fetchArtIfNeeded() }
-        .onChange(of: track.stableIdentity) { fetchArtIfNeeded() }
-        .onChange(of: track.albumArtURL) { fetchArtIfNeeded() }
+        .onChange(of: track.stableIdentity) { _ in fetchArtIfNeeded() }
+        .onChange(of: track.albumArtURL) { _ in fetchArtIfNeeded() }
     }
 
     // MARK: - Empty slot content
