@@ -171,6 +171,11 @@
 				TargetAttributes = {
 					AA000040 = {
 						CreatedOnToolsVersion = 15.4;
+						SystemCapabilities = {
+							"com.apple.Sandbox" = {
+								enabled = 1;
+							};
+						};
 					};
 				};
 			};
