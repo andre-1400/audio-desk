@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audio Desk Support</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --text: #1c1c1e;
+    --subtext: #6e6e73;
+    --accent: #ff375f;
+    --card: #f5f5f7;
+    --border: #d2d2d7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #000000;
+      --text: #f5f5f7;
+      --subtext: #a1a1a6;
+      --card: #1c1c1e;
+      --border: #3a3a3c;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+  }
+  .icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #ff375f, #ff8a00);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin-bottom: 24px;
+  }
+  h1 {
+    font-size: 34px;
+    font-weight: 700;
+    margin: 0 0 8px;
+    letter-spacing: -0.02em;
+  }
+  .tagline {
+    color: var(--subtext);
+    font-size: 17px;
+    margin: 0 0 40px;
+  }
+  h2 {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 40px 0 12px;
+  }
+  p { margin: 0 0 12px; color: var(--text); }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px 24px;
+    margin-bottom: 12px;
+  }
+  .faq-q {
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .faq-a {
+    color: var(--subtext);
+    font-size: 15px;
+    margin: 0;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  footer {
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--subtext);
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="icon">🎵</div>
+    <h1>Audio Desk Support</h1>
+    <p class="tagline">See what's playing, right on your desktop.</p>
+
+    <h2>Contact</h2>
+    <div class="card">
+      <p>Have a question, found a bug, or have a feature request? Reach out directly:</p>
+      <p><a href="mailto:andreynizhelskii@gmail.com">andreynizhelskii@gmail.com</a></p>
+    </div>
+
+    <h2>Frequently Asked Questions</h2>
+
+    <div class="card">
+      <p class="faq-q">Where does the widget go after I close the setup window?</p>
+      <p class="faq-a">The setup window closing doesn't quit the app — look for the note icon (♪) in your menu bar. Click it any time to bring the gallery back.</p>
+    </div>
+
+    <div class="card">
+      <p class="faq-q">Can I move the widget?</p>
+      <p class="faq-a">Yes — just click and drag it anywhere on your desktop.</p>
+    </div>
+
+    <div class="card">
+      <p class="faq-q">How do I change styles or settings?</p>
+      <p class="faq-a">Right-click the widget itself, or right-click the menu bar icon, to switch styles, hide the widget, or open Settings.</p>
+    </div>
+
+    <div class="card">
+      <p class="faq-q">Which music apps does it support?</p>
+      <p class="faq-a">Audio Desk reads now-playing info from Apple Music and Spotify.</p>
+    </div>
+
+    <div class="card">
+      <p class="faq-q">Does Audio Desk collect my data?</p>
+      <p class="faq-a">No. Audio Desk runs entirely on your Mac and does not collect, transmit, or share any personal data.</p>
+    </div>
+
+    <footer>
+      &copy; 2026 Andrey Nizhelskii. All rights reserved.
+    </footer>
+  </div>
+</body>
+</html>
