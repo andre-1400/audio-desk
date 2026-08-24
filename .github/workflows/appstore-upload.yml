@@ -13,8 +13,13 @@ jobs:
 
       - name: Select Xcode
         run: |
-          sudo xcode-select -p
+          ls /Applications | grep -i Xcode
+          LATEST_XCODE=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$LATEST_XCODE" ]; then LATEST_XCODE="/Applications/Xcode.app"; fi
+          echo "Using $LATEST_XCODE"
+          sudo xcode-select -s "$LATEST_XCODE"
           xcodebuild -version
+          xcodebuild -showsdks | grep macos
 
       - name: Import signing certificates and provisioning profile
         env:
