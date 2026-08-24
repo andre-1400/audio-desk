@@ -430,6 +430,7 @@ struct SettingsView: View {
         }
         .frame(width: 460, height: 620)
         .background(VisualEffectBlur(.sheet))
+        .onAppear { startup.refresh() }
     }
 
     // Replaces the old plain "Always on top" toggle — a 3-way native
