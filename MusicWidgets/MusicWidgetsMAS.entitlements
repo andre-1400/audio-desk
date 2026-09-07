@@ -8,5 +8,17 @@
 	<true/>
 	<key>com.apple.security.network.client</key>
 	<true/>
+	<!-- Without this, the sandbox blocks Apple Events to Spotify/Music and
+	     NSAppleScript returns -600 ("Application isn't running") even while
+	     the player is running and visible to NSWorkspace. That error is not
+	     errAEEventNotPermitted, so no permission prompt is ever raised and
+	     the app never appears under Privacy & Security > Automation —
+	     leaving the widget stuck on "Nothing Playing" with nothing for the
+	     user to grant. automation.apple-events alone is not sufficient. -->
+	<key>com.apple.security.temporary-exception.apple-events</key>
+	<array>
+		<string>com.spotify.client</string>
+		<string>com.apple.Music</string>
+	</array>
 </dict>
 </plist>

@@ -166,6 +166,7 @@ private struct NotchGlyph: View {
 private struct GallerySidebar: View {
     @Binding var category: WidgetCategory
     let onSettings: () -> Void
+    @State private var showConnectGuide = false
 
     // This body is deliberately broken all the way down into small,
     // explicitly-typed pieces. As one expression it was what actually
@@ -239,6 +240,21 @@ private struct GallerySidebar: View {
         .tint(AMTheme.accent)
     }
 
+    // Sits directly above Settings because a user whose widget shows
+    // "Nothing Playing" has no other in-app route to the fix — the
+    // permission lives in System Settings, not anywhere in this app.
+    private var connectGuideButton: some View {
+        Button { showConnectGuide = true } label: {
+            Label("Connect Spotify / Music", systemImage: "app.connected.to.app.below.fill")
+                .font(.system(size: 13))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 8)
+    }
+
     private var settingsButton: some View {
         Button(action: onSettings) {
             Label("Settings", systemImage: "gearshape")
@@ -263,6 +279,7 @@ private struct GallerySidebar: View {
     // Settings + version footer, matching sidebar row language.
     private var footer: some View {
         VStack(alignment: .leading, spacing: 2) {
+            connectGuideButton
             settingsButton
 
             Text(versionLabel)
@@ -282,6 +299,9 @@ private struct GallerySidebar: View {
         .frame(width: 220)
         .frame(maxHeight: .infinity)
         .background(VisualEffectBlur(.sidebar, blendingMode: .behindWindow).ignoresSafeArea())
+        .sheet(isPresented: $showConnectGuide) {
+            StreamingSetupGuideView { showConnectGuide = false }
+        }
     }
 }
 

@@ -12,6 +12,7 @@ enum WelcomeTips {
 /// Not a tutorial wall — three tips and a button.
 struct WelcomeTipsCard: View {
     let onDismiss: () -> Void
+    @State private var showGuide = false
 
     var body: some View {
         ZStack {
@@ -41,6 +42,11 @@ struct WelcomeTipsCard: View {
                 }
 
                 VStack(alignment: .leading, spacing: 16) {
+                    // Listed first on purpose: until this is granted the
+                    // widget shows "Nothing Playing" no matter what, which
+                    // reads as a broken app rather than a missing permission.
+                    tip(icon: "checkmark.shield", title: "Say yes to the permission box",
+                        text: "macOS will ask if Audio Desk can read Spotify or Music. Click Allow — without it the widget can't see your songs.")
                     tip(icon: "music.note", title: "Find it in the menu bar",
                         text: "This window closes, the ♪ icon up top stays. Click it to come back anytime.")
                     tip(icon: "hand.draw", title: "Drag it anywhere",
@@ -50,16 +56,26 @@ struct WelcomeTipsCard: View {
                 }
                 .padding(.horizontal, 6)
 
-                Button("Got it") { onDismiss() }
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.borderedProminent)
-                    .tint(AMTheme.accent)
-                    .controlSize(.large)
-                    .clipShape(Capsule())
+                VStack(spacing: 10) {
+                    Button("Got it") { onDismiss() }
+                        .frame(maxWidth: .infinity)
+                        .buttonStyle(.borderedProminent)
+                        .tint(AMTheme.accent)
+                        .controlSize(.large)
+                        .clipShape(Capsule())
+
+                    Button("Show me how to connect Spotify or Music") { showGuide = true }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12))
+                        .foregroundStyle(AMTheme.accent)
+                }
             }
             .padding(30)
             .frame(width: 420)
             .appCard(corner: 26, elevated: true)
+        }
+        .sheet(isPresented: $showGuide) {
+            StreamingSetupGuideView { showGuide = false }
         }
     }
 
@@ -138,5 +154,128 @@ struct OnboardingView: View {
                 greetingIndex = (greetingIndex + 1) % Self.greetings.count
             }
         }
+    }
+}
+
+// MARK: - Streaming service setup guide
+
+/// macOS asks the user to approve one app reading another app's state, and
+/// until that's granted every widget sits on "Nothing Playing" — which looks
+/// identical to a broken app. The grant lives several levels deep in System
+/// Settings, so the steps are spelled out with the actual screenshots rather
+/// than described in prose, and the same content is reused in onboarding and
+/// from the sidebar so a user who skipped the intro can still find it.
+enum StreamingSetupGuide {
+
+    struct Step: Identifiable {
+        let id: Int
+        let text: String
+        let image: String
+    }
+
+    static let steps: [Step] = [
+        Step(id: 1, text: "Open System Settings and choose Privacy & Security.",
+             image: "GuidePrivacySecurity"),
+        Step(id: 2, text: "Scroll down and click Automation.",
+             image: "GuideAutomation"),
+        Step(id: 3, text: "Find Audio Desk and switch on Music and Spotify.",
+             image: "GuideToggles")
+    ]
+
+    static func openAutomationSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+}
+
+/// The full walkthrough, presented as a sheet from the sidebar.
+struct StreamingSetupGuideView: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Connect Spotify or Apple Music")
+                    .font(.appTitle)
+                    .foregroundStyle(Neu.text)
+                Spacer()
+                Button("Done", action: onDismiss)
+                    .buttonStyle(.borderedProminent)
+                    .tint(AMTheme.accent)
+                    .controlSize(.regular)
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 22)
+            .padding(.bottom, 16)
+
+            Divider().overlay(Neu.hairline)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    Text("Audio Desk shows whatever is already playing. macOS just needs your permission to read it once.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Neu.subtext)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    ForEach(StreamingSetupGuide.steps) { step in
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Text("\(step.id)")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(AMTheme.onAccent)
+                                    .frame(width: 22, height: 22)
+                                    .background(Circle().fill(AMTheme.accent))
+                                Text(step.text)
+                                    .font(.system(size: 13.5, weight: .medium))
+                                    .foregroundStyle(Neu.text)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            Image(step.image)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .stroke(Neu.hairline, lineWidth: 1)
+                                )
+                                .padding(.leading, 32)
+                        }
+                    }
+
+                    // The list is populated lazily by macOS: an app only shows
+                    // up under Automation once it has actually asked. If the
+                    // user opens Settings before that has happened, the row
+                    // they're looking for simply isn't there yet.
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(AMTheme.accent)
+                        Text("Don't see Audio Desk in that list? Start playing a song, then quit and reopen Audio Desk so macOS adds it.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(Neu.subtext)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(AMTheme.accent.opacity(0.08))
+                    )
+
+                    Button {
+                        StreamingSetupGuide.openAutomationSettings()
+                    } label: {
+                        Label("Open Automation Settings", systemImage: "arrow.up.forward.app")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                }
+                .padding(24)
+            }
+        }
+        .frame(width: 480, height: 560)
+        .background(VisualEffectBlur(.sheet))
     }
 }
