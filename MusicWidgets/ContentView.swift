@@ -245,14 +245,15 @@ private struct GallerySidebar: View {
     // permission lives in System Settings, not anywhere in this app.
     private var connectGuideButton: some View {
         Button { showConnectGuide = true } label: {
-            Label("Connect Spotify / Music", systemImage: "app.connected.to.app.below.fill")
-                .font(.system(size: 13))
+            Label("Help", systemImage: "questionmark.circle")
+                .font(.system(size: 12.5))
+                .foregroundStyle(Neu.subtext)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 18)
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
     }
 
     private var settingsButton: some View {
@@ -276,17 +277,24 @@ private struct GallerySidebar: View {
         return "Audio Desk " + (version ?? "1.0")
     }
 
-    // Settings + version footer, matching sidebar row language.
+    // Settings + version footer, matching sidebar row language. Help
+    // sits below the version line on purpose — someone whose widget looks
+    // broken because they missed/declined the streaming-service prompt is
+    // looking for a way out of that state, not browsing settings, so this
+    // is deliberately its own, separate, unmissable last row rather than
+    // grouped with Settings above it.
     private var footer: some View {
         VStack(alignment: .leading, spacing: 2) {
-            connectGuideButton
             settingsButton
 
             Text(versionLabel)
                 .font(.appCaption)
                 .foregroundStyle(Neu.subtext.opacity(0.7))
                 .padding(.horizontal, 18)
-                .padding(.bottom, 14)
+                .padding(.bottom, 10)
+
+            connectGuideButton
+                .padding(.bottom, 6)
         }
     }
 

@@ -129,7 +129,12 @@ struct NotchLayoutMetrics {
 // widely-used, field-tested configuration for exactly this kind of
 // always-on-every-space, above-the-menu-bar utility panel.
 final class NotchWidgetWindow: NSPanel {
+    private let metrics: NotchLayoutMetrics
+    private var visibleContentSize: CGSize = .zero
+    private var mouseMonitor: Any?
+
     init(metrics: NotchLayoutMetrics) {
+        self.metrics = metrics
         super.init(
             contentRect: metrics.windowFrame,
             styleMask: [.borderless, .nonactivatingPanel, .utilityWindow, .hudWindow],
@@ -148,11 +153,89 @@ final class NotchWidgetWindow: NSPanel {
         level = NSWindow.Level(Int(CGWindowLevelForKey(.mainMenuWindow)) + 3)
         collectionBehavior = [.fullScreenAuxiliary, .stationary, .canJoinAllSpaces, .ignoresCycle]
         hidesOnDeactivate = false
-        ignoresMouseEvents = false
+        // Starts click-through; corrected the instant NotchWidgetView
+        // reports its actual drawn size below. See updateClickThrough.
+        ignoresMouseEvents = true
+        startTrackingMouseForClickThrough()
+    }
+
+    deinit {
+        if let mouseMonitor {
+            NSEvent.removeMonitor(mouseMonitor)
+        }
     }
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+
+    /// Called from NotchWidgetView every time its actually-drawn content
+    /// (idle pill, expanded card, or nothing at all) changes size. The
+    /// window itself is intentionally never resized — see the doc comment
+    /// on this class's own file above — so this only changes which part of
+    /// its fixed, oversized frame is allowed to catch clicks.
+    func updateVisibleContentSize(_ size: CGSize) {
+        visibleContentSize = size
+        updateClickThrough()
+    }
+
+    // AppKit has no built-in per-region hit-testing across window
+    // boundaries: as long as ignoresMouseEvents is false, a window
+    // intercepts clicks anywhere within its frame — including the
+    // invisible margin around the idle pill/expanded card here — even
+    // where NSView.hitTest returns nil, blocking whatever real menu-bar
+    // item happens to sit underneath. The standard workaround (also used
+    // by BoringNotch, which this window's own styling already follows) is
+    // to continuously compare the live mouse location against the
+    // currently-visible content's own rect and toggle ignoresMouseEvents
+    // to match. This needs a GLOBAL monitor rather than this window's own
+    // mouseMoved: once ignoresMouseEvents flips true the window stops
+    // receiving its own events entirely, so it could never notice the
+    // mouse re-entering to flip back.
+    private func startTrackingMouseForClickThrough() {
+        mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.mouseMoved]) { [weak self] _ in
+            self?.updateClickThrough()
+        }
+    }
+
+    private func updateClickThrough() {
+        let mouseLocation = NSEvent.mouseLocation
+
+        // This window's level sits above the menu bar (needed so the
+        // expanded card can visually cover it — see this class's own doc
+        // comment), which means it always outranks a normal app window for
+        // hit-testing at any point the two overlap, independent of what
+        // the notch itself is currently showing. Left unchecked, that made
+        // this app's OWN other windows unusable wherever they happened to
+        // render under the notch's fixed screen region — e.g. the
+        // Settings sheet's Close button, or dragging it, right at the top
+        // of the screen — since the notch always won there regardless of
+        // its own visible/idle state. Any of our own other on-screen
+        // windows always takes priority over this overlay at whatever
+        // point it covers.
+        for window in NSApp.windows where window !== self && window.isVisible {
+            if window.frame.contains(mouseLocation) {
+                ignoresMouseEvents = true
+                return
+            }
+        }
+
+        guard visibleContentSize.width > 0, visibleContentSize.height > 0 else {
+            ignoresMouseEvents = true
+            return
+        }
+        // Content is centred horizontally in the window and pinned to its
+        // top edge (NotchWidgetView's own .frame(..., alignment: .top)) —
+        // matched here rather than re-derived from AppKit view geometry,
+        // so this rect can never drift out of sync with what's drawn.
+        let windowFrame = metrics.windowFrame
+        let visibleRect = CGRect(
+            x: windowFrame.midX - visibleContentSize.width / 2,
+            y: windowFrame.maxY - visibleContentSize.height,
+            width: visibleContentSize.width,
+            height: visibleContentSize.height
+        )
+        ignoresMouseEvents = !visibleRect.contains(mouseLocation)
+    }
 }
 
 // MARK: - Widget
@@ -164,6 +247,13 @@ struct NotchWidgetView: View {
     var previewInfo: NowPlayingInfo? = nil
     var previewArt: NSImage? = nil
     var previewColours: ExtractedColours? = nil
+    // Reports the currently-drawn content's size (zero when nothing is
+    // shown) so the AppKit window — fixed at the expanded footprint so
+    // resizing it never causes hit-test flicker (see NotchWidgetWindow) —
+    // can shrink its *click-catching* region to match what's actually
+    // visible, instead of the invisible margin blocking whatever real
+    // menu-bar controls sit behind it.
+    var onVisibleSizeChange: ((CGSize) -> Void)? = nil
 
     @StateObject private var detector = MusicDetector()
     @StateObject private var artFetcher = AlbumArtFetcher()
@@ -248,6 +338,17 @@ struct NotchWidgetView: View {
         // that same curve.
         .background(isVisible ? backgroundShape.fill(Color.black) : backgroundShape.fill(Color.clear))
         .clipShape(backgroundShape)
+        // Measures this same, already width/height-constrained box (idle
+        // pill, expanded card, or zero when nothing's shown) — deliberately
+        // placed before the .frame(maxWidth: .infinity...) below, which
+        // would otherwise report the full oversized window instead.
+        .background(
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { onVisibleSizeChange?(geo.size) }
+                    .onChange(of: geo.size) { onVisibleSizeChange?($0) }
+            }
+        )
         .contentShape(Rectangle())
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: expanded)
         .animation(.spring(response: 0.32, dampingFraction: 0.78), value: isActive)

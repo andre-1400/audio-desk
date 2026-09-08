@@ -162,6 +162,14 @@ struct VinylHorizontalWidgetView: View {
                     .strokeBorder(theme.widgetBorder, lineWidth: 1)
             }
         }
+        // Without compositingGroup, .shadow renders one shadow PER opaque
+        // subview in this HStack (disc, each text glyph, each transport
+        // icon, the progress bar...) instead of one clean silhouette of the
+        // whole clipped card — the muddy/off-looking shadow right at the
+        // rounded corners, where the card edge and nearby content overlap,
+        // is exactly that. Flattening to one layer first (respecting the
+        // clip above) makes the shadow trace just the card's own shape.
+        .compositingGroup()
         .shadow(color: .black.opacity(theme.showBody ? 0.32 : 0), radius: 16, x: 0, y: 9)
         .onAppear {
             guard !isPreview else { return }
