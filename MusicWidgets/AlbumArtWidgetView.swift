@@ -74,6 +74,16 @@ struct AlbumArtWidgetView: View {
     @State private var seekHandoffUntil: Date?
     private let seekHandoffSuppressionDuration = 0.45
 
+    // Compact/Circle have no separate transport buttons — playback used to
+    // toggle via a tap gesture spanning the whole art, but since the art
+    // *is* the entire widget in these two layouts, that gesture consumed
+    // every mouseDown and left nothing for WidgetWindow's drag handling to
+    // fall through to, making the widget undraggable. A hover-revealed
+    // button (same idea as the widget's own close button) keeps the art
+    // itself inert so the window drags normally, while still visible only
+    // when the mouse is already there to press it.
+    @State private var isHoveringArt = false
+
     private var np: NowPlayingInfo { isPreview ? (previewInfo ?? .empty) : displayedInfo }
     private var art: NSImage {
         (isPreview ? previewArt : displayedArt) ?? FallbackCoverArtGenerator.fallbackImage
@@ -174,25 +184,37 @@ struct AlbumArtWidgetView: View {
     // MARK: - Compact (220x220) — literally just the art
 
     private var compactLayout: some View {
-        artImage
-            .id(trackKey)
-            .transition(.opacity)
-            .animation(.easeInOut(duration: 0.3), value: trackKey)
-            // Explicit frame right at the image, before clipping — every
-            // layout in this file pins its own art frame here rather than
-            // relying on the outer body-level frame. Without this, one track
-            // whose fetched art reported an unusual intrinsic size (e.g. a
-            // non-square source image) briefly rendered at that image's own
-            // proportions before the outer frame ever got a say, clipping
-            // the rounded corners against the wrong rectangle.
-            .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
-            .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .onTapGesture { togglePlayback() }
+        ZStack {
+            artImage
+                .id(trackKey)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.3), value: trackKey)
+                // Explicit frame right at the image, before clipping — every
+                // layout in this file pins its own art frame here rather than
+                // relying on the outer body-level frame. Without this, one track
+                // whose fetched art reported an unusual intrinsic size (e.g. a
+                // non-square source image) briefly rendered at that image's own
+                // proportions before the outer frame ever got a say, clipping
+                // the rounded corners against the wrong rectangle.
+                .frame(width: model.size.baseSize.width, height: model.size.baseSize.height)
+                .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                )
+                // No tap gesture here on purpose — see isHoveringArt's
+                // declaration. Leaving the art inert lets a press anywhere
+                // on it fall through to WidgetWindow's drag handling.
+
+            transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 22, prominent: true,
+                             primaryColor: .white, secondaryColor: .white, tapTarget: 46) { togglePlayback() }
+                .background(Circle().fill(Color.black.opacity(0.35)))
+                .opacity(isHoveringArt ? 1 : 0)
+                .allowsHitTesting(isHoveringArt)
+                .animation(.easeOut(duration: 0.18), value: isHoveringArt)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .onHover { isHoveringArt = $0 }
     }
 
     // MARK: - Circle (200x200) — round art + a live progress ring
@@ -217,8 +239,20 @@ struct AlbumArtWidgetView: View {
                     .frame(width: circleArtRadius * 2, height: circleArtRadius * 2)
                     .clipShape(Circle())
                     .overlay(Circle().strokeBorder(circleSecondary.opacity(0.6), lineWidth: 1))
+                    // No tap gesture here on purpose — see isHoveringArt's
+                    // declaration. Leaving the art inert lets a press
+                    // anywhere on it fall through to WidgetWindow's drag
+                    // handling.
                     .contentShape(Circle())
-                    .onTapGesture { togglePlayback() }
+                    .onHover { isHoveringArt = $0 }
+                    .overlay {
+                        transportButton(np.isPlaying ? "pause.fill" : "play.fill", size: 20, prominent: true,
+                                         primaryColor: .white, secondaryColor: .white, tapTarget: 40) { togglePlayback() }
+                            .background(Circle().fill(Color.black.opacity(0.35)))
+                            .opacity(isHoveringArt ? 1 : 0)
+                            .allowsHitTesting(isHoveringArt)
+                            .animation(.easeOut(duration: 0.18), value: isHoveringArt)
+                    }
 
                 // The one widget in the family that shows playback position
                 // as a ring instead of a bar — there's no room for one here,

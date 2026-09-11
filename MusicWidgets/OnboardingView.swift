@@ -47,8 +47,6 @@ struct WelcomeTipsCard: View {
                     // reads as a broken app rather than a missing permission.
                     tip(icon: "checkmark.shield", title: "Say yes to the permission box",
                         text: "macOS will ask if Audio Desk can read Spotify or Music. Click Allow — without it the widget can't see your songs.")
-                    tip(icon: "music.note", title: "Find it in the menu bar",
-                        text: "This window closes, the ♪ icon up top stays. Click it to come back anytime.")
                     tip(icon: "hand.draw", title: "Drag it anywhere",
                         text: "Grab the widget and place it wherever it looks best on your desktop.")
                     tip(icon: "cursorarrow.click.2", title: "Right-click for quick controls",

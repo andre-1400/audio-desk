@@ -1039,27 +1039,15 @@ struct DesktopWidgetChrome: ViewModifier {
             .contentShape(Rectangle())
             .onHover { hovered = $0 }
             .overlay(alignment: .topLeading) {
-                closeButton
-                    .padding(cornerInset * sizeManager.scale + 6)
-            }
-            .overlay(alignment: .topLeading) {
-                // The button above only responds to hover/clicks while
-                // `hovered` is already true (allowsHitTesting(hovered) in
-                // closeButton, so an invisible button doesn't steal clicks
-                // meant for the widget underneath it the rest of the
-                // time) — but `hovered` itself comes from onHover on this
-                // whole widget's rectangular content shape, which ends
-                // exactly at the button's own corner. Aiming precisely for
-                // the small 16pt button meant the cursor could cross that
-                // boundary right as it arrived, dropping `hovered` to
-                // false and making the button vanish and stop accepting
-                // clicks in the same instant — forcing a rushed re-click.
-                // This catcher is sized generously around that same
-                // corner, always listening regardless of `hovered` (never
-                // hit-test-gated, so it can't hit the same chicken-and-egg
-                // problem), and simply keeps `hovered` true as long as the
-                // cursor is anywhere near the button — the button itself,
-                // and its actual click handling, are unchanged.
+                // Sits below the close button in this same corner (added
+                // first, so the button's own overlay below draws on top of
+                // it and keeps receiving clicks) — always listening
+                // regardless of `hovered` (never hit-test-gated, so it
+                // can't hit the same chicken-and-egg problem where hover
+                // and click fight over the same boundary), and simply
+                // keeps `hovered` true as long as the cursor is anywhere
+                // near the button. The button itself, and its actual click
+                // handling, are unchanged.
                 Color.clear
                     .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
@@ -1067,6 +1055,10 @@ struct DesktopWidgetChrome: ViewModifier {
                     .onHover { isNear in
                         if isNear { hovered = true }
                     }
+            }
+            .overlay(alignment: .topLeading) {
+                closeButton
+                    .padding(cornerInset * sizeManager.scale + 6)
             }
             .contextMenu {
                 Button {
